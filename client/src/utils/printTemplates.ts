@@ -1,5 +1,5 @@
 // ===== قوالب الطباعة الرسمية (23 نموذج) =====
-import { toIndic, escapeHtml, shortenName, getFormTemplateCSS, buildLetterheadHtml, adjustAllFields } from './printUtils';
+import { toIndic, escapeHtml, shortenName, getFormTemplateCSS, getSharedPrintCSS, buildLetterheadHtml, adjustAllFields } from './printUtils';
 
 // ===== أنواع البيانات =====
 export interface PrintFormData {
@@ -1870,6 +1870,154 @@ function makeEditable(doc: Document): void {
   const style = doc.createElement('style');
   style.textContent = '@media print { #edit-toolbar { display:none !important; } }';
   doc.head.appendChild(style);
+}
+
+// ==========================================================================
+// ===== كشوف الطباعة الموحدة (تقارير القوائم) — التنسيق الرسمي المعتمد =====
+// ==========================================================================
+
+/** واجهة بيانات صف في كشوف القوائم */
+export interface ListReportRow {
+  cells: string[];   // خلايا الصف (HTML مسموح)
+  isSeparator?: boolean; // صف فاصل بين الفصول
+  isGroupHeader?: boolean; // صف عنوان مجموعة (فصل)
+  groupLabel?: string; // نص عنوان المجموعة
+  groupCount?: number; // عدد أفراد المجموعة
+}
+
+/** واجهة إعدادات الكشف */
+export interface ListReportConfig {
+  title: string;                    // عنوان التقرير
+  subtitle?: string;                // عنوان فرعي (المرحلة مثلاً)
+  dateText: string;                 // نص التاريخ
+  statsBar?: string;                // شريط إحصائيات HTML (اختياري)
+  headers: { label: string; width?: string }[]; // أعمدة الجدول
+  rows: ListReportRow[];            // صفوف البيانات
+  summary?: string;                 // ملخص أسفل الجدول (HTML)
+  signatures?: boolean;             // إظهار التوقيعات الثلاثية (الافتراضي: true)
+  headerBg?: string;                // لون خلفية رأس الجدول (الافتراضي: #ea580c)
+}
+
+/** طباعة كشف قائمة موحد بالتنسيق الرسمي المعتمد */
+export function printListReport(config: ListReportConfig, settings: SchoolSettings): void {
+  const letterheadHtml = buildLetterheadHtml(settings);
+  const css = getSharedPrintCSS();
+  const headerBg = config.headerBg || '#ea580c';
+  const showSigs = config.signatures !== false;
+
+  // بناء أعمدة الرأس
+  const headerCells = config.headers.map(h =>
+    `<th class="col-header" style="${h.width ? 'width:' + h.width : ''}">${escapeHtml(h.label)}</th>`
+  ).join('');
+
+  // بناء الصفوف
+  let rowsHtml = '';
+  for (const row of config.rows) {
+    if (row.isSeparator) {
+      rowsHtml += `<tr class="sep-row"><td colspan="${config.headers.length}"></td></tr>`;
+    } else if (row.isGroupHeader) {
+      rowsHtml += `<tr style="background:#f5f5f5;font-weight:700"><td colspan="${config.headers.length}" style="padding:8px;font-size:12pt;border:1px solid #000">${escapeHtml(row.groupLabel || '')}${row.groupCount !== undefined ? ' (' + toIndic(row.groupCount) + ')' : ''}</td></tr>`;
+    } else {
+      rowsHtml += '<tr>' + row.cells.map(c => `<td class="data-cell">${c}</td>`).join('') + '</tr>';
+    }
+  }
+
+  // بناء شريط الإحصائيات
+  const statsHtml = config.statsBar
+    ? `<div style="border:2px solid #333;padding:8px 15px;margin:8px 0;font-size:13pt;font-weight:bold;text-align:center">${config.statsBar}</div>`
+    : '';
+
+  // بناء الملخص
+  const summaryHtml = config.summary
+    ? `<div style="border:2px solid #333;padding:10px 15px;margin-top:12px;font-weight:bold;font-size:13pt">${config.summary}</div>`
+    : '';
+
+  // بناء التوقيعات الثلاثية
+  const signaturesHtml = showSigs
+    ? `<div class="footer-block"><table style="width:100%;margin-top:30px;border:none"><tr>
+        <td style="border:none;width:33%;text-align:center;vertical-align:top"><strong>وكيل شؤون الطلاب</strong><br><span class="with-dots" style="min-width:120px"></span></td>
+        <td style="border:none;width:33%;text-align:center;vertical-align:top"><strong>المرشد الطلابي</strong><br><span class="with-dots" style="min-width:120px"></span></td>
+        <td style="border:none;width:33%;text-align:center;vertical-align:top"><strong>مدير المدرسة</strong><br><span class="with-dots" style="min-width:120px"></span></td>
+      </tr></table></div>`
+    : '';
+
+  const html = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">`
+    + `<title>${escapeHtml(config.title)}</title>`
+    + `<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Traditional+Arabic&display=swap" rel="stylesheet">`
+    + `<style>${css}
+      .report-header-row th { background:${headerBg};color:white;padding:8px;font-weight:bold;font-size:13pt;border:1px solid #000 }
+    </style></head><body>`
+    + `<table class="main-table"><thead>`
+    + `<tr><td colspan="${config.headers.length}" class="header-cell">`
+    + letterheadHtml
+    + `<div class="form-title">${escapeHtml(config.title)}</div>`
+    + (config.subtitle ? `<div class="form-subtitle">${escapeHtml(config.subtitle)}</div>` : '')
+    + `<div class="form-date">${escapeHtml(config.dateText)}</div>`
+    + statsHtml
+    + `</td></tr>`
+    + `<tr class="report-header-row">${headerCells}</tr>`
+    + `</thead>`
+    + `<tbody>${rowsHtml}</tbody></table>`
+    + summaryHtml
+    + signaturesHtml
+    + `</body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => win.print(), 300);
+}
+
+/** طباعة تقرير مفصل واحد (إشعار تواصل) — التنسيق الرسمي */
+export interface SingleDetailConfig {
+  title: string;
+  fields: { label: string; value: string; ltr?: boolean }[];
+  messageTitle?: string;
+  messageBody?: string;
+  dateText: string;
+}
+
+export function printSingleDetail(config: SingleDetailConfig, settings: SchoolSettings): void {
+  const letterheadHtml = buildLetterheadHtml(settings);
+  const css = getSharedPrintCSS();
+
+  const fieldsHtml = config.fields.map(f =>
+    `<tr><td style="background:#f5f5f5;font-weight:bold;width:25%;border:1px solid #ddd;padding:8px">${escapeHtml(f.label)}</td>`
+    + `<td style="border:1px solid #ddd;padding:8px${f.ltr ? ';direction:ltr;text-align:right' : ''}">${escapeHtml(f.value)}</td></tr>`
+  ).join('');
+
+  const msgHtml = config.messageBody
+    ? `<div style="border:1px solid #ccc;padding:15px;border-radius:5px;background:#fafafa;margin-top:15px">
+        <div style="font-weight:bold;margin-bottom:10px;color:#555;font-size:14pt">${escapeHtml(config.messageTitle || 'نص الرسالة:')}</div>
+        <div style="white-space:pre-wrap;line-height:1.8;font-size:13pt">${escapeHtml(config.messageBody).replace(/\n/g, '<br>')}</div>
+      </div>`
+    : '';
+
+  const html = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">`
+    + `<title>${escapeHtml(config.title)}</title>`
+    + `<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Traditional+Arabic&display=swap" rel="stylesheet">`
+    + `<style>${css}
+      @page{size:A4 portrait;margin:1.0cm}
+      .page{max-width:210mm;margin:0 auto;padding:1.5cm}
+    </style></head><body>`
+    + `<div class="page">`
+    + letterheadHtml
+    + `<div class="form-title">${escapeHtml(config.title)}</div>`
+    + `<table style="width:100%;margin-bottom:20px;font-size:14pt">${fieldsHtml}</table>`
+    + msgHtml
+    + `<div style="margin-top:40px;display:flex;justify-content:space-between;font-size:14pt;font-weight:bold">`
+    + `<div>وكيل شؤون الطلاب: <span class="with-dots" style="min-width:120px"></span></div>`
+    + `<div>التاريخ: ${escapeHtml(config.dateText)}</div>`
+    + `</div></div></body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => win.print(), 300);
 }
 
 // ===== الدالة الرئيسية: طباعة نموذج =====

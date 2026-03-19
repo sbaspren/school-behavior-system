@@ -3,7 +3,8 @@ import toast from 'react-hot-toast';
 import { communicationApi } from '../api/communication';
 import { settingsApi, StageConfigData } from '../api/settings';
 import { SETTINGS_STAGES } from '../utils/constants';
-import { escapeHtml, buildLetterheadHtml, getSharedPrintCSS, getFormTemplateCSS, toIndic, openPrintWindow, getTodayDates } from '../utils/printUtils';
+import { escapeHtml, toIndic, getTodayDates } from '../utils/printUtils';
+import { printListReport, printSingleDetail, ListReportRow } from '../utils/printTemplates';
 
 const MESSAGE_TYPES: Record<string, { label: string; color: string; bg: string }> = {
   'واتساب': { label: 'واتساب', color: '#16a34a', bg: '#dcfce7' },
@@ -152,89 +153,51 @@ const CommunicationPage: React.FC = () => {
   const handlePrint = () => {
     if (filtered.length === 0) { toast.error('لا توجد بيانات للطباعة'); return; }
     const { hijri } = getTodayDates();
-    const letterheadHtml = buildLetterheadHtml(schoolSettings);
     const stgName = stageFilter !== '__all__' ? stageLabel(stageFilter) : '';
 
-    const rows = filtered.map((rec, i) => {
+    const rows: ListReportRow[] = filtered.map((rec, i) => {
       const statusColor = (rec.sendStatus || '').includes('تم') ? 'green' : '#999';
       const statusText = (rec.sendStatus || '').includes('تم') ? '✓' : '✗';
-      return `<tr>
-        <td class="data-cell">${toIndic(i + 1)}</td>
-        <td class="data-cell">${escapeHtml(rec.hijriDate)}</td>
-        <td class="name-cell">${escapeHtml(rec.studentName)}</td>
-        <td class="data-cell">${escapeHtml(rec.grade)}/${escapeHtml(rec.className)}</td>
-        <td class="data-cell" style="direction:ltr;font-size:11pt">${escapeHtml(rec.mobile)}</td>
-        <td class="data-cell">${escapeHtml(rec.messageType)}</td>
-        <td class="data-cell" style="color:${statusColor};font-weight:bold">${statusText}</td>
-      </tr>`;
-    }).join('');
+      return { cells: [
+        toIndic(i + 1),
+        escapeHtml(rec.hijriDate),
+        `<span style="font-weight:bold;text-align:right">${escapeHtml(rec.studentName)}</span>`,
+        `${escapeHtml(rec.grade)}/${escapeHtml(rec.className)}`,
+        `<span style="direction:ltr;font-size:11pt">${escapeHtml(rec.mobile)}</span>`,
+        escapeHtml(rec.messageType),
+        `<span style="color:${statusColor};font-weight:bold">${statusText}</span>`,
+      ] };
+    });
 
-    const headers = `<th class="col-header" style="width:5%">م</th><th class="col-header" style="width:12%">التاريخ</th><th class="col-header" style="width:24%">اسم الطالب</th><th class="col-header" style="width:10%">الصف</th><th class="col-header" style="width:14%">الجوال</th><th class="col-header" style="width:18%">النوع</th><th class="col-header" style="width:7%">الحالة</th>`;
-
-    const html = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">
-      <title>سجل التواصل</title>
-      <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap" rel="stylesheet">
-      <style>${getSharedPrintCSS()}</style></head><body>
-      <table class="main-table"><thead>
-        <tr><td colspan="7" class="header-cell">
-          ${letterheadHtml}
-          <div class="form-title">سجل التواصل مع أولياء الأمور</div>
-          ${stgName ? `<div class="form-subtitle">${escapeHtml(stgName)}</div>` : ''}
-          <div class="form-date">${hijri} | عدد الرسائل: ${toIndic(filtered.length)}</div>
-        </td></tr>
-        <tr>${headers}</tr>
-      </thead>
-      <tbody>${rows}</tbody></table>
-      <div class="footer-block"><div class="footer-flex">
-        <div>المجموع: ${toIndic(filtered.length)} رسالة</div>
-        <div style="text-align:center"><strong>وكيل شؤون الطلاب</strong><br><span class="with-dots"></span></div>
-      </div></div></body></html>`;
-
-    openPrintWindow(html);
+    printListReport({
+      title: 'سجل التواصل مع أولياء الأمور',
+      subtitle: stgName || undefined,
+      dateText: `${hijri} | عدد الرسائل: ${toIndic(filtered.length)}`,
+      headers: [
+        { label: 'م', width: '5%' }, { label: 'التاريخ', width: '12%' }, { label: 'اسم الطالب', width: '24%' },
+        { label: 'الصف', width: '10%' }, { label: 'الجوال', width: '14%' }, { label: 'النوع', width: '18%' }, { label: 'الحالة', width: '7%' },
+      ],
+      rows,
+      summary: `المجموع: ${toIndic(filtered.length)} رسالة`,
+    }, schoolSettings as any);
   };
 
   const handlePrintSingle = (rec: CommRow) => {
     const { hijri } = getTodayDates();
-    const letterheadHtml = buildLetterheadHtml(schoolSettings);
-
-    const html = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">
-      <title>إشعار تواصل</title>
-      <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap" rel="stylesheet">
-      <style>
-        @page{size:A4 portrait;margin:1.0cm}
-        body{margin:0;padding:0;font-family:"Traditional Arabic","Amiri",serif;font-size:16pt;direction:rtl;background:white;color:#000}
-        .page{max-width:210mm;margin:0 auto;padding:1.5cm}
-        .form-title{text-align:center;font-size:19pt;font-weight:bold;font-family:"Amiri",serif;margin:5mm 0 8mm}
-        .info-table{width:100%;margin-bottom:20px;font-size:14pt}
-        .info-table td{padding:8px}
-        .info-table .lbl{background:#f5f5f5;font-weight:bold;width:25%;border:1px solid #ddd}
-        .info-table .val{border:1px solid #ddd}
-        .msg-box{border:1px solid #ccc;padding:15px;border-radius:5px;background:#fafafa;margin-top:15px}
-        .msg-title{font-weight:bold;margin-bottom:10px;color:#555;font-size:14pt}
-        .msg-body{white-space:pre-wrap;line-height:1.8;font-size:13pt}
-        .footer{margin-top:40px;display:flex;justify-content:space-between;font-size:14pt;font-weight:bold}
-        .with-dots{border-bottom:1px dotted #999;display:inline-block;min-width:120px;min-height:22px}
-      </style></head><body>
-      <div class="page">
-        ${letterheadHtml}
-        <div class="form-title">إشعار تواصل مع ولي الأمر</div>
-        <table class="info-table">
-          <tr><td class="lbl">اسم الطالب:</td><td class="val">${escapeHtml(rec.studentName)}</td></tr>
-          <tr><td class="lbl">الصف:</td><td class="val">${escapeHtml(rec.grade)} / ${escapeHtml(rec.className)}</td></tr>
-          <tr><td class="lbl">رقم الجوال:</td><td class="val" style="direction:ltr;text-align:right">${escapeHtml(rec.mobile)}</td></tr>
-          <tr><td class="lbl">تاريخ الإرسال:</td><td class="val">${escapeHtml(rec.hijriDate)} - ${escapeHtml(rec.time)}</td></tr>
-          <tr><td class="lbl">نوع الرسالة:</td><td class="val">${escapeHtml(rec.messageType)}</td></tr>
-          <tr><td class="lbl">حالة الإرسال:</td><td class="val">${escapeHtml(rec.sendStatus)}</td></tr>
-        </table>
-        <div class="msg-box"><div class="msg-title">نص الرسالة:</div>
-          <div class="msg-body">${escapeHtml(rec.messageBody).replace(/\n/g, '<br>')}</div></div>
-        <div class="footer">
-          <div>وكيل شؤون الطلاب: <span class="with-dots"></span></div>
-          <div>التاريخ: ${hijri}</div>
-        </div>
-      </div></body></html>`;
-
-    openPrintWindow(html);
+    printSingleDetail({
+      title: 'إشعار تواصل مع ولي الأمر',
+      dateText: hijri,
+      fields: [
+        { label: 'اسم الطالب:', value: rec.studentName },
+        { label: 'الصف:', value: `${rec.grade} / ${rec.className}` },
+        { label: 'رقم الجوال:', value: rec.mobile, ltr: true },
+        { label: 'تاريخ الإرسال:', value: `${rec.hijriDate} - ${rec.time}` },
+        { label: 'نوع الرسالة:', value: rec.messageType },
+        { label: 'حالة الإرسال:', value: rec.sendStatus },
+      ],
+      messageTitle: 'نص الرسالة:',
+      messageBody: rec.messageBody,
+    }, schoolSettings as any);
   };
 
   const handleExport = async () => {

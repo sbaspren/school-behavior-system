@@ -1,8 +1,8 @@
-// ===== طباعة الكشوف اليومية (6 أنواع) =====
+// ===== طباعة الكشوف اليومية (6 أنواع) — موحّد عبر printListReport =====
 import {
-  toIndic, escapeHtml, formatClass, openPrintWindow,
-  buildLetterheadHtml, getSharedPrintCSS, getTodayDates, extractTime, sortByClass,
+  toIndic, escapeHtml, formatClass, getTodayDates, extractTime, sortByClass,
 } from './printUtils';
+import { printListReport, ListReportRow } from './printTemplates';
 
 interface SchoolSettings {
   letterheadMode: string;
@@ -21,9 +21,8 @@ interface DailyConfig {
   nameField: string;
   gradeField: string;
   classField: string;
-  colCount: number;
-  headers: string;
-  buildRow: (rec: Record<string, unknown>, i: number, g: { grade: string; cls: string }, stage?: string) => string;
+  headers: { label: string; width?: string }[];
+  buildCells: (rec: Record<string, unknown>, i: number, g: { grade: string; cls: string }, stage?: string) => string[];
 }
 
 function getField(rec: Record<string, unknown>, name: string): string {
@@ -33,6 +32,10 @@ function getField(rec: Record<string, unknown>, name: string): string {
   return '';
 }
 
+function sentIcon(isSent: boolean): string {
+  return `<span style="color:${isSent ? 'green' : '#999'};font-weight:bold">${isSent ? 'تم' : '-'}</span>`;
+}
+
 const DAILY_CONFIGS: Record<string, DailyConfig> = {
   violations: {
     titlePrefix: 'سجل المخالفات السلوكية ليوم ',
@@ -40,25 +43,19 @@ const DAILY_CONFIGS: Record<string, DailyConfig> = {
     nameField: 'studentName',
     gradeField: 'grade',
     classField: 'className',
-    colCount: 7,
-    headers:
-      '<th class="col-header" style="width:5%">م</th>'
-      + '<th class="col-header" style="width:28%">اسم الطالب</th>'
-      + '<th class="col-header" style="width:10%">الصف</th>'
-      + '<th class="col-header" style="width:25%">المخالفة</th>'
-      + '<th class="col-header" style="width:5%">د</th>'
-      + '<th class="col-header" style="width:20%">الإجراءات</th>'
-      + '<th class="col-header" style="width:7%">التواصل</th>',
-    buildRow: (rec, i, g) => {
-      const isSent = rec.isSent === true;
-      return `<td class="data-cell">${toIndic(i + 1)}</td>`
-        + `<td class="name-cell">${escapeHtml(getField(rec, 'studentName') || '-')}</td>`
-        + `<td class="data-cell">${formatClass(g.grade, g.cls)}</td>`
-        + `<td class="detail-cell">${escapeHtml(getField(rec, 'description') || '-')}</td>`
-        + `<td class="data-cell">${toIndic(getField(rec, 'degree') || '-')}</td>`
-        + `<td class="detail-cell">${escapeHtml(getField(rec, 'procedures') || '-')}</td>`
-        + `<td class="data-cell" style="color:${isSent ? 'green' : '#999'};font-weight:bold">${isSent ? 'تم' : '-'}</td>`;
-    },
+    headers: [
+      { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '28%' }, { label: 'الصف', width: '10%' },
+      { label: 'المخالفة', width: '25%' }, { label: 'د', width: '5%' }, { label: 'الإجراءات', width: '20%' }, { label: 'التواصل', width: '7%' },
+    ],
+    buildCells: (rec, i, g) => [
+      toIndic(i + 1),
+      `<span style="font-weight:bold;text-align:right">${escapeHtml(getField(rec, 'studentName') || '-')}</span>`,
+      formatClass(g.grade, g.cls),
+      `<span style="text-align:right;font-size:12pt">${escapeHtml(getField(rec, 'description') || '-')}</span>`,
+      toIndic(getField(rec, 'degree') || '-'),
+      `<span style="text-align:right;font-size:12pt">${escapeHtml(getField(rec, 'procedures') || '-')}</span>`,
+      sentIcon(rec.isSent === true),
+    ],
   },
 
   absence: {
@@ -67,24 +64,21 @@ const DAILY_CONFIGS: Record<string, DailyConfig> = {
     nameField: 'studentName',
     gradeField: 'grade',
     classField: 'className',
-    colCount: 6,
-    headers:
-      '<th class="col-header" style="width:5%">م</th>'
-      + '<th class="col-header" style="width:28%">اسم الطالب</th>'
-      + '<th class="col-header" style="width:10%">الصف</th>'
-      + '<th class="col-header" style="width:15%">المسجّل</th>'
-      + '<th class="col-header" style="width:15%">العذر</th>'
-      + '<th class="col-header" style="width:7%">التواصل</th>',
-    buildRow: (rec, i, g) => {
+    headers: [
+      { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '28%' }, { label: 'الصف', width: '10%' },
+      { label: 'المسجّل', width: '15%' }, { label: 'العذر', width: '15%' }, { label: 'التواصل', width: '7%' },
+    ],
+    buildCells: (rec, i, g) => {
       let teacher = getField(rec, 'recordedBy') || '-';
       if (teacher === '-' || teacher === 'مدير_النظام' || teacher === 'يدوي') teacher = 'الوكيل';
-      const isSent = rec.isSent === true;
-      return `<td class="data-cell">${toIndic(i + 1)}</td>`
-        + `<td class="name-cell">${escapeHtml(getField(rec, 'studentName') || '-')}</td>`
-        + `<td class="data-cell">${formatClass(g.grade, g.cls)}</td>`
-        + `<td class="data-cell">${escapeHtml(teacher)}</td>`
-        + `<td class="data-cell">${escapeHtml(getField(rec, 'excuseType') || '-')}</td>`
-        + `<td class="data-cell" style="color:${isSent ? 'green' : '#999'};font-weight:bold">${isSent ? 'تم' : '-'}</td>`;
+      return [
+        toIndic(i + 1),
+        `<span style="font-weight:bold;text-align:right">${escapeHtml(getField(rec, 'studentName') || '-')}</span>`,
+        formatClass(g.grade, g.cls),
+        escapeHtml(teacher),
+        escapeHtml(getField(rec, 'excuseType') || '-'),
+        sentIcon(rec.isSent === true),
+      ];
     },
   },
 
@@ -94,25 +88,19 @@ const DAILY_CONFIGS: Record<string, DailyConfig> = {
     nameField: 'studentName',
     gradeField: 'grade',
     classField: 'className',
-    colCount: 7,
-    headers:
-      '<th class="col-header" style="width:5%">م</th>'
-      + '<th class="col-header" style="width:28%">اسم الطالب</th>'
-      + '<th class="col-header" style="width:10%">الصف</th>'
-      + '<th class="col-header" style="width:15%">نوع التأخر</th>'
-      + '<th class="col-header" style="width:8%">الحصة</th>'
-      + '<th class="col-header" style="width:12%">الوقت</th>'
-      + '<th class="col-header" style="width:7%">التواصل</th>',
-    buildRow: (rec, i, g) => {
-      const isSent = rec.isSent === true;
-      return `<td class="data-cell">${toIndic(i + 1)}</td>`
-        + `<td class="name-cell">${escapeHtml(getField(rec, 'studentName') || '-')}</td>`
-        + `<td class="data-cell">${formatClass(g.grade, g.cls)}</td>`
-        + `<td class="data-cell">${escapeHtml(getField(rec, 'tardinessType') || 'صباحي')}</td>`
-        + `<td class="data-cell">${toIndic(getField(rec, 'period') || '-')}</td>`
-        + `<td class="data-cell">${toIndic(extractTime(getField(rec, 'recordedAt')))}</td>`
-        + `<td class="data-cell" style="color:${isSent ? 'green' : '#999'};font-weight:bold">${isSent ? 'تم' : '-'}</td>`;
-    },
+    headers: [
+      { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '28%' }, { label: 'الصف', width: '10%' },
+      { label: 'نوع التأخر', width: '15%' }, { label: 'الحصة', width: '8%' }, { label: 'الوقت', width: '12%' }, { label: 'التواصل', width: '7%' },
+    ],
+    buildCells: (rec, i, g) => [
+      toIndic(i + 1),
+      `<span style="font-weight:bold;text-align:right">${escapeHtml(getField(rec, 'studentName') || '-')}</span>`,
+      formatClass(g.grade, g.cls),
+      escapeHtml(getField(rec, 'tardinessType') || 'صباحي'),
+      toIndic(getField(rec, 'period') || '-'),
+      toIndic(extractTime(getField(rec, 'recordedAt'))),
+      sentIcon(rec.isSent === true),
+    ],
   },
 
   permissions: {
@@ -121,27 +109,23 @@ const DAILY_CONFIGS: Record<string, DailyConfig> = {
     nameField: 'studentName',
     gradeField: 'grade',
     classField: 'className',
-    colCount: 8,
-    headers:
-      '<th class="col-header" style="width:5%">م</th>'
-      + '<th class="col-header" style="width:25%">اسم الطالب</th>'
-      + '<th class="col-header" style="width:10%">الصف</th>'
-      + '<th class="col-header" style="width:10%">وقت الخروج</th>'
-      + '<th class="col-header" style="width:18%">السبب</th>'
-      + '<th class="col-header" style="width:12%">المستلم</th>'
-      + '<th class="col-header" style="width:10%">التأكيد</th>'
-      + '<th class="col-header" style="width:7%">التواصل</th>',
-    buildRow: (rec, i, g) => {
-      const isSent = rec.isSent === true;
+    headers: [
+      { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '25%' }, { label: 'الصف', width: '10%' },
+      { label: 'وقت الخروج', width: '10%' }, { label: 'السبب', width: '18%' }, { label: 'المستلم', width: '12%' },
+      { label: 'التأكيد', width: '10%' }, { label: 'التواصل', width: '7%' },
+    ],
+    buildCells: (rec, i, g) => {
       const confirmTime = getField(rec, 'confirmTime');
-      return `<td class="data-cell">${toIndic(i + 1)}</td>`
-        + `<td class="name-cell">${escapeHtml(getField(rec, 'studentName') || '-')}</td>`
-        + `<td class="data-cell">${formatClass(g.grade, g.cls)}</td>`
-        + `<td class="data-cell">${toIndic(getField(rec, 'exitTime') || '-')}</td>`
-        + `<td class="detail-cell">${escapeHtml(getField(rec, 'reason') || '-')}</td>`
-        + `<td class="data-cell">${escapeHtml(getField(rec, 'receiver') || '-')}</td>`
-        + `<td class="data-cell" style="font-size:11pt">${confirmTime ? 'خرج ' + toIndic(confirmTime) : 'معلق'}</td>`
-        + `<td class="data-cell" style="color:${isSent ? 'green' : '#999'};font-weight:bold">${isSent ? 'تم' : '-'}</td>`;
+      return [
+        toIndic(i + 1),
+        `<span style="font-weight:bold;text-align:right">${escapeHtml(getField(rec, 'studentName') || '-')}</span>`,
+        formatClass(g.grade, g.cls),
+        toIndic(getField(rec, 'exitTime') || '-'),
+        `<span style="text-align:right;font-size:12pt">${escapeHtml(getField(rec, 'reason') || '-')}</span>`,
+        escapeHtml(getField(rec, 'receiver') || '-'),
+        `<span style="font-size:11pt">${confirmTime ? 'خرج ' + toIndic(confirmTime) : 'معلق'}</span>`,
+        sentIcon(rec.isSent === true),
+      ];
     },
   },
 
@@ -151,25 +135,19 @@ const DAILY_CONFIGS: Record<string, DailyConfig> = {
     nameField: 'studentName',
     gradeField: 'grade',
     classField: 'className',
-    colCount: 7,
-    headers:
-      '<th class="col-header" style="width:5%">م</th>'
-      + '<th class="col-header" style="width:25%">اسم الطالب</th>'
-      + '<th class="col-header" style="width:10%">الصف</th>'
-      + '<th class="col-header" style="width:12%">نوع الملاحظة</th>'
-      + '<th class="col-header" style="width:25%">التفاصيل</th>'
-      + '<th class="col-header" style="width:13%">المسجّل</th>'
-      + '<th class="col-header" style="width:7%">التواصل</th>',
-    buildRow: (rec, i, g) => {
-      const isSent = rec.isSent === true;
-      return `<td class="data-cell">${toIndic(i + 1)}</td>`
-        + `<td class="name-cell">${escapeHtml(getField(rec, 'studentName') || '-')}</td>`
-        + `<td class="data-cell">${formatClass(g.grade, g.cls)}</td>`
-        + `<td class="data-cell">${escapeHtml(getField(rec, 'noteType') || '-')}</td>`
-        + `<td class="detail-cell">${escapeHtml(getField(rec, 'details') || '-')}</td>`
-        + `<td class="data-cell">${escapeHtml(getField(rec, 'teacherName') || getField(rec, 'recordedBy') || '-')}</td>`
-        + `<td class="data-cell" style="color:${isSent ? 'green' : '#999'};font-weight:bold">${isSent ? 'تم' : '-'}</td>`;
-    },
+    headers: [
+      { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '25%' }, { label: 'الصف', width: '10%' },
+      { label: 'نوع الملاحظة', width: '12%' }, { label: 'التفاصيل', width: '25%' }, { label: 'المسجّل', width: '13%' }, { label: 'التواصل', width: '7%' },
+    ],
+    buildCells: (rec, i, g) => [
+      toIndic(i + 1),
+      `<span style="font-weight:bold;text-align:right">${escapeHtml(getField(rec, 'studentName') || '-')}</span>`,
+      formatClass(g.grade, g.cls),
+      escapeHtml(getField(rec, 'noteType') || '-'),
+      `<span style="text-align:right;font-size:12pt">${escapeHtml(getField(rec, 'details') || '-')}</span>`,
+      escapeHtml(getField(rec, 'teacherName') || getField(rec, 'recordedBy') || '-'),
+      sentIcon(rec.isSent === true),
+    ],
   },
 
   communication: {
@@ -178,61 +156,26 @@ const DAILY_CONFIGS: Record<string, DailyConfig> = {
     nameField: 'studentName',
     gradeField: 'grade',
     classField: 'className',
-    colCount: 7,
-    headers:
-      '<th class="col-header" style="width:5%">م</th>'
-      + '<th class="col-header" style="width:12%">التاريخ</th>'
-      + '<th class="col-header" style="width:24%">اسم الطالب</th>'
-      + '<th class="col-header" style="width:10%">الصف</th>'
-      + '<th class="col-header" style="width:14%">الجوال</th>'
-      + '<th class="col-header" style="width:18%">النوع</th>'
-      + '<th class="col-header" style="width:7%">الحالة</th>',
-    buildRow: (rec, i, g) => {
+    headers: [
+      { label: 'م', width: '5%' }, { label: 'التاريخ', width: '12%' }, { label: 'اسم الطالب', width: '24%' },
+      { label: 'الصف', width: '10%' }, { label: 'الجوال', width: '14%' }, { label: 'النوع', width: '18%' }, { label: 'الحالة', width: '7%' },
+    ],
+    buildCells: (rec, i, g) => {
       const statusDone = String(rec.sendStatus || '').indexOf('sent') >= 0;
-      return `<td class="data-cell">${toIndic(i + 1)}</td>`
-        + `<td class="data-cell">${toIndic(getField(rec, 'hijriDate') || getField(rec, 'miladiDate') || '')}</td>`
-        + `<td class="name-cell">${escapeHtml(getField(rec, 'studentName') || '-')}</td>`
-        + `<td class="data-cell">${formatClass(g.grade, g.cls)}</td>`
-        + `<td class="data-cell" style="direction:ltr;font-size:11pt">${escapeHtml(getField(rec, 'mobile') || '')}</td>`
-        + `<td class="data-cell">${escapeHtml(getField(rec, 'messageType') || '')}</td>`
-        + `<td class="data-cell" style="color:${statusDone ? 'green' : '#999'};font-weight:bold">${statusDone ? '\u2713' : '\u2717'}</td>`;
+      return [
+        toIndic(i + 1),
+        toIndic(getField(rec, 'hijriDate') || getField(rec, 'miladiDate') || ''),
+        `<span style="font-weight:bold;text-align:right">${escapeHtml(getField(rec, 'studentName') || '-')}</span>`,
+        formatClass(g.grade, g.cls),
+        `<span style="direction:ltr;font-size:11pt">${escapeHtml(getField(rec, 'mobile') || '')}</span>`,
+        escapeHtml(getField(rec, 'messageType') || ''),
+        `<span style="color:${statusDone ? 'green' : '#999'};font-weight:bold">${statusDone ? '\u2713' : '\u2717'}</span>`,
+      ];
     },
   },
 };
 
-// ===== بناء صفحة الكشف اليومي =====
-function buildDailyPage(opts: {
-  title: string;
-  subtitle?: string;
-  dateText: string;
-  colCount: number;
-  headers: string;
-  rows: string;
-  total: string;
-  letterheadHtml: string;
-}): string {
-  return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">`
-    + `<title>${opts.title}</title>`
-    + `<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap" rel="stylesheet">`
-    + `<style>${getSharedPrintCSS()}</style></head><body>`
-    + `<table class="main-table"><thead>`
-    + `<tr><td colspan="${opts.colCount}" class="header-cell">`
-    + opts.letterheadHtml
-    + `<div class="form-title">${opts.title}</div>`
-    + (opts.subtitle ? `<div class="form-subtitle">${opts.subtitle}</div>` : '')
-    + `<div class="form-date">${opts.dateText}</div>`
-    + `</td></tr>`
-    + `<tr>${opts.headers}</tr>`
-    + `</thead>`
-    + `<tbody>${opts.rows}</tbody></table>`
-    + `<div class="footer-block"><div class="footer-flex">`
-    + `<div>المجموع: ${opts.total}</div>`
-    + `<div style="text-align:center"><strong>وكيل شؤون الطلاب</strong><br><span class="with-dots"></span></div>`
-    + `</div></div>`
-    + `</body></html>`;
-}
-
-// ===== الدالة الرئيسية =====
+// ===== الدالة الرئيسية — موحّدة عبر printListReport =====
 export type DailyReportType = 'violations' | 'absence' | 'tardiness' | 'permissions' | 'notes' | 'communication';
 
 export function printDailyReport(
@@ -263,17 +206,18 @@ export function printDailyReport(
     config.classField as keyof Record<string, unknown>,
   );
 
-  let rows = '';
+  // بناء الصفوف باستخدام ListReportRow
+  const rows: ListReportRow[] = [];
   let lastKey = '';
   sorted.forEach((rec, i) => {
     const grade = getField(rec, config.gradeField);
     const cls = getField(rec, config.classField);
     const key = `${grade}|${cls}`;
     if (key !== lastKey && i > 0) {
-      rows += `<tr class="sep-row"><td colspan="${config.colCount}"></td></tr>`;
+      rows.push({ cells: [], isSeparator: true });
     }
     lastKey = key;
-    rows += `<tr>${config.buildRow(rec, i, { grade, cls }, stage)}</tr>`;
+    rows.push({ cells: config.buildCells(rec, i, { grade, cls }, stage) });
   });
 
   let title = config.titlePrefix;
@@ -286,16 +230,12 @@ export function printDailyReport(
     dateText = `${hijri} \u00A0الموافق\u00A0 ${miladi} م`;
   }
 
-  const html = buildDailyPage({
+  printListReport({
     title,
-    subtitle: stageName,
+    subtitle: stageName || undefined,
     dateText,
-    colCount: config.colCount,
     headers: config.headers,
     rows,
-    total: `${toIndic(records.length)} ${config.totalLabel}`,
-    letterheadHtml: buildLetterheadHtml(settings),
-  });
-
-  openPrintWindow(html);
+    summary: `المجموع: ${toIndic(records.length)} ${config.totalLabel}`,
+  }, settings);
 }

@@ -12,8 +12,8 @@ import { studentsApi } from '../api/students';
 import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { SETTINGS_STAGES } from '../utils/constants';
-import { printForm, PrintFormData, FormId } from '../utils/printTemplates';
-import { toIndic, escapeHtml, openPrintWindow, buildLetterheadHtml, getSharedPrintCSS, getTodayDates, formatClass, sortByClass, sortGrades, sortByGradeClass } from '../utils/printUtils';
+import { printForm, PrintFormData, FormId, printListReport, ListReportRow } from '../utils/printTemplates';
+import { toIndic, escapeHtml, getTodayDates, formatClass, sortByClass, sortGrades, sortByGradeClass } from '../utils/printUtils';
 
 const SCHOOL_DAYS = 180;
 const BASE_URL = window.location.origin;
@@ -341,32 +341,37 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
     const { hijri, miladi, dayName } = getTodayDates();
     const sorted = [...printRecs].sort((a, b) => sortByGradeClass(a, b));
     let prevClass = '';
-    let rows = '';
+    const rows: ListReportRow[] = [];
     sorted.forEach((r, i) => {
       const key = `${r.grade} / ${r.className}`;
       const keyAr = `${r.grade} / ${toIndic(r.className)}`;
       if (key !== prevClass) {
-        if (i > 0) rows += '<tr style="height:4px"><td colspan="6" style="border:none;padding:0"></td></tr>';
-        rows += `<tr style="background:#f5f5f5;font-weight:700"><td colspan="6" style="padding:8px;font-size:12pt">${escapeHtml(keyAr)} (${toIndic(sorted.filter(x => `${x.grade} / ${x.className}` === key).length)})</td></tr>`;
+        if (i > 0) rows.push({ cells: [], isSeparator: true });
+        rows.push({ cells: [], isGroupHeader: true, groupLabel: keyAr, groupCount: sorted.filter(x => `${x.grade} / ${x.className}` === key).length });
         prevClass = key;
       }
       const teacher = (!r.recordedBy || r.recordedBy === 'يدوي' || r.recordedBy === 'مدير_النظام') ? 'الوكيل' : r.recordedBy;
       const excuseLabel = r.excuseType === 'Excused' ? 'بعذر' : 'بدون عذر';
       const platform = r.notes?.includes('منصة') ? ' <span style="color:#0891b2;font-size:10pt;font-weight:bold">(منصة)</span>' : '';
-      rows += `<tr><td class="data-cell">${toIndic(i + 1)}</td><td class="name-cell">${escapeHtml(r.studentName)}${platform}</td><td class="data-cell">${escapeHtml(keyAr)}</td><td class="data-cell" style="font-size:11pt">${escapeHtml(teacher)}</td><td class="data-cell">${excuseLabel}</td><td class="data-cell" style="color:${r.isSent ? 'green' : '#999'};font-weight:bold">${r.isSent ? 'تم' : '-'}</td></tr>`;
+      rows.push({ cells: [
+        toIndic(i + 1),
+        `<span style="font-weight:bold;text-align:right">${escapeHtml(r.studentName)}${platform}</span>`,
+        escapeHtml(keyAr),
+        `<span style="font-size:11pt">${escapeHtml(teacher)}</span>`,
+        excuseLabel,
+        `<span style="color:${r.isSent ? 'green' : '#999'};font-weight:bold">${r.isSent ? 'تم' : '-'}</span>`,
+      ] });
     });
-    const pw = openPrintWindow(`<html dir="rtl"><head><style>${getSharedPrintCSS()}</style></head><body>
-      <table class="main-table"><thead><tr><td class="header-cell">${buildLetterheadHtml(settings)}
-      <h2 style="text-align:center;font-size:16pt;margin:2px 0 0">كشف الغياب اليومي ليوم ${dayName}</h2>
-      <p style="text-align:center;font-size:14pt;color:#555;margin:0 0 2px">${hijri} الموافق ${miladi} م</p>
-      </td></tr></thead><tbody><tr><td>
-      <table style="width:100%;border-collapse:collapse;margin-top:10px"><thead><tr style="background:#ea580c;color:white">
-        <th style="padding:8px;width:5%">م</th><th style="padding:8px;width:28%">اسم الطالب</th><th style="padding:8px;width:10%">الصف</th><th style="padding:8px;width:15%">المسجّل</th><th style="padding:8px;width:15%">العذر</th><th style="padding:8px;width:7%">التواصل</th>
-      </tr></thead><tbody>${rows}</tbody></table>
-      <p style="text-align:right;margin-top:12px;font-size:12pt;font-weight:bold">إجمالي: ${toIndic(sorted.length)} طالب</p>
-      </td></tr></tbody></table>
-    </body></html>`);
-    if (pw) { pw.document.close(); setTimeout(() => pw.print(), 300); }
+    printListReport({
+      title: `كشف الغياب اليومي ليوم ${dayName}`,
+      dateText: `${hijri} الموافق ${miladi} م`,
+      headers: [
+        { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '28%' }, { label: 'الصف', width: '10%' },
+        { label: 'المسجّل', width: '15%' }, { label: 'العذر', width: '15%' }, { label: 'التواصل', width: '7%' },
+      ],
+      rows,
+      summary: `إجمالي: ${toIndic(sorted.length)} طالب`,
+    }, settings);
   };
 
   // Print official form from today tab
@@ -890,23 +895,30 @@ const ExcusesTab: React.FC<{ excuses: ParentExcuseRow[]; onRefresh: () => void; 
     if (filtered.length === 0) { showError('لا يوجد أعذار للطباعة'); return; }
     const { hijri, miladi } = getTodayDates();
     const withExcuse = filtered.filter(e => e.status === 'معلق' || e.status === 'مقبول');
-    const rows = withExcuse.map((e, i) => {
+    const rows: ListReportRow[] = withExcuse.map((e, i) => {
       const statusColor = e.status === 'معلق' ? '#d97706' : '#16a34a';
       const source = e.source === 'parent' ? 'ولي أمر' : 'يومي';
-      return `<tr><td>${toIndic(i + 1)}</td><td>${escapeHtml(e.studentName)}</td><td>${escapeHtml(e.grade)} / ${toIndic(e.class)}</td><td>${escapeHtml(e.excuseText?.substring(0, 60) || '-')}</td><td>${escapeHtml(e.absenceDate || '-')}</td><td style="color:${statusColor};font-weight:bold">${e.status}</td><td>${source}</td></tr>`;
-    }).join('');
-    const pw = openPrintWindow(`<html dir="rtl"><head><style>${getSharedPrintCSS()}</style></head><body>
-      <table class="main-table"><thead><tr><td class="header-cell">${buildLetterheadHtml(settings)}
-      <h2 style="text-align:center;font-size:16pt;margin:2px 0 0">كشف الأعذار المقدمة</h2>
-      <p style="text-align:center;font-size:14pt;color:#555;margin:0 0 2px">${hijri} الموافق ${miladi} م</p>
-      </td></tr></thead><tbody><tr><td>
-      <table style="width:100%;border-collapse:collapse;margin-top:10px"><thead><tr style="background:#7c3aed;color:white">
-        <th style="padding:8px;width:5%">م</th><th style="padding:8px;width:22%">الطالب</th><th style="padding:8px;width:10%">الفصل</th><th style="padding:8px;width:25%">العذر</th><th style="padding:8px;width:13%">تاريخ الغياب</th><th style="padding:8px;width:10%">الحالة</th><th style="padding:8px;width:8%">المصدر</th>
-      </tr></thead><tbody>${rows}</tbody></table>
-      <p style="text-align:right;margin-top:12px;font-weight:bold">إجمالي: ${toIndic(withExcuse.length)} طالب</p>
-      </td></tr></tbody></table>
-    </body></html>`);
-    if (pw) { pw.document.close(); setTimeout(() => pw.print(), 300); }
+      return { cells: [
+        toIndic(i + 1),
+        escapeHtml(e.studentName),
+        `${escapeHtml(e.grade)} / ${toIndic(e.class)}`,
+        escapeHtml(e.excuseText?.substring(0, 60) || '-'),
+        escapeHtml(e.absenceDate || '-'),
+        `<span style="color:${statusColor};font-weight:bold">${e.status}</span>`,
+        source,
+      ] };
+    });
+    printListReport({
+      title: 'كشف الأعذار المقدمة',
+      dateText: `${hijri} الموافق ${miladi} م`,
+      headerBg: '#7c3aed',
+      headers: [
+        { label: 'م', width: '5%' }, { label: 'الطالب', width: '22%' }, { label: 'الفصل', width: '10%' },
+        { label: 'العذر', width: '25%' }, { label: 'تاريخ الغياب', width: '13%' }, { label: 'الحالة', width: '10%' }, { label: 'المصدر', width: '8%' },
+      ],
+      rows,
+      summary: `إجمالي: ${toIndic(withExcuse.length)} طالب`,
+    }, settings);
   };
 
   const statusBtns = [
@@ -1154,27 +1166,64 @@ const ApprovedTab: React.FC<{ records: CumulativeRow[]; dailyRecords: AbsenceRow
   const handlePrint = () => {
     if (sorted.length === 0) { showError('لا توجد بيانات'); return; }
     const { hijri } = getTodayDates();
-    const rows = sorted.map((r, i) => `<tr><td>${toIndic(i + 1)}</td><td>${escapeHtml(r.studentName)}</td><td>${formatClass(r.grade, r.className)}</td><td style="font-weight:bold;color:#dc2626">${toIndic(r.unexcusedDays)}</td><td style="color:#2563eb">${toIndic(r.excusedDays)}</td><td style="font-weight:bold">${toIndic(r.totalDays)}</td><td>${toIndic(getAttendance(r))}%</td></tr>`).join('');
-    const pw = openPrintWindow(`<html dir="rtl"><head><style>${getSharedPrintCSS()}</style></head><body><table class="main-table"><thead><tr><td class="header-cell">${buildLetterheadHtml(settings)}<h2 style="text-align:center;font-size:16pt;margin:2px 0 0">كشف متابعة الغياب</h2><p style="text-align:center;font-size:14pt;margin:0 0 2px">${hijri} | العدد: ${toIndic(sorted.length)}</p></td></tr></thead><tbody><tr><td><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#ea580c;color:white"><th>م</th><th>الطالب</th><th>الصف</th><th>بدون عذر</th><th>بعذر</th><th>الإجمالي</th><th>المواظبة</th></tr></thead><tbody>${rows}</tbody></table></td></tr></tbody></table></body></html>`);
-    if (pw) { pw.document.close(); setTimeout(() => pw.print(), 300); }
+    const rows: ListReportRow[] = sorted.map((r, i) => ({ cells: [
+      toIndic(i + 1),
+      escapeHtml(r.studentName),
+      formatClass(r.grade, r.className),
+      `<span style="font-weight:bold;color:#dc2626">${toIndic(r.unexcusedDays)}</span>`,
+      `<span style="color:#2563eb">${toIndic(r.excusedDays)}</span>`,
+      `<span style="font-weight:bold">${toIndic(r.totalDays)}</span>`,
+      `${toIndic(getAttendance(r))}%`,
+    ] }));
+    printListReport({
+      title: 'كشف متابعة الغياب',
+      dateText: `${hijri} | العدد: ${toIndic(sorted.length)}`,
+      headers: [
+        { label: 'م' }, { label: 'الطالب' }, { label: 'الصف' },
+        { label: 'بدون عذر' }, { label: 'بعذر' }, { label: 'الإجمالي' }, { label: 'المواظبة' },
+      ],
+      rows,
+    }, settings);
   };
 
   const handlePrintDiscipline = () => {
     const disciplined = sorted.filter(r => r.unexcusedDays === 0 && r.excusedDays === 0);
     if (disciplined.length === 0) { showError('لا يوجد طلاب بصفر غياب'); return; }
     const { hijri } = getTodayDates();
-    const rows = disciplined.map((r, i) => `<tr><td>${toIndic(i + 1)}</td><td>${escapeHtml(r.studentName)}</td><td>${formatClass(r.grade, r.className)}</td></tr>`).join('');
-    const pw = openPrintWindow(`<html dir="rtl"><head><style>${getSharedPrintCSS()}</style></head><body><table class="main-table"><thead><tr><td class="header-cell">${buildLetterheadHtml(settings)}<h2 style="text-align:center;font-size:16pt;margin:2px 0 0">كشف المتميزين بالانضباط</h2><p style="text-align:center;font-size:14pt;margin:0 0 2px">${hijri}</p></td></tr></thead><tbody><tr><td><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#16a34a;color:white"><th style="width:8%">م</th><th style="width:55%">الطالب</th><th style="width:20%">الصف</th></tr></thead><tbody>${rows}</tbody></table><p style="text-align:right;font-weight:bold">إجمالي: ${toIndic(disciplined.length)} طالب</p></td></tr></tbody></table></body></html>`);
-    if (pw) { pw.document.close(); setTimeout(() => pw.print(), 300); }
+    const rows: ListReportRow[] = disciplined.map((r, i) => ({ cells: [
+      toIndic(i + 1), escapeHtml(r.studentName), formatClass(r.grade, r.className),
+    ] }));
+    printListReport({
+      title: 'كشف المتميزين بالانضباط',
+      dateText: hijri,
+      headerBg: '#16a34a',
+      headers: [
+        { label: 'م', width: '8%' }, { label: 'الطالب', width: '55%' }, { label: 'الصف', width: '20%' },
+      ],
+      rows,
+      summary: `إجمالي: ${toIndic(disciplined.length)} طالب`,
+    }, settings);
   };
 
   const handlePrintContactReport = () => {
     const sent = sorted.filter(r => (r as any).sentCount > 0 || dailyRecords.some(d => d.studentId === r.studentId && d.isSent));
     if (sent.length === 0) { showError('لا يوجد سجلات تم إرسالها'); return; }
     const { hijri } = getTodayDates();
-    const rows = sent.map((r, i) => `<tr><td>${toIndic(i + 1)}</td><td>${escapeHtml(r.studentName)}</td><td>${formatClass(r.grade, r.className)}</td><td>${toIndic(r.totalDays)}</td><td>${toIndic(r.unexcusedDays)}</td><td>${toIndic(r.excusedDays)}</td><td style="color:green;font-weight:bold">تم</td></tr>`).join('');
-    const pw = openPrintWindow(`<html dir="rtl"><head><style>${getSharedPrintCSS()}</style></head><body><table class="main-table"><thead><tr><td class="header-cell">${buildLetterheadHtml(settings)}<h2 style="text-align:center;font-size:16pt;margin:2px 0 0">تقرير التواصل مع أولياء الأمور</h2><p style="text-align:center;font-size:14pt;margin:0 0 2px">${hijri}</p></td></tr></thead><tbody><tr><td><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0891b2;color:white"><th>م</th><th>الطالب</th><th>الصف</th><th>إجمالي</th><th>بدون عذر</th><th>بعذر</th><th>التواصل</th></tr></thead><tbody>${rows}</tbody></table></td></tr></tbody></table></body></html>`);
-    if (pw) { pw.document.close(); setTimeout(() => pw.print(), 300); }
+    const rows: ListReportRow[] = sent.map((r, i) => ({ cells: [
+      toIndic(i + 1), escapeHtml(r.studentName), formatClass(r.grade, r.className),
+      toIndic(r.totalDays), toIndic(r.unexcusedDays), toIndic(r.excusedDays),
+      '<span style="color:green;font-weight:bold">تم</span>',
+    ] }));
+    printListReport({
+      title: 'تقرير التواصل مع أولياء الأمور',
+      dateText: hijri,
+      headerBg: '#0891b2',
+      headers: [
+        { label: 'م' }, { label: 'الطالب' }, { label: 'الصف' },
+        { label: 'إجمالي' }, { label: 'بدون عذر' }, { label: 'بعذر' }, { label: 'التواصل' },
+      ],
+      rows,
+    }, settings);
   };
 
   // Print individual forms
@@ -1447,9 +1496,22 @@ const ReportsTab: React.FC<{ records: AbsenceRow[]; cumulativeRecords: Cumulativ
 
   const handlePrint = () => {
     const { hijri } = getTodayDates();
-    const studentRows = topStudents.map((s, i) => `<tr><td>${toIndic(i + 1)}</td><td>${escapeHtml(s.studentName)}</td><td>${formatClass(s.grade, s.className)}</td><td style="color:#dc2626;font-weight:bold">${toIndic(s.unexcusedDays)}</td><td style="color:#2563eb">${toIndic(s.excusedDays)}</td><td style="font-weight:bold">${toIndic(s.totalDays)}</td></tr>`).join('');
-    const pw = openPrintWindow(`<html dir="rtl"><head><style>${getSharedPrintCSS()}</style></head><body><table class="main-table"><thead><tr><td class="header-cell">${buildLetterheadHtml(settings)}<h2 style="text-align:center;font-size:16pt;margin:2px 0 0">تقرير الغياب</h2><p style="text-align:center;font-size:14pt;margin:0 0 2px">${hijri} | إجمالي: ${toIndic(filteredRecords.length)} | بدون عذر: ${toIndic(unexcusedCount)} | بعذر: ${toIndic(excusedCount)}</p></td></tr></thead><tbody><tr><td><h3>أكثر الطلاب غياباً</h3><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#ea580c;color:white"><th>#</th><th>الطالب</th><th>الصف</th><th>بدون عذر</th><th>بعذر</th><th>الإجمالي</th></tr></thead><tbody>${studentRows}</tbody></table></td></tr></tbody></table></body></html>`);
-    if (pw) { pw.document.close(); setTimeout(() => pw.print(), 300); }
+    const rows: ListReportRow[] = topStudents.map((s, i) => ({ cells: [
+      toIndic(i + 1), escapeHtml(s.studentName), formatClass(s.grade, s.className),
+      `<span style="color:#dc2626;font-weight:bold">${toIndic(s.unexcusedDays)}</span>`,
+      `<span style="color:#2563eb">${toIndic(s.excusedDays)}</span>`,
+      `<span style="font-weight:bold">${toIndic(s.totalDays)}</span>`,
+    ] }));
+    printListReport({
+      title: 'تقرير الغياب',
+      dateText: hijri,
+      statsBar: `إجمالي: ${toIndic(filteredRecords.length)} | بدون عذر: ${toIndic(unexcusedCount)} | بعذر: ${toIndic(excusedCount)}`,
+      headers: [
+        { label: '#' }, { label: 'الطالب' }, { label: 'الصف' },
+        { label: 'بدون عذر' }, { label: 'بعذر' }, { label: 'الإجمالي' },
+      ],
+      rows,
+    }, settings);
   };
 
   return (
