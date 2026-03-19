@@ -98,16 +98,15 @@ const AbsencePage: React.FC = () => {
 
   return (
     <div className="sec-absence">
-      {/* Hero Banner — مطابق لـ .page-hero: gradient برتقالي + 4 عدادات */}
+      {/* Hero Banner — مطابق لـ .page-hero: gradient برتقالي + 3 عدادات */}
       <PageHero
         title={`الغياب${currentStageId ? ' — ' + stageFilter : ''}`}
         subtitle={`${getTodayDates().dayName} - ${getTodayDates().hijri}`}
-        gradient="linear-gradient(135deg, #ea580c, #d4460a)"
+        gradient="linear-gradient(135deg, #ea580c, #f97316)"
         stats={[
-          { icon: 'event_busy', label: 'غياب اليوم', value: todayRecords.length, color: '#fbbf24' },
-          { icon: 'pending', label: 'أعذار معلقة', value: pendingExcuses, color: '#c084fc' },
-          { icon: 'shield', label: 'حماية (10+)', value: cumulativeRecords.filter(r => r.unexcusedDays >= 10).length, color: '#f87171' },
-          { icon: 'check_circle', label: 'تم الإرسال', value: filteredByStage.filter(r => r.isSent).length, color: '#86efac' },
+          { icon: 'event_busy', label: 'غياب اليوم', value: todayRecords.length, color: '#f97316' },
+          { icon: 'description', label: 'أعذار معلقة', value: pendingExcuses, color: '#8b5cf6' },
+          { icon: 'shield', label: 'حماية (10+)', value: cumulativeRecords.filter(r => r.unexcusedDays >= 10).length, color: '#ef4444' },
         ]}
       />
 
@@ -396,93 +395,108 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
       <input ref={noorFileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e) => handleExcelImport(e, false)} />
       <input ref={platformFileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e) => handleExcelImport(e, true)} />
 
-      {/* Action bar */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ position: 'relative', display: 'inline-block' }}>
+      {/* Action bar — مطابق لـ .action-bar + .btn-hero classes */}
+      <div className="action-bar">
+        <div className="action-group">
           <ImportDropdown onNoor={() => noorFileRef.current?.click()} onPlatform={() => platformFileRef.current?.click()} />
+          <button className="btn-hero btn-hero-primary" onClick={onAdd}>
+            <span className="material-symbols-outlined" style={{fontSize:18}}>add_circle</span> تسجيل يدوي
+          </button>
+          <button className="btn-hero btn-hero-outline" onClick={onRefresh}>
+            <span className="material-symbols-outlined" style={{fontSize:18}}>refresh</span> تحديث
+          </button>
         </div>
-        <button onClick={onAdd} style={btnStyle('#ea580c')}>+ تسجيل يدوي</button>
-        <button onClick={onRefresh} style={btnStyle('#6b7280', true)}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span> تحديث</button>
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث بالاسم أو الرقم..."
-          style={{ width: 200, height: 34, padding: '0 12px', border: '2px solid #d1d5db', borderRadius: 8, fontSize: 13 }} />
-        <div style={{ flex: 1 }} />
-        <button onClick={handleSendAll} disabled={bulkSending} style={{ padding: '7px 18px', background: '#16a34a', color: '#fff', borderRadius: 8, border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 13, boxShadow: '0 2px 8px rgba(22,163,74,0.35)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {bulkSending ? <><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>hourglass_empty</span> {bulkProgress.sent}/{bulkProgress.total}</> : <><span className="material-symbols-outlined" style={{fontSize:18,verticalAlign:'middle'}}>send</span> إرسال للجميع</>}
-        </button>
-        <button onClick={() => handlePrintToday(true)} style={btnStyle('#4f46e5', true)}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة الكشف</button>
+        <div className="action-group">
+          <button className="btn-hero btn-hero-success" onClick={handleSendAll} disabled={bulkSending} id="btn-send-all">
+            {bulkSending
+              ? <><span className="material-symbols-outlined" style={{fontSize:18}}>hourglass_empty</span> {bulkProgress.sent}/{bulkProgress.total}</>
+              : <><span className="material-symbols-outlined" style={{fontSize:18}}>send</span> إرسال للجميع</>}
+          </button>
+          <button className="btn-hero btn-hero-outline" onClick={() => handlePrintToday(true)}>
+            <span className="material-symbols-outlined" style={{fontSize:18}}>print</span> طباعة الكشف
+          </button>
+        </div>
       </div>
 
       {/* Table with grouped display */}
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>event_busy</span>
-          <p style={{ color: '#6b7280', marginTop: 12, fontSize: 16 }}>لا يوجد غياب مسجل اليوم</p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 16 }}>
-            <button onClick={() => noorFileRef.current?.click()} style={btnStyle('#16a34a')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>upload</span> استيراد Excel</button>
+        <div className="bg-white rounded-xl" style={{ textAlign: 'center', padding: '64px 20px' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>event_available</span>
+          <p style={{ color: '#6b7280', marginTop: 16, fontSize: 18 }}>لا يوجد غياب مسجل اليوم</p>
+          <p style={{ color: '#9ca3af', fontSize: 14, marginTop: 8 }}>قم باستيراد ملف Excel من نظام نور أو أضف يدوياً</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 24 }}>
+            <button onClick={() => noorFileRef.current?.click()} style={{ padding: '8px 16px', background: '#059669', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span className="material-symbols-outlined" style={{fontSize:18}}>upload_file</span> استيراد Excel
+            </button>
+            <button onClick={onAdd} style={{ padding: '8px 16px', background: '#ea580c', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span className="material-symbols-outlined" style={{fontSize:18}}>add_circle</span> تسجيل يدوي
+            </button>
           </div>
         </div>
       ) : (
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, tableLayout: 'fixed' }}>
-            <colgroup>
-              <col style={{ width: 32 }} />
-              <col style={{ width: 36 }} />
-              <col style={{ width: 380 }} />
-              <col style={{ width: 150 }} />
-              <col style={{ width: 90 }} />
-              <col style={{ width: 380 }} />
-              <col style={{ width: 48 }} />
-            </colgroup>
+        <div className="bg-white rounded-xl" style={{ overflow: 'hidden' }}>
+          <table className="sht">
             <thead>
               <tr style={{ background: '#ea580c' }}>
-                <th style={{ padding: '10px 4px', borderLeft: '1px solid rgba(0,0,0,0.15)', color: '#fff', fontWeight: 700, fontSize: 11 }}><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} /></th>
-                <th style={{ padding: '10px 4px', borderLeft: '1px solid rgba(0,0,0,0.15)', color: '#fff', fontWeight: 700, fontSize: 11 }}>#</th>
-                <th style={{ padding: '10px 10px', textAlign: 'right', borderLeft: '1px solid rgba(0,0,0,0.15)', color: '#fff', fontWeight: 700, fontSize: 11 }}>اسم الطالب</th>
-                <th style={{ padding: '10px 8px', borderLeft: '1px solid rgba(0,0,0,0.15)', color: '#fff', fontWeight: 700, fontSize: 11 }}>المعلم</th>
-                <th style={{ padding: '10px 8px', borderLeft: '1px solid rgba(0,0,0,0.15)', color: '#fff', fontWeight: 700, fontSize: 11 }}>الحالة</th>
-                <th style={{ padding: '10px 8px', borderLeft: '1px solid rgba(0,0,0,0.15)', color: '#fff', fontWeight: 700, fontSize: 11 }}>الإجراءات</th>
-                <th style={{ padding: '10px 4px', color: '#fff', fontSize: 11 }}><span className="material-symbols-outlined" style={{ fontSize: 16, color: '#fff' }}>delete</span></th>
+                <th style={{ width: 36 }}>#</th>
+                <th style={{ minWidth: 120 }}>اسم الطالب</th>
+                <th>المعلم</th>
+                <th style={{ width: 80 }}>الحالة</th>
+                <th style={{ minWidth: 160 }}>الإجراءات والتواصل</th>
+                <th style={{ width: 36 }}></th>
               </tr>
             </thead>
             <tbody>
-              {groupedRecords.map((group) => (
+              {groupedRecords.map((group, gIdx) => (
                 <React.Fragment key={group.key}>
-                  <tr style={{ background: '#f8fafc' }}>
-                    <td colSpan={7} style={{ padding: '6px 12px', fontWeight: 600, fontSize: 12, color: '#64748b', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
-                      {group.label} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({group.records.length})</span>
-                    </td>
+                  {gIdx > 0 && <tr className="sht-sep"><td colSpan={6}></td></tr>}
+                  <tr className="sht-gh">
+                    <td colSpan={6}><span className="sht-gl">{group.label}</span> <span className="sht-gc">({group.records.length})</span></td>
                   </tr>
                   {group.records.map((r, idx) => {
                     const teacher = (!r.recordedBy || r.recordedBy === 'يدوي' || r.recordedBy === 'مدير_النظام') ? 'الوكيل' : r.recordedBy;
                     const isExcused = r.excuseType === 'Excused';
+                    const isLate = r.tardinessStatus === 'متأخر';
+                    const globalIdx = filtered.indexOf(r);
                     return (
-                      <tr key={r.id} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#fff' : '#fafbfd' }}>
-                        <td style={{ padding: '8px 4px', textAlign: 'center', borderLeft: '1px solid #e2e8f0' }}><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
-                        <td style={{ padding: '8px 4px', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: 12, borderLeft: '1px solid #e2e8f0' }}>{idx + 1}</td>
-                        <td style={{ padding: '8px 10px', fontWeight: 700, color: '#1e293b', fontSize: 13, borderLeft: '1px solid #e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <tr key={r.id} className={idx % 2 === 0 ? 'rw' : 'rg'}>
+                        <td>{globalIdx + 1}</td>
+                        <td className="nm">
                           {r.studentName}
                           {r.notes?.includes('منصة') && <span style={{ fontSize: 10, color: '#0891b2', fontWeight: 700, marginRight: 4 }}>(منصة)</span>}
                         </td>
-                        <td style={{ padding: '8px 8px', fontSize: 12, color: '#64748b', borderLeft: '1px solid #e2e8f0' }}>{teacher}</td>
-                        <td style={{ padding: '6px 4px', textAlign: 'center', borderLeft: '1px solid #e2e8f0' }}>
-                          <button onClick={() => handleToggleExcuse(r)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '3px 10px', background: isExcused ? '#dcfce7' : '#fee2e2', color: isExcused ? '#15803d' : '#b91c1c', borderRadius: 9999, fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>{isExcused ? 'check_circle' : 'block'}</span>
-                            {isExcused ? 'بعذر' : 'بدون عذر'}
-                          </button>
+                        <td style={{ fontSize: 12, color: teacher === '-' ? '#9ca3af' : '#374151' }}>{teacher}</td>
+                        <td>
+                          {isLate ? (
+                            <button onClick={() => openLateModal(r)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', background: '#fef3c7', color: '#a16207', borderRadius: 9999, fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>schedule</span> متأخر {r.arrivalTime}
+                            </button>
+                          ) : (
+                            <button onClick={() => handleToggleExcuse(r)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', background: isExcused ? '#dcfce7' : '#fee2e2', color: isExcused ? '#15803d' : '#b91c1c', borderRadius: 9999, fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>{isExcused ? 'check_circle' : 'block'}</span>
+                              {isExcused ? 'بعذر' : 'بدون عذر'}
+                            </button>
+                          )}
                         </td>
-                        <td style={{ padding: '6px 6px', borderLeft: '1px solid #e2e8f0' }}>
-                          <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center' }}>
-                            <button onClick={() => handlePrintForm('tahood_hodoor', r)} style={{ padding: '6px', background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', borderRadius: 8 }} title="تعهد حضور"><span className="material-symbols-outlined" style={{ fontSize: 20 }}>verified</span></button>
-                            <button onClick={() => handlePrintForm('ehalat_absence', r)} style={{ padding: '6px', background: 'none', border: 'none', cursor: 'pointer', color: '#3b82f6', borderRadius: 8 }} title="إحالة غياب"><span className="material-symbols-outlined" style={{ fontSize: 20 }}>forward_to_inbox</span></button>
-                            <button onClick={() => handlePrintForm('tawtheeq_tawasol', r)} style={{ padding: '6px', background: 'none', border: 'none', cursor: 'pointer', color: '#22c55e', borderRadius: 8 }} title="توثيق تواصل"><span className="material-symbols-outlined" style={{ fontSize: 20 }}>contact_phone</span></button>
-                            <button onClick={() => handleSendWhatsApp(r)} disabled={sendingId === r.id} style={{ padding: '4px 10px', background: r.isSent ? '#16a34a' : '#16a34a', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        <td>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <button onClick={() => handleSendWhatsApp(r)} disabled={sendingId === r.id} className="cnt-badge-btn" style={{ padding: '4px 10px', background: r.isSent ? '#16a34a' : '#16a34a', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{r.isSent ? 'check_circle' : 'send'}</span> {r.isSent ? 'تم' : 'إرسال'}
+                            </button>
+                            <button onClick={() => handlePrintForm('tahood_hodoor', r)} className="tbl-action-btn" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', borderRadius: 8 }} title="تعهد حضور">
+                              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>verified</span>
+                            </button>
+                            <button onClick={() => handlePrintForm('ehalat_absence', r)} className="tbl-action-btn" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#3b82f6', borderRadius: 8 }} title="إحالة غياب">
+                              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>forward_to_inbox</span>
+                            </button>
+                            <button onClick={() => handlePrintForm('tawtheeq_tawasol', r)} className="tbl-action-btn" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#22c55e', borderRadius: 8 }} title="توثيق تواصل">
+                              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>contact_phone</span>
                             </button>
                           </div>
                         </td>
-                        <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                          <button onClick={() => setConfirmDelete(r)} style={{ padding: '6px', background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', borderRadius: 8 }} title="حذف">
-                            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
+                        <td>
+                          <button onClick={() => setConfirmDelete(r)} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', borderRadius: 8 }} title="حذف">
+                            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
                           </button>
                         </td>
                       </tr>
@@ -492,11 +506,11 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
               ))}
             </tbody>
           </table>
-          {/* Footer stats — v22 style with colored square dots */}
-          <div style={{ display: 'flex', gap: 16, padding: '10px 16px', background: '#fff', borderTop: '1px solid #e8ebf2', fontSize: 12, color: '#64748b' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#dc2626', display: 'inline-block' }} /> غائب: {cntAbsent}</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#22c55e', display: 'inline-block' }} /> تم الإرسال: {cntSent}</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 'auto' }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#94a3b8', display: 'inline-block' }} /> لم يُرسل: {filtered.length - cntSent}</span>
+          <div className="tbl-footer">
+            <div className="s"><div className="d" style={{ background: '#fee2e2', borderColor: '#fca5a5' }}></div> غائب: {cntAbsent}</div>
+            <div className="s"><div className="d" style={{ background: '#fef3c7', borderColor: '#fde68a' }}></div> متأخر: {cntLate}</div>
+            <div className="s" style={{ marginRight: 'auto' }}><div className="d" style={{ background: '#d1fae5' }}></div> تم: {cntSent}</div>
+            <div className="s"><div className="d" style={{ background: '#fef3c7' }}></div> لم يُرسل: {filtered.length - cntSent}</div>
           </div>
         </div>
       )}
@@ -1570,14 +1584,18 @@ const ConfirmModal: React.FC<{ title: string; message: string; onConfirm: () => 
 const ImportDropdown: React.FC<{ onNoor: () => void; onPlatform: () => void }> = ({ onNoor, onPlatform }) => {
   const [open, setOpen] = useState(false);
   return (
-    <div style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(!open)} style={btnStyle('#16a34a')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>upload</span> استيراد ▾</button>
-      {open && (
-        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#fff', borderRadius: 10, boxShadow: '0 10px 40px rgba(0,0,0,0.15)', border: '1px solid #e5e7eb', zIndex: 50, minWidth: 200, overflow: 'hidden' }}>
-          <div onClick={() => { onNoor(); setOpen(false); }} style={{ padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>cloud</span> استيراد Excel (نور)</div>
-          <div onClick={() => { onPlatform(); setOpen(false); }} style={{ padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>bar_chart</span> استيراد منصة (Excel)</div>
-        </div>
-      )}
+    <div className={`dropdown-wrapper${open ? ' open' : ''}`}>
+      <button className="btn-hero btn-hero-primary" onClick={() => setOpen(!open)}>
+        <span className="material-symbols-outlined" style={{fontSize:18}}>upload_file</span> استيراد <span className="material-symbols-outlined" style={{fontSize:16}}>expand_more</span>
+      </button>
+      <div className="dropdown-menu">
+        <button className="dropdown-item" onClick={() => { onNoor(); setOpen(false); }}>
+          <span className="material-symbols-outlined">cloud_upload</span> استيراد Excel (نور)
+        </button>
+        <button className="dropdown-item" onClick={() => { onPlatform(); setOpen(false); }}>
+          <span className="material-symbols-outlined">table_view</span> استيراد منصة (Excel)
+        </button>
+      </div>
     </div>
   );
 };
@@ -1590,33 +1608,60 @@ const PERIODS = ['الأولى', 'الثانية', 'الثالثة', 'الراب
 
 const AddAbsenceModal: React.FC<{ stages: StageConfigData[]; onClose: () => void; onSaved: () => void }> = ({ onClose, onSaved }) => {
   const [students, setStudents] = useState<StudentOption[]>([]);
-  const [studentSearch, setStudentSearch] = useState('');
-  const [selectedStudents, setSelectedStudents] = useState<StudentOption[]>([]);
+  const [selectedGrade, setSelectedGrade] = useState('');
+  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedStudents, setSelectedStudents] = useState<Set<number>>(new Set());
   const [absenceType, setAbsenceType] = useState('FullDay');
-  const [period, setPeriod] = useState('');
-  const [dayName, setDayName] = useState('');
-  const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { studentsApi.getAll().then(res => { if (res.data?.data) setStudents(res.data.data); }); }, []);
 
-  const filteredStudents = useMemo(() => {
-    if (!studentSearch.trim()) return [];
-    const q = studentSearch.trim().toLowerCase();
-    const ids = new Set(selectedStudents.map(s => s.id));
-    return students.filter(s => !ids.has(s.id) && (s.name.toLowerCase().includes(q) || s.studentNumber.includes(q))).slice(0, 10);
-  }, [students, studentSearch, selectedStudents]);
+  const grades = useMemo(() => {
+    const g = [...new Set(students.map(s => s.grade))];
+    return g.sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [students]);
+
+  const classes = useMemo(() => {
+    if (!selectedGrade) return [];
+    const c = [...new Set(students.filter(s => s.grade === selectedGrade).map(s => s.className))];
+    return c.sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [students, selectedGrade]);
+
+  const classStudents = useMemo(() => {
+    if (!selectedGrade || !selectedClass) return [];
+    return students.filter(s => s.grade === selectedGrade && s.className === selectedClass);
+  }, [students, selectedGrade, selectedClass]);
+
+  const handleGradeChange = (g: string) => {
+    setSelectedGrade(g);
+    setSelectedClass('');
+    setSelectedStudents(new Set());
+  };
+
+  const handleClassChange = (c: string) => {
+    setSelectedClass(c);
+    setSelectedStudents(new Set());
+  };
+
+  const toggleStudent = (id: number) => {
+    setSelectedStudents(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
 
   const handleSave = async () => {
-    if (selectedStudents.length === 0) return showError('اختر طالب واحد على الأقل');
+    if (selectedStudents.size === 0) return showError('يرجى اختيار طالب واحد على الأقل');
     setSaving(true);
     try {
-      if (selectedStudents.length === 1) {
-        const data: AbsenceData = { studentId: selectedStudents[0].id, absenceType, period, dayName, notes };
+      const ids = Array.from(selectedStudents);
+      if (ids.length === 1) {
+        const data: AbsenceData = { studentId: ids[0], absenceType, period: '', dayName: '', notes: '' };
         const res = await absenceApi.add(data);
         if (res.data?.success) { showSuccess('تم تسجيل الغياب'); onSaved(); } else showError(res.data?.message || 'فشل');
       } else {
-        const res = await absenceApi.addBatch(selectedStudents.map(s => s.id), { absenceType, period, dayName, notes });
+        const res = await absenceApi.addBatch(ids, { absenceType, period: '', dayName: '', notes: '' });
         if (res.data?.data) { showSuccess(res.data.data.message || 'تم'); onSaved(); } else showError(res.data?.message || 'فشل');
       }
     } catch { showError('فشل التسجيل'); }
@@ -1625,63 +1670,75 @@ const AddAbsenceModal: React.FC<{ stages: StageConfigData[]; onClose: () => void
 
   return (
     <div style={modalOverlay}>
-      <div style={{ ...modalBox, maxWidth: 560, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #fef2f2, #fee2e2)', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>تسجيل غياب</h3>
-          <button onClick={onClose} style={closeBtn}>✕</button>
+      <div style={{ ...modalBox, maxWidth: 520 }}>
+        {/* Header — bg-orange-50 + event_busy icon */}
+        <div style={{ padding: '16px 24px', background: '#fff7ed', borderBottom: '1px solid #fed7aa', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#1f2937' }}>
+            <span className="material-symbols-outlined" style={{ color: '#ea580c', fontSize: 22 }}>event_busy</span> تسجيل غياب يدوي
+          </h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18 }}>
+            <span className="material-symbols-outlined">close</span>
+          </button>
         </div>
-        <div style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>الطلاب * (يمكن اختيار عدة طلاب)</label>
-            <input type="text" value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} placeholder="ابحث بالاسم أو الرقم..."
-              style={{ width: '100%', height: 40, padding: '0 12px', border: '2px solid #d1d5db', borderRadius: 12, fontSize: 14, boxSizing: 'border-box' }} />
-            {filteredStudents.length > 0 && (
-              <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, marginTop: 4 }}>
-                {filteredStudents.map(s => (
-                  <div key={s.id} onClick={() => { setSelectedStudents(p => [...p, s]); setStudentSearch(''); }}
-                    style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: 600 }}>{s.name}</span><span style={{ fontSize: 12, color: '#6b7280' }}>{s.grade} ({s.className})</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {selectedStudents.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                {selectedStudents.map(s => (
-                  <span key={s.id} style={{ padding: '4px 10px', background: '#fef2f2', borderRadius: 8, border: '1px solid #fecaca', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    {s.name}<button onClick={() => setSelectedStudents(p => p.filter(x => x.id !== s.id))} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 12, padding: '0 2px' }}>✕</button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>نوع الغياب</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[{ key: 'FullDay', label: 'يوم كامل', color: '#dc2626' }, { key: 'Period', label: 'حصة', color: '#ea580c' }].map(t => (
-                <button key={t.key} onClick={() => setAbsenceType(t.key)} style={{ flex: 1, padding: 10, borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: 'pointer', background: absenceType === t.key ? `${t.color}15` : '#f3f4f6', color: absenceType === t.key ? t.color : '#374151', border: absenceType === t.key ? `2px solid ${t.color}` : '1px solid #d1d5db' }}>{t.label}</button>
-              ))}
-            </div>
-          </div>
-          {absenceType === 'Period' && (
+        {/* Body */}
+        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Grade + Class — grid-cols-2 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>الحصة</label>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{PERIODS.map(p => (<button key={p} onClick={() => setPeriod(p)} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: period === p ? '#ea580c' : '#f3f4f6', color: period === p ? '#fff' : '#374151', border: period === p ? '2px solid #d4863a' : '1px solid #d1d5db' }}>{p}</button>))}</div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 4 }}>الصف</label>
+              <select value={selectedGrade} onChange={(e) => handleGradeChange(e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }}>
+                <option value="">اختر الصف</option>
+                {grades.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
             </div>
-          )}
-          <div>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>اليوم</label>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{DAY_NAMES.map(d => (<button key={d} onClick={() => setDayName(d)} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: dayName === d ? '#2563eb' : '#f3f4f6', color: dayName === d ? '#fff' : '#374151', border: dayName === d ? '2px solid #1d4ed8' : '1px solid #d1d5db' }}>{d}</button>))}</div>
+            <div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 4 }}>الفصل</label>
+              <select value={selectedClass} onChange={(e) => handleClassChange(e.target.value)} disabled={!selectedGrade}
+                style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }}>
+                <option value="">اختر الفصل</option>
+                {classes.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
+          {/* Students — checkboxes list max-h-48 */}
           <div>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>ملاحظات (اختياري)</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
-              style={{ width: '100%', padding: '10px 12px', border: '2px solid #d1d5db', borderRadius: 12, fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 4 }}>الطلاب</label>
+            <div style={{ maxHeight: 192, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, background: '#f9fafb' }}>
+              {classStudents.length === 0 ? (
+                <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>
+                  {!selectedGrade ? 'اختر الصف والفصل أولاً' : !selectedClass ? 'اختر الفصل' : 'لا يوجد طلاب'}
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {classStudents.map(s => (
+                    <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', background: selectedStudents.has(s.id) ? '#fff7ed' : 'transparent' }}>
+                      <input type="checkbox" checked={selectedStudents.has(s.id)} onChange={() => toggleStudent(s.id)}
+                        style={{ width: 16, height: 16, accentColor: '#ea580c', cursor: 'pointer' }} />
+                      <span style={{ fontSize: 14 }}>{s.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Absence type — dropdown */}
+          <div>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 4 }}>نوع الغياب</label>
+            <select value={absenceType} onChange={(e) => setAbsenceType(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }}>
+              <option value="FullDay">يوم كامل</option>
+              <option value="Period">حصة</option>
+            </select>
           </div>
         </div>
+        {/* Footer */}
         <div style={{ padding: '16px 24px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer' }}>إلغاء</button>
-          <button onClick={handleSave} disabled={saving} style={{ padding: '8px 24px', background: '#ea580c', color: '#fff', borderRadius: 8, fontWeight: 700, border: 'none', cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'جاري الحفظ...' : `حفظ (${selectedStudents.length} طالب)`}</button>
+          <button onClick={onClose} style={{ padding: '8px 16px', color: '#374151', background: '#fff', border: '1px solid #d1d5db', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>إلغاء</button>
+          <button onClick={handleSave} disabled={saving || selectedStudents.size === 0}
+            style={{ padding: '8px 24px', background: '#ea580c', color: '#fff', borderRadius: 8, fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
+            {saving ? 'جاري الحفظ...' : 'حفظ'}
+          </button>
         </div>
       </div>
     </div>

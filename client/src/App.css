@@ -540,3 +540,14 @@ hr { border-color: var(--c-border-light) !important; }
   /* Bottom navigation padding for mobile */
   main { padding-bottom: 70px !important; }
 }
+
+/* ═══ 25. أزرار إجراءات الجدول ═══ */
+.tbl-action-btn { transition: background 0.15s ease !important; }
+.tbl-action-btn:hover { background: rgba(0,0,0,0.04) !important; }
+button[title="تعهد حضور"]:hover { background: #eef2ff !important; }
+button[title="إحالة غياب"]:hover { background: #eff6ff !important; }
+button[title="توثيق تواصل"]:hover { background: #f0fdf4 !important; }
+button[title="حذف"]:hover { background: #fef2f2 !important; }
+
+.cnt-badge-btn { transition: all 0.15s ease !important; }
+.cnt-badge-btn:hover { filter: brightness(1.1) !important; box-shadow: 0 2px 8px rgba(22,163,74,0.3) !important; }
