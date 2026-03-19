@@ -918,32 +918,44 @@ const ExcusesTab: React.FC<{ excuses: ParentExcuseRow[]; onRefresh: () => void; 
 
   return (
     <>
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        {statusBtns.map(b => (
-          <button key={b.id} onClick={() => setStatusFilter(b.id)} style={{
-            padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            background: statusFilter === b.id ? b.bg : '#f9fafb',
-            color: statusFilter === b.id ? b.color : '#6b7280',
-            border: statusFilter === b.id ? `2px solid ${b.color}` : '1px solid #e5e7eb',
-          }}>{b.label} ({b.count})</button>
-        ))}
-        <div style={{ flex: 1 }} />
-        <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} style={{ padding: '6px 12px', borderRadius: 8, border: '2px solid #d1d5db', fontSize: 12 }}>
-          <option value="all">كل الفترات</option>
-          <option value="week">هذا الأسبوع</option>
-          <option value="month">هذا الشهر</option>
-        </select>
-        <button onClick={handlePrint} style={btnStyle('#7c3aed', true)}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
-        <button onClick={onRefresh} style={btnStyle('#6b7280', true)}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span></button>
+      {/* Filters — مطابق: بطاقة بيضاء مع فلاتر الحالة */}
+      <div className="bg-white rounded-xl" style={{ padding: 16, marginBottom: 20 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {statusBtns.map(b => (
+              <button key={b.id} onClick={() => setStatusFilter(b.id)} style={{
+                padding: '8px 16px', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                background: statusFilter === b.id ? b.bg : '#f9fafb',
+                color: statusFilter === b.id ? b.color : '#6b7280',
+                border: statusFilter === b.id ? `2px solid ${b.color}` : '1px solid #e5e7eb',
+              }}>
+                {b.label} <span style={{ fontSize: 12, background: `${b.color}20`, padding: '1px 8px', borderRadius: 9999, marginRight: 4 }}>{b.count}</span>
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
+              style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, background: '#fff' }}>
+              <option value="all">كل الفترات</option>
+              <option value="week">هذا الأسبوع</option>
+              <option value="month">هذا الشهر</option>
+            </select>
+            <button onClick={handlePrint} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: '#7c3aed', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
+              <span className="material-symbols-outlined" style={{fontSize:16}}>print</span> طباعة
+            </button>
+            <button onClick={onRefresh} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: '#f9fafb', color: '#4b5563', borderRadius: 8, border: '1px solid #e5e7eb', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+              <span className="material-symbols-outlined" style={{fontSize:16}}>refresh</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Excuses list */}
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>edit_note</span>
-          <p style={{ color: '#6b7280', marginTop: 12, fontSize: 16 }}>لا توجد أعذار</p>
-          <p style={{ color: '#9ca3af', fontSize: 13 }}>ستظهر هنا الأعذار المقدمة من أولياء الأمور</p>
+        <div className="bg-white rounded-xl" style={{ textAlign: 'center', padding: '64px 20px' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>assignment_late</span>
+          <p style={{ color: '#6b7280', marginTop: 16, fontSize: 18 }}>لا توجد أعذار</p>
+          <p style={{ color: '#9ca3af', fontSize: 14, marginTop: 8 }}>ستظهر هنا الأعذار المقدمة من أولياء الأمور</p>
         </div>
       ) : groupedByDay ? (
         /* Grouped by day view (when week filter) */
@@ -1211,61 +1223,100 @@ const ApprovedTab: React.FC<{ records: CumulativeRow[]; dailyRecords: AbsenceRow
 
   return (
     <>
-      {/* Toolbar */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={handlePrint} style={btnStyle('#4f46e5')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة القوائم</button>
-        <button onClick={handlePrintDiscipline} style={btnStyle('#16a34a')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>stars</span> كشف المنضبطين</button>
-        <button onClick={handlePrintContactReport} style={btnStyle('#0891b2')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>contact_phone</span> تقرير التواصل</button>
-        <button onClick={handleBulkSend} disabled={sending} style={btnStyle('#25d366')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال</button>
+      {/* Toolbar — مطابق: 4 أزرار ملونة (indigo/blue/emerald/teal) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button onClick={handlePrint} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#4f46e5', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <span className="material-symbols-outlined" style={{fontSize:16}}>print</span> طباعة القوائم
+        </button>
+        <button onClick={handleBulkSend} disabled={sending} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#2563eb', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <span className="material-symbols-outlined" style={{fontSize:16}}>send</span> إرسال
+        </button>
+        <button onClick={handlePrintDiscipline} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#059669', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <span className="material-symbols-outlined" style={{fontSize:16}}>upload_file</span> استيراد ملف نور
+        </button>
+        <button onClick={handlePrintContactReport} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#0d9488', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <span className="material-symbols-outlined" style={{fontSize:16}}>contact_phone</span> تقرير التواصل
+        </button>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث..."
-          style={{ flex: 1, minWidth: 150, height: 36, padding: '0 10px', border: '2px solid #d1d5db', borderRadius: 10, fontSize: 13 }} />
-        <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); }} style={selectStyle}>
-          <option value="">كل الصفوف</option>{grades.map(g => <option key={g} value={g}>{g}</option>)}
-        </select>
-        <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} style={selectStyle}>
-          <option value="">كل الفصول</option>{classes.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="من تاريخ"
-          style={{ height: 36, padding: '0 8px', border: '2px solid #d1d5db', borderRadius: 8, fontSize: 12 }} />
-        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="إلى تاريخ"
-          style={{ height: 36, padding: '0 8px', border: '2px solid #d1d5db', borderRadius: 8, fontSize: 12 }} />
-        {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ height: 36, padding: '0 10px', background: '#fee2e2', color: '#dc2626', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 11 }}>✕ مسح التاريخ</button>}
-        <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} style={selectStyle}>
-          <option value="desc">الأكثر غياباً</option><option value="asc">الأقل غياباً</option><option value="alpha">أبجدياً</option>
-        </select>
-        <div style={{ display: 'flex', gap: 4, background: '#f3f4f6', borderRadius: 8, padding: 2 }}>
-          <button onClick={() => setViewMode('cards')} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? '#ea580c' : '#6b7280', fontWeight: 700, fontSize: 13 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>view_carousel</span></button>
-          <button onClick={() => setViewMode('table')} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? '#ea580c' : '#6b7280', fontWeight: 700, fontSize: 13 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>assignment</span></button>
+      {/* Filters — مطابق: بطاقة بيضاء sticky مع بحث + فلاتر + حالة */}
+      <div className="bg-white rounded-xl" style={{ padding: 12, marginBottom: 16, position: 'sticky', top: 0, zIndex: 20 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }}>search</span>
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث بالاسم..."
+              style={{ width: 192, paddingRight: 36, paddingLeft: 8, height: 34, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }} />
+          </div>
+          <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); }}
+            style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 12, background: '#f9fafb', flexShrink: 0 }}>
+            <option value="">كل الصفوف</option>{grades.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}
+            style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 12, background: '#f9fafb', flexShrink: 0 }}>
+            <option value="">كل الفصول</option>{classes.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select value={sortMode} onChange={(e) => setSortMode(e.target.value)}
+            style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 12, background: '#f9fafb', flexShrink: 0 }}>
+            <option value="desc">الأكثر غياباً (تنازلي)</option><option value="asc">الأقل غياباً</option><option value="alpha">أبجدياً</option>
+          </select>
+          <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 8, padding: 2, flexShrink: 0 }}>
+            <button onClick={() => setViewMode('cards')} style={{ padding: 4, borderRadius: 4, border: 'none', cursor: 'pointer', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? '#4f46e5' : '#9ca3af' }}>
+              <span className="material-symbols-outlined" style={{fontSize:18}}>grid_view</span>
+            </button>
+            <button onClick={() => setViewMode('table')} style={{ padding: 4, borderRadius: 4, border: 'none', cursor: 'pointer', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? '#4f46e5' : '#9ca3af' }}>
+              <span className="material-symbols-outlined" style={{fontSize:18}}>table_rows</span>
+            </button>
+          </div>
+        </div>
+        {/* فلاتر الحالة — 9 أزرار مع فواصل وتصنيفات */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid #f1f5f9' }}>
+          <button onClick={() => setLevelFilter('all')} style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'all' ? '#f3f4f6' : 'transparent', color: '#4b5563', border: '1px solid #e5e7eb' }}>الكل</button>
+          <button onClick={() => setLevelFilter('zero')} style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'zero' ? '#dcfce7' : '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span className="material-symbols-outlined" style={{fontSize:14}}>stars</span> المنضبطين
+          </button>
+          <span style={{ width: 1, height: 20, background: '#d1d5db' }} />
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', background: '#fef2f2', padding: '2px 6px', borderRadius: 4, border: '1px solid #fecaca' }}>بدون عذر:</span>
+          <button onClick={() => setLevelFilter('warning')} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'warning' ? '#fef9c3' : 'transparent', color: '#a16207', border: '1px solid #fde68a' }}>إنذار (3-4)</button>
+          <button onClick={() => setLevelFilter('danger')} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'danger' ? '#ffedd5' : 'transparent', color: '#c2410c', border: '1px solid #fdba74' }}>لجنة (5-9)</button>
+          <button onClick={() => setLevelFilter('critical')} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'critical' ? '#fee2e2' : 'transparent', color: '#dc2626', border: '1px solid #fca5a5' }}>حماية (10+)</button>
+          <span style={{ width: 1, height: 20, background: '#d1d5db' }} />
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#3b82f6', background: '#eff6ff', padding: '2px 6px', borderRadius: 4, border: '1px solid #bfdbfe' }}>بعذر:</span>
+          <button onClick={() => setLevelFilter('mo_ref')} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'mo_ref' ? '#e0f2fe' : 'transparent', color: '#0369a1', border: '1px solid #7dd3fc' }}>إحالة موجه (3-4)</button>
+          <button onClick={() => setLevelFilter('mo_com')} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'mo_com' ? '#dbeafe' : 'transparent', color: '#1d4ed8', border: '1px solid #93c5fd' }}>لجنة توجيه (5-9)</button>
+          <button onClick={() => setLevelFilter('mo_risk')} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'mo_risk' ? '#e0e7ff' : 'transparent', color: '#4338ca', border: '1px solid #a5b4fc' }}>اشتباه إهمال (10+)</button>
         </div>
       </div>
 
-      {/* Level filters */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        {filterBtns.map((f, i) => {
-          if (!f) return <span key={`sep-${i}`} style={{ width: 1, height: 20, background: '#d1d5db', margin: '0 4px' }} />;
-          if (f.group) return (
-            <React.Fragment key={f.id}>
-              <span style={{ fontSize: 9, fontWeight: 700, color: f.color, background: f.bg, padding: '2px 6px', borderRadius: 4, border: `1px solid ${f.color}20` }}>{f.group}:</span>
-              <button onClick={() => setLevelFilter(f.id)} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === f.id ? f.bg : '#f9fafb', color: levelFilter === f.id ? f.color : '#6b7280', border: levelFilter === f.id ? `2px solid ${f.color}` : '1px solid #e5e7eb' }}>{f.label}</button>
-            </React.Fragment>
-          );
-          return <button key={f.id} onClick={() => setLevelFilter(f.id)} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === f.id ? f.bg : '#f9fafb', color: levelFilter === f.id ? f.color : '#6b7280', border: levelFilter === f.id ? `2px solid ${f.color}` : '1px solid #e5e7eb' }}>{f.label}</button>;
-        })}
-      </div>
-
-      {/* Bulk bar */}
+      {/* Bulk bar — مطابق: fixed bottom full-width bg-gray-900 */}
       {selected.size > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: '#1f2937', color: '#fff', borderRadius: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 700, color: '#ea580c' }}>{selected.size} طالب</span>
-          <div style={{ flex: 1 }} />
-          <button onClick={() => handleGroupPrint('group_tahood')} style={{ padding: '4px 12px', background: '#16a34a', color: '#fff', borderRadius: 6, border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 11 }}><span className="material-symbols-outlined" style={{fontSize:14,verticalAlign:'middle'}}>description</span> كشف تعهد</button>
-          <button onClick={() => handleGroupPrint('group_ehala')} style={{ padding: '4px 12px', background: '#7c3aed', color: '#fff', borderRadius: 6, border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 11 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>upload</span> كشف إحالة</button>
-          <button onClick={handleBulkSend} disabled={sending} style={{ padding: '4px 12px', background: '#25d366', color: '#fff', borderRadius: 6, border: 'none', fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontSize: 11 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> واتساب</button>
-          <button onClick={() => setSelected(new Set())} style={{ padding: '4px 8px', background: '#374151', color: '#9ca3af', borderRadius: 6, border: 'none', cursor: 'pointer' }}>✕</button>
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#111827', color: '#fff', padding: '12px 24px', zIndex: 50, boxShadow: '0 -4px 20px rgba(0,0,0,0.3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, maxWidth: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 18, fontWeight: 700, color: '#f97316' }}>{selected.size}</span>
+              <span style={{ fontSize: 14, color: '#d1d5db' }}>طالب محدد</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: '#9ca3af' }}>تاريخ النماذج (اختياري):</span>
+              <input type="date" style={{ padding: '4px 8px', borderRadius: 4, background: '#1f2937', border: '1px solid #4b5563', color: '#fff', fontSize: 12 }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => handleGroupPrint('group_tahood')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 12px', background: '#059669', borderRadius: 8, border: 'none', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                <span className="material-symbols-outlined" style={{fontSize:14}}>checklist</span> كشف تعهد
+              </button>
+              <button onClick={() => handleGroupPrint('group_ehala')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 12px', background: '#2563eb', borderRadius: 8, border: 'none', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                <span className="material-symbols-outlined" style={{fontSize:14}}>forward_to_inbox</span> كشف إحالة
+              </button>
+              <button onClick={() => { if (selectedRecords.length > 0) handlePrintForm('tahood_hodoor', selectedRecords[0]); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 12px', background: '#d97706', borderRadius: 8, border: 'none', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                <span className="material-symbols-outlined" style={{fontSize:14}}>person</span> تعهد فردي
+              </button>
+              <button onClick={() => { if (selectedRecords.length > 0) handlePrintForm('ehalat_absence', selectedRecords[0]); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 12px', background: '#7c3aed', borderRadius: 8, border: 'none', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                <span className="material-symbols-outlined" style={{fontSize:14}}>assignment_ind</span> إحالة غياب
+              </button>
+              <button onClick={() => setSelected(new Set())} style={{ padding: '6px 8px', background: '#374151', borderRadius: 8, border: 'none', color: '#9ca3af', cursor: 'pointer' }}>
+                <span className="material-symbols-outlined" style={{fontSize:14}}>close</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1403,29 +1454,38 @@ const ReportsTab: React.FC<{ records: AbsenceRow[]; cumulativeRecords: Cumulativ
 
   return (
     <>
-      {/* Filters */}
-      <div style={{ background: '#fff', padding: 16, borderRadius: 12, border: '1px solid #e5e7eb', marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>الصف</label>
-            <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); }} style={selectStyle}><option value="">كل الصفوف</option>{grades.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
-          <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>الفصل</label>
-            <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} style={selectStyle}><option value="">كل الفصول</option>{classes.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-          <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>من تاريخ</label>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={{ padding: '6px 10px', border: '2px solid #d1d5db', borderRadius: 8, fontSize: 13 }} /></div>
-          <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>إلى تاريخ</label>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={{ padding: '6px 10px', border: '2px solid #d1d5db', borderRadius: 8, fontSize: 13 }} /></div>
-          <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>نوع الغياب</label>
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={selectStyle}><option value="">الكل</option><option value="Excused">بعذر</option><option value="Unexcused">بدون عذر</option></select></div>
-          <button onClick={handlePrint} style={btnStyle('#7c3aed')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة التقرير</button>
+      {/* Filters — مطابق: بطاقة بيضاء مع labels */}
+      <div className="bg-white rounded-xl" style={{ padding: 20, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div><label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>الصف</label>
+            <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); }} style={{ width: 160, padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, height: 40 }}><option value="">كل الصفوف</option>{grades.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
+          <div><label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>الفصل</label>
+            <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} style={{ width: 160, padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, height: 40 }}><option value="">كل الفصول</option>{classes.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+          <div><label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>من تاريخ</label>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, height: 40 }} /></div>
+          <div><label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>إلى تاريخ</label>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, height: 40 }} /></div>
+          <div><label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>نوع الغياب</label>
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ width: 144, padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, height: 40 }}><option value="">الكل</option><option value="Excused">بعذر</option><option value="Unexcused">بدون عذر</option></select></div>
+          <button onClick={handlePrint} style={{ height: 40, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0 24px', background: '#7c3aed', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, marginBottom: 2 }}>
+            <span className="material-symbols-outlined" style={{fontSize:18}}>print</span> طباعة
+          </button>
         </div>
       </div>
 
-      {/* Stats cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <StatCard label="إجمالي الغياب" value={filteredRecords.length} color="#ea580c" icon="bar_chart" />
-        <StatCard label="بدون عذر" value={unexcusedCount} color="#dc2626" icon="cancel" />
-        <StatCard label="بعذر" value={excusedCount} color="#2563eb" icon="check_circle" />
-        <StatCard label="تأخير" value={lateCount} color="#f59e0b" icon="schedule" />
+      {/* Stats cards — مطابق: border-r-4 ملون */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 20 }}>
+        {[
+          { label: 'إجمالي الغياب', value: filteredRecords.length, color: '#ea580c', borderColor: '#f97316' },
+          { label: 'بدون عذر', value: unexcusedCount, color: '#dc2626', borderColor: '#ef4444' },
+          { label: 'بعذر', value: excusedCount, color: '#2563eb', borderColor: '#3b82f6' },
+          { label: 'تأخير', value: lateCount, color: '#d97706', borderColor: '#f59e0b' },
+        ].map((s, i) => (
+          <div key={i} className="bg-white rounded-xl" style={{ padding: 20, borderRight: `4px solid ${s.borderColor}` }}>
+            <div style={{ fontSize: 30, fontWeight: 700, color: s.color, marginBottom: 4 }}>{s.value}</div>
+            <div style={{ fontSize: 14, color: '#6b7280' }}>{s.label}</div>
+          </div>
+        ))}
       </div>
 
       {/* By Day — مطابق لتصميم v22: خلفية برتقالية + أرقام كبيرة + خط سفلي للأعلى */}
