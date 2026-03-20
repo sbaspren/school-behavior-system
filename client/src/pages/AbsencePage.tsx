@@ -911,7 +911,6 @@ const ExcusesTab: React.FC<{ excuses: ParentExcuseRow[]; onRefresh: () => void; 
     printListReport({
       title: 'كشف الأعذار المقدمة',
       dateText: `${hijri} الموافق ${miladi} م`,
-      headerBg: '#7c3aed',
       headers: [
         { label: 'م', width: '5%' }, { label: 'الطالب', width: '22%' }, { label: 'الفصل', width: '10%' },
         { label: 'العذر', width: '25%' }, { label: 'تاريخ الغياب', width: '13%' }, { label: 'الحالة', width: '10%' }, { label: 'المصدر', width: '8%' },
@@ -1196,7 +1195,6 @@ const ApprovedTab: React.FC<{ records: CumulativeRow[]; dailyRecords: AbsenceRow
     printListReport({
       title: 'كشف المتميزين بالانضباط',
       dateText: hijri,
-      headerBg: '#16a34a',
       headers: [
         { label: 'م', width: '8%' }, { label: 'الطالب', width: '55%' }, { label: 'الصف', width: '20%' },
       ],
@@ -1217,7 +1215,6 @@ const ApprovedTab: React.FC<{ records: CumulativeRow[]; dailyRecords: AbsenceRow
     printListReport({
       title: 'تقرير التواصل مع أولياء الأمور',
       dateText: hijri,
-      headerBg: '#0891b2',
       headers: [
         { label: 'م' }, { label: 'الطالب' }, { label: 'الصف' },
         { label: 'إجمالي' }, { label: 'بدون عذر' }, { label: 'بعذر' }, { label: 'التواصل' },
