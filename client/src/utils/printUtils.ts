@@ -141,7 +141,7 @@ body{margin:0;padding:0;font-family:'Traditional Arabic','Amiri',serif;font-size
 .data-cell{border:1px solid #000;padding:4px 5px;text-align:center;vertical-align:middle;font-size:13pt}
 .name-cell{border:1px solid #000;padding:4px 8px 4px 5px;text-align:right;font-weight:bold;white-space:nowrap;font-size:13pt}
 .detail-cell{border:1px solid #000;padding:4px 8px 4px 5px;text-align:right;font-size:12pt}
-.sep-row td{background:#e0e0e0;height:3px;padding:0!important;border-left:none;border-right:none;border-top:1px solid #000;border-bottom:1px solid #000}
+.sep-row td{background:#eee;height:3px;padding:0!important;border-left:none;border-right:none;border-top:2px solid #333;border-bottom:none}
 .footer-block{page-break-inside:avoid;padding:20px 0 0}
 .footer-flex{display:flex;justify-content:space-between;font-weight:bold;font-size:14pt}
 .with-dots{border-bottom:1px dotted #999;display:inline-block;min-width:150px;min-height:22px}

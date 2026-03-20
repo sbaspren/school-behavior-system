@@ -1826,15 +1826,13 @@ export interface ListReportConfig {
   headers: { label: string; width?: string }[]; // أعمدة الجدول
   rows: ListReportRow[];            // صفوف البيانات
   summary?: string;                 // ملخص أسفل الجدول (HTML)
-  signatures?: boolean;             // إظهار التوقيعات الثلاثية (الافتراضي: true)
-  headerBg?: string;                // لون خلفية رأس الجدول (الافتراضي: #ea580c)
+  signatures?: boolean;             // إظهار التوقيعات (الافتراضي: true)
 }
 
 /** طباعة كشف قائمة موحد بالتنسيق الرسمي المعتمد */
 export function printListReport(config: ListReportConfig, settings: SchoolSettings): void {
   const letterheadHtml = buildLetterheadHtml(settings);
   const css = getSharedPrintCSS();
-  const headerBg = config.headerBg || '#f2f2f2';
   const showSigs = config.signatures !== false;
 
   // بناء أعمدة الرأس
@@ -1844,27 +1842,32 @@ export function printListReport(config: ListReportConfig, settings: SchoolSettin
 
   // بناء الصفوف
   let rowsHtml = '';
+  let dataIdx = 0;
   for (const row of config.rows) {
     if (row.isSeparator) {
       rowsHtml += `<tr class="sep-row"><td colspan="${config.headers.length}"></td></tr>`;
+      dataIdx = 0;
     } else if (row.isGroupHeader) {
-      rowsHtml += `<tr style="background:#f5f5f5;font-weight:700"><td colspan="${config.headers.length}" style="padding:8px;font-size:12pt;border:1px solid #000">${escapeHtml(row.groupLabel || '')}${row.groupCount !== undefined ? ' (' + toIndic(row.groupCount) + ')' : ''}</td></tr>`;
+      rowsHtml += `<tr><td colspan="${config.headers.length}" style="background:#eee;font-weight:700;padding:8px;font-size:12pt;border:1px solid #000;border-top:2px solid #333">${escapeHtml(row.groupLabel || '')}${row.groupCount !== undefined ? ' (' + toIndic(row.groupCount) + ')' : ''}</td></tr>`;
+      dataIdx = 0;
     } else {
-      rowsHtml += '<tr>' + row.cells.map(c => `<td class="data-cell">${c}</td>`).join('') + '</tr>';
+      const bgStyle = dataIdx % 2 === 1 ? ' style="background:#fafafa"' : '';
+      rowsHtml += `<tr${bgStyle}>` + row.cells.map(c => `<td class="data-cell">${c}</td>`).join('') + '</tr>';
+      dataIdx++;
     }
   }
 
   // بناء شريط الإحصائيات
   const statsHtml = config.statsBar
-    ? `<div style="border:2px solid #333;padding:8px 15px;margin:8px 0;font-size:13pt;font-weight:bold;text-align:center">${config.statsBar}</div>`
+    ? `<div style="border:2px solid #ccc;padding:8px 15px;margin:8px 0;font-size:13pt;font-weight:bold;text-align:center;background:#f9f9f9">${config.statsBar}</div>`
     : '';
 
   // بناء الملخص
   const summaryHtml = config.summary
-    ? `<div style="border:2px solid #333;padding:10px 15px;margin-top:12px;font-weight:bold;font-size:13pt">${config.summary}</div>`
+    ? `<div style="border:2px solid #333;padding:10px 15px;margin-top:12px;font-weight:bold;font-size:13pt;background:#fafafa">${config.summary}</div>`
     : '';
 
-  // بناء التوقيعات الثلاثية
+  // بناء التوقيع
   const signaturesHtml = showSigs
     ? `<div class="footer-block"><table style="width:100%;margin-top:30px;border:none"><tr>
         <td style="border:none;width:100%;text-align:left;padding-left:30px;vertical-align:top"><strong>وكيل شؤون الطلاب</strong><br><span class="with-dots" style="min-width:150px"></span></td>
@@ -1874,9 +1877,7 @@ export function printListReport(config: ListReportConfig, settings: SchoolSettin
   const html = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">`
     + `<title>${escapeHtml(config.title)}</title>`
     + `<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Traditional+Arabic&display=swap" rel="stylesheet">`
-    + `<style>${css}
-      .report-header-row th { background:${headerBg};color:#000;padding:8px;font-weight:bold;font-size:13pt;border:1px solid #000 }
-    </style></head><body>`
+    + `<style>${css}</style></head><body>`
     + `<table class="main-table"><thead>`
     + `<tr><td colspan="${config.headers.length}" class="header-cell">`
     + letterheadHtml
@@ -1885,7 +1886,7 @@ export function printListReport(config: ListReportConfig, settings: SchoolSettin
     + `<div class="form-date">${escapeHtml(config.dateText)}</div>`
     + statsHtml
     + `</td></tr>`
-    + `<tr class="report-header-row">${headerCells}</tr>`
+    + `<tr>${headerCells}</tr>`
     + `</thead>`
     + `<tbody>${rowsHtml}</tbody></table>`
     + summaryHtml
