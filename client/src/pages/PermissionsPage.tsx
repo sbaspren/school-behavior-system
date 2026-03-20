@@ -15,8 +15,6 @@ import { printForm } from '../utils/printTemplates';
 import { printDailyReport } from '../utils/printDaily';
 import { templatesApi } from '../api/templates';
 
-const REASONS = ['مرض', 'مراجعة طبية', 'ظروف عائلية', 'مراجعة حكومية', 'أخرى'];
-
 interface PermissionRow {
   id: number; studentId: number; studentNumber: string; studentName: string;
   grade: string; className: string; stage: string; mobile: string;
@@ -721,10 +719,15 @@ const ConfirmModal: React.FC<{ title: string; message: string; onConfirm: () => 
 // ============================================================
 // Add Permission Modal
 // ============================================================
+const REASONS = ['ظرف صحي', 'ظرف أسري', 'موعد حكومي', 'طلب ولي الأمر'];
+const RECEIVERS = ['الأب', 'الأخ', 'الأم', 'الجد', 'العم', 'آخر'];
+const RESPONSIBLES = ['الموجه الطلابي', 'الوكيل', 'المدير'];
+
 const AddPermissionModal: React.FC<{ stages: StageConfigData[]; onClose: () => void; onSaved: () => void }> = ({ onClose, onSaved }) => {
   const [students, setStudents] = useState<StudentOption[]>([]);
-  const [studentSearch, setStudentSearch] = useState('');
-  const [selectedStudents, setSelectedStudents] = useState<StudentOption[]>([]);
+  const [gradeFilter, setGradeFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [exitTime, setExitTime] = useState('');
   const [reason, setReason] = useState('');
   const [receiver, setReceiver] = useState('');
@@ -733,99 +736,106 @@ const AddPermissionModal: React.FC<{ stages: StageConfigData[]; onClose: () => v
 
   useEffect(() => { studentsApi.getAll().then((res) => { if (res.data?.data) setStudents(res.data.data); }); }, []);
 
+  const grades = useMemo(() => Array.from(new Set(students.map((s) => s.grade))).sort(), [students]);
+  const classes = useMemo(() => {
+    if (!gradeFilter) return [];
+    return Array.from(new Set(students.filter((s) => s.grade === gradeFilter).map((s) => s.className))).sort();
+  }, [students, gradeFilter]);
   const filteredStudents = useMemo(() => {
-    if (!studentSearch.trim()) return [];
-    const q = studentSearch.trim().toLowerCase();
-    const ids = new Set(selectedStudents.map((s) => s.id));
-    return students.filter((s) => !ids.has(s.id) && (s.name.toLowerCase().includes(q) || s.studentNumber.includes(q))).slice(0, 10);
-  }, [students, studentSearch, selectedStudents]);
+    if (!gradeFilter || !classFilter) return [];
+    return students.filter((s) => s.grade === gradeFilter && s.className === classFilter).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+  }, [students, gradeFilter, classFilter]);
 
   const handleSave = async () => {
-    if (selectedStudents.length === 0) return showError('اختر طالب واحد على الأقل');
+    if (selectedIds.length === 0) return showError('اختر طالب واحد على الأقل');
+    if (!reason) return showError('يرجى اختيار السبب');
+    if (!receiver) return showError('يرجى اختيار المستلم');
+    if (!supervisor) return showError('يرجى اختيار المسؤول');
     setSaving(true);
     try {
-      if (selectedStudents.length === 1) {
-        const data: PermissionData = { studentId: selectedStudents[0].id, exitTime, reason, receiver, supervisor };
+      if (selectedIds.length === 1) {
+        const data: PermissionData = { studentId: selectedIds[0], exitTime, reason, receiver, supervisor };
         const res = await permissionsApi.add(data);
         if (res.data?.success) { showSuccess('تم تسجيل الاستئذان'); onSaved(); } else showError(res.data?.message || 'فشل');
       } else {
-        const res = await permissionsApi.addBatch(selectedStudents.map((s) => s.id), { exitTime, reason, receiver, supervisor });
+        const res = await permissionsApi.addBatch(selectedIds, { exitTime, reason, receiver, supervisor });
         if (res.data?.data) { showSuccess(res.data.data.message || 'تم'); onSaved(); } else showError(res.data?.message || 'فشل');
       }
     } catch { showError('فشل التسجيل'); }
     finally { setSaving(false); }
   };
 
+  const selectStyle: React.CSSProperties = { width: '100%', height: '44px', padding: '0 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', fontFamily: 'inherit', background: '#fff' };
+  const labelStyle: React.CSSProperties = { display: 'block', fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '6px' };
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.6)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div style={{ background: '#fff', borderRadius: '20px', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #f5f3ff, #ede9fe)', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>تسجيل استئذان</h3>
-          <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}>✕</button>
+      <div style={{ background: '#fff', borderRadius: '20px', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {/* هيدر بنفسجي — مطابق للقديم */}
+        <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #7c3aed, #9333ea)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}><span className="material-symbols-outlined" style={{ fontSize: 20 }}>exit_to_app</span> تسجيل استئذان</h3>
+          <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: 'rgba(255,255,255,0.8)' }}>✕</button>
         </div>
         <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Students */}
-          <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>الطلاب * (يمكن اختيار عدة طلاب)</label>
-            <input type="text" value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} placeholder="ابحث بالاسم أو الرقم..."
-              style={{ width: '100%', height: '40px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', boxSizing: 'border-box' }} />
-            {filteredStudents.length > 0 && (
-              <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px', marginTop: '4px' }}>
-                {filteredStudents.map((s) => (
-                  <div key={s.id} onClick={() => { setSelectedStudents((p) => [...p, s]); setStudentSearch(''); }}
-                    style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: 600 }}>{s.name}</span><span style={{ fontSize: '12px', color: '#6b7280' }}>{s.grade} ({s.className})</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {selectedStudents.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
-                {selectedStudents.map((s) => (
-                  <span key={s.id} style={{ padding: '4px 10px', background: '#f5f3ff', borderRadius: '100px', border: '1px solid #ddd6fe', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    {s.name}<button onClick={() => setSelectedStudents((p) => p.filter((x) => x.id !== s.id))} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}>✕</button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-          {/* Exit Time */}
-          <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>وقت الخروج</label>
-            <input type="time" value={exitTime} onChange={(e) => setExitTime(e.target.value)}
-              style={{ width: '100%', height: '40px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', boxSizing: 'border-box' }} />
-          </div>
-          {/* Reason */}
-          <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>السبب</label>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {REASONS.map((r) => (
-                <button key={r} onClick={() => setReason(r)} style={{
-                  padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-                  background: reason === r ? '#7c3aed' : '#f3f4f6', color: reason === r ? '#fff' : '#374151',
-                  border: reason === r ? '2px solid #6d28d9' : '1px solid #d1d5db',
-                }}>{r}</button>
-              ))}
+          {/* الصف + الفصل */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <label style={labelStyle}>الصف *</label>
+              <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); setSelectedIds([]); }} style={selectStyle}>
+                <option value="">اختر الصف</option>{grades.map((g) => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>الفصل *</label>
+              <select value={classFilter} onChange={(e) => { setClassFilter(e.target.value); setSelectedIds([]); }} disabled={!gradeFilter} style={{ ...selectStyle, background: gradeFilter ? '#fff' : '#f9fafb' }}>
+                <option value="">اختر الفصل</option>{classes.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
           </div>
-          {/* Receiver */}
+          {/* الطلاب — multi-select */}
           <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>المستلم</label>
-            <input type="text" value={receiver} onChange={(e) => setReceiver(e.target.value)} placeholder="اسم ولي الأمر أو المستلم"
-              style={{ width: '100%', height: '40px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', boxSizing: 'border-box' }} />
+            <label style={labelStyle}>الطلاب * <span style={{ color: '#9ca3af', fontWeight: 400 }}>(يمكنك اختيار أكثر من طالب)</span></label>
+            <select multiple value={selectedIds.map(String)} onChange={(e) => { setSelectedIds(Array.from(e.target.selectedOptions, (o) => Number(o.value))); }}
+              disabled={filteredStudents.length === 0}
+              style={{ width: '100%', height: '200px', padding: '8px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', fontFamily: 'inherit', background: filteredStudents.length > 0 ? '#fff' : '#f9fafb' }}>
+              {filteredStudents.length === 0 ? <option value="" disabled>اختر الصف والفصل أولاً</option> : filteredStudents.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>اضغط Ctrl للاختيار المتعدد</p>
           </div>
-          {/* Supervisor */}
-          <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>المسؤول</label>
-            <input type="text" value={supervisor} onChange={(e) => setSupervisor(e.target.value)} placeholder="المشرف المسؤول"
-              style={{ width: '100%', height: '40px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', boxSizing: 'border-box' }} />
+          {/* وقت الخروج + السبب */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <label style={labelStyle}>وقت الخروج</label>
+              <input type="time" value={exitTime} onChange={(e) => setExitTime(e.target.value)} style={selectStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>السبب *</label>
+              <select value={reason} onChange={(e) => setReason(e.target.value)} style={selectStyle}>
+                <option value="">اختر السبب</option>{REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          </div>
+          {/* المستلم + المسؤول */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <label style={labelStyle}>المستلم *</label>
+              <select value={receiver} onChange={(e) => setReceiver(e.target.value)} style={selectStyle}>
+                <option value="">اختر المستلم</option>{RECEIVERS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>المسؤول *</label>
+              <select value={supervisor} onChange={(e) => setSupervisor(e.target.value)} style={selectStyle}>
+                <option value="">اختر المسؤول</option>{RESPONSIBLES.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
           </div>
         </div>
         <div style={{ padding: '16px 24px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer' }}>إلغاء</button>
+          <button onClick={onClose} style={{ padding: '8px 20px', color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit' }}>إلغاء</button>
           <button onClick={handleSave} disabled={saving} style={{
-            padding: '8px 24px', background: '#7c3aed', color: '#fff', borderRadius: '8px', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: saving ? 0.7 : 1,
-          }}>{saving ? 'جاري الحفظ...' : `حفظ (${selectedStudents.length} طالب)`}</button>
+            padding: '10px 28px', background: '#7c3aed', color: '#fff', borderRadius: '8px', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: saving ? 0.7 : 1, fontSize: '14px', fontFamily: 'inherit',
+          }}>{saving ? 'جاري الحفظ...' : 'حفظ'}</button>
         </div>
       </div>
     </div>
