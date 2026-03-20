@@ -24,6 +24,18 @@ export function shortenName(fullName: string): string {
   return `${parts[0]} ${parts[1]} ${parts[parts.length - 1]}`;
 }
 
+/** اختصار اسم الطالب للمطبوعات: حذف بن/ابن/أبن، وإذا لايزال طويلاً يُكتفى بالاسم+الأب+الجد */
+export function shortenStudentName(fullName: string): string {
+  if (!fullName) return '';
+  // حذف بن / ابن / أبن
+  let cleaned = fullName.replace(/\s+(بن|ابن|أبن)\s+/g, ' ').trim();
+  const parts = cleaned.split(/\s+/);
+  // إذا 3 كلمات أو أقل — مناسب
+  if (parts.length <= 3) return cleaned;
+  // الاسم الأول + الأب + الجد
+  return `${parts[0]} ${parts[1]} ${parts[2]}`;
+}
+
 /** تنسيق الصف والفصل */
 export function formatClass(grade: string, cls: string, stage?: string): string {
   const ORDINALS: Record<string, string> = {

@@ -1,5 +1,5 @@
 // ===== قوالب الطباعة الرسمية (23 نموذج) =====
-import { toIndic, escapeHtml, shortenName, getFormTemplateCSS, getSharedPrintCSS, buildLetterheadHtml, adjustAllFields } from './printUtils';
+import { toIndic, escapeHtml, shortenName, shortenStudentName, getFormTemplateCSS, getSharedPrintCSS, buildLetterheadHtml, adjustAllFields } from './printUtils';
 
 // ===== أنواع البيانات =====
 export interface PrintFormData {
@@ -201,28 +201,7 @@ function getTemplateHtml(formId: FormId): string {
   </div>
   <div class="section-block">لذا يرجى منكم المتابعة والتعاون مع المدرسة بما يسهم في انضباط سلوك ابنكم،
   وتفضلوا بقبول التحية.</div>
-  <table class="footer-table">
-  <tr>
-  <td style="width:33%; text-align:center;">
-  <div
-  style="border: 2px dashed #ccc; width: 80px; height: 80px; margin: 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12pt;">
-  الختم</div>
-  </td>
-  <td style="width:33%;"></td>
-  <td style="width:33%; text-align:center;">
-  <div class="signature-block" style="display:inline-block; text-align:right;">
-  <strong style="display: block; margin-bottom: 0.8em; text-align:center;">مدير
-  المدرسة</strong>
-  <div style="margin-bottom: 5px; white-space:nowrap;">الاسم: <span
-  class="data-field with-dots" id="managerName"
-  style="display:inline-block; min-width:150px; text-align:center;"></span></div>
-  <div style="white-space:nowrap;">التوقيع: <span
-  style="display:inline-block; border-bottom:1px dotted #000; min-width:150px;"></span>
-  </div>
-  </div>
-  </td>
-  </tr>
-  </table>
+  <table class="footer-table"><tr><td style="width:100%;text-align:left;padding-left:30px;"><div style="display:inline-block;text-align:center;"><strong style="display:block;margin-bottom:0.5em;">وكيل شؤون الطلاب</strong><div style="margin-bottom:5px;">الاسم: <span class="data-field with-dots" id="managerName" style="min-width:150px;"></span></div><div>التوقيع: <span class="with-dots" style="min-width:150px;"></span></div></div></td></tr></table>
   </div>
   <div class="cut-line">( قص من هنا وإعادة الجزء الأسفل )</div>
   <div style="margin-top: 15px;">
@@ -284,8 +263,7 @@ function getTemplateHtml(formId: FormId): string {
   </td>
   <td style="width:33%; text-align:center;">
   <div class="signature-block" style="display:inline-block; text-align:right;">
-  <strong style="display: block; margin-bottom: 0.8em; text-align:center;">مدير
-  المدرسة</strong>
+  <strong style="display: block; margin-bottom: 0.8em; text-align:center;">وكيل شؤون الطلاب</strong>
   <div style="margin-bottom: 5px; white-space:nowrap;">الاسم: <span
   class="data-field with-dots"
   style="display:inline-block; min-width:150px; text-align:center;"></span></div>
@@ -351,7 +329,7 @@ function getTemplateHtml(formId: FormId): string {
   <table class="footer-table" style="margin-top:20px;"><tr>
     <td style="width:33%;text-align:center;"><div class="signature-block" style="display:inline-block;text-align:right;"><strong style="display:block;margin-bottom:0.8em;text-align:center;">الطالب</strong><div style="margin-bottom:5px;white-space:nowrap;">الاسم: <span class="data-field with-dots" style="display:inline-block;min-width:150px;text-align:center;"></span></div><div style="white-space:nowrap;">التوقيع: <span style="display:inline-block;border-bottom:1px dotted #000;min-width:150px;"></span></div></div></td>
     <td style="width:33%;text-align:center;"><div class="signature-block" style="display:inline-block;text-align:right;"><strong style="display:block;margin-bottom:0.8em;text-align:center;">ولي الأمر (للعلم)</strong><div style="margin-bottom:5px;white-space:nowrap;">الاسم: <span class="data-field with-dots" style="display:inline-block;min-width:150px;text-align:center;"></span></div><div style="white-space:nowrap;">التوقيع: <span style="display:inline-block;border-bottom:1px dotted #000;min-width:150px;"></span></div></div></td>
-    <td style="width:33%;text-align:center;"><div class="signature-block" style="display:inline-block;text-align:right;"><strong style="display:block;margin-bottom:0.8em;text-align:center;">مدير المدرسة</strong><div style="margin-bottom:5px;white-space:nowrap;">الاسم: <span class="data-field with-dots" style="display:inline-block;min-width:150px;text-align:center;"></span></div><div style="white-space:nowrap;">التوقيع: <span style="display:inline-block;border-bottom:1px dotted #000;min-width:150px;"></span></div></div></td>
+    <td style="width:33%;text-align:center;"><div class="signature-block" style="display:inline-block;text-align:right;"><strong style="display:block;margin-bottom:0.8em;text-align:center;">وكيل شؤون الطلاب</strong><div style="margin-bottom:5px;white-space:nowrap;">الاسم: <span class="data-field with-dots" style="display:inline-block;min-width:150px;text-align:center;"></span></div><div style="white-space:nowrap;">التوقيع: <span style="display:inline-block;border-bottom:1px dotted #000;min-width:150px;"></span></div></div></td>
   </tr></table>
 </div></div>`;
 
@@ -569,25 +547,14 @@ function getTemplateHtml(formId: FormId): string {
   </div>
   <table class="footer-table" style="margin-top: 30px;">
   <tr>
-  <td style="width: 33%;">
+  <td style="width: 50%;">
   <div class="signature-block">
   <strong style="display: block; margin-bottom: 0.5em;">الطالب</strong>
   <div style="white-space: nowrap;">التوقيع: <span class="with-dots"
   style="min-width: 120px;"></span></div>
   </div>
   </td>
-  <td style="width: 33%;">
-  <div class="signature-block">
-  <strong style="display: block; margin-bottom: 0.5em;">الموجه الطلابي</strong>
-  <div style="margin-bottom: 5px; white-space: nowrap;">
-  الاسم: <span id="tawid_guide" class="with-dots" style="min-width: 150px;"></span>
-  </div>
-  <div style="white-space: nowrap;">
-  التوقيع: <span class="with-dots" style="min-width: 120px;"></span>
-  </div>
-  </div>
-  </td>
-  <td style="width: 33%;">
+  <td style="width: 50%;">
   <div class="signature-block">
   <strong style="display: block; margin-bottom: 0.5em;">وكيل شؤون الطلاب</strong>
   <div style="margin-bottom: 5px; white-space: nowrap;">
@@ -656,29 +623,7 @@ function getTemplateHtml(formId: FormId): string {
   </tr>
   </tbody>
   </table>
-  <table class="footer-table">
-  <tr>
-  <td style="width: 33%;">
-  <div
-  style="border: 2px dashed #ccc; width: 80px; height: 80px; margin: 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12pt;">
-  الختم</div>
-  </td>
-  <td style="width: 33%;">
-  <div class="signature-block"><strong style="display: block; margin-bottom: 0.8em;">وكيل شؤون
-  الطلاب</strong>
-  <div style="white-space: nowrap;">التوقيع: <span class="with-dots"
-  style="min-width: 150px;"></span></div>
-  </div>
-  </td>
-  <td style="width: 33%;">
-  <div class="signature-block"><strong style="display: block; margin-bottom: 0.8em;">مدير
-  المدرسة</strong>
-  <div style="white-space: nowrap;">التوقيع: <span class="with-dots"
-  style="min-width: 150px;"></span></div>
-  </div>
-  </td>
-  </tr>
-  </table>
+  <table class="footer-table"><tr><td style="width:100%;text-align:left;padding-left:30px;"><div style="display:inline-block;text-align:center;"><strong style="display:block;margin-bottom:0.5em;">وكيل شؤون الطلاب</strong><div style="margin-bottom:5px;">الاسم: <span class="with-dots" style="min-width:150px;"></span></div><div>التوقيع: <span class="with-dots" style="min-width:150px;"></span></div></div></td></tr></table>
   </div>
   </div>`;
 
@@ -754,7 +699,7 @@ function getTemplateHtml(formId: FormId): string {
   </td>
   <td style="width: 33%;">
   <div class="signature-block">
-  <strong style="display: block; margin-bottom: 0.8em;">مدير المدرسة</strong>
+  <strong style="display: block; margin-bottom: 0.8em;">وكيل شؤون الطلاب</strong>
   <div style="margin-bottom: 5px; white-space: nowrap;">الاسم: <span class="with-dots"
   style="min-width: 150px;"></span></div>
   <div style="white-space: nowrap;">التوقيع: <span class="with-dots"
@@ -933,7 +878,7 @@ function getTemplateHtml(formId: FormId): string {
     </div>
   </div>
   <div class="section-block" style="display:flex;justify-content:flex-end;padding-top:20px;border-top:1px solid #ddd;">
-    <div style="text-align:center;min-width:250px;"><strong style="display:block;margin-bottom:12px;font-size:15pt;">مدير المدرسة</strong>
+    <div style="text-align:center;min-width:250px;"><strong style="display:block;margin-bottom:12px;font-size:15pt;">وكيل شؤون الطلاب</strong>
       <div style="margin-bottom:8px;text-align:right;">الاسم: <span class="data-field with-dots" style="min-width:180px;" id="risk_manager"></span></div>
       <div style="margin-bottom:8px;text-align:right;">التوقيع: <span class="with-dots" style="min-width:180px;"></span></div>
       <div style="text-align:right;">التاريخ: <span class="data-field with-dots indic-num" style="min-width:180px;" id="risk_manager_date"></span></div>
@@ -960,11 +905,7 @@ function getTemplateHtml(formId: FormId): string {
     <div style="margin-bottom:10px;"><span class="indic-num">٣-</span> <span class="data-field with-dots" style="width:93%;" id="eblagh_proc_3"></span></div>
     <div style="margin-top:5px;"><span style="font-weight:bold;">تم التواصل مع مركز البلاغات 1919؟</span> <span style="margin-right:20px;"><span class="manual-checkbox"></span> نعم (رقم البلاغ: <span class="indic-num with-dots" style="min-width:80px;"></span>)</span><span style="margin-right:20px;"><span class="manual-checkbox"></span> لا</span></div>
   </div>
-  <table class="footer-table"><tr>
-    <td style="width:33%;"><div style="border:2px dashed #ccc;width:80px;height:80px;margin:0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12pt;">الختم</div></td>
-    <td style="width:33%;"><div class="signature-block"><strong style="display:block;margin-bottom:0.8em;">الموجه الطلابي</strong><div style="margin-bottom:5px;white-space:nowrap;">الاسم: <span class="data-field with-dots" style="min-width:120px;" id="eblagh_counselor"></span></div><div style="white-space:nowrap;">التوقيع: <span class="with-dots" style="min-width:120px;"></span></div></div></td>
-    <td style="width:33%;"><div class="signature-block"><strong style="display:block;margin-bottom:0.8em;">مدير المدرسة</strong><div style="margin-bottom:5px;white-space:nowrap;">الاسم: <span class="data-field with-dots" style="min-width:120px;" id="eblagh_manager"></span></div><div style="white-space:nowrap;">التوقيع: <span class="with-dots" style="min-width:120px;"></span></div></div></td>
-  </tr></table>
+  <table class="footer-table"><tr><td style="width:100%;text-align:left;padding-left:30px;"><div style="display:inline-block;text-align:center;"><strong style="display:block;margin-bottom:0.5em;">وكيل شؤون الطلاب</strong><div style="margin-bottom:5px;">الاسم: <span class="data-field with-dots" style="min-width:150px;" id="eblagh_manager"></span></div><div>التوقيع: <span class="with-dots" style="min-width:150px;"></span></div></div></td></tr></table>
 </div></div>`;
 
     case 'khota_tadeel':
@@ -1341,16 +1282,7 @@ function getTemplateHtml(formId: FormId): string {
   <!-- التوقيعات -->
   <table class="footer-table" style="margin-top: 40px;">
   <tr>
-  <td>
-  <div class="signature-block">
-  <strong style="display: block; margin-bottom: 0.8em;">الموجه الطلابي</strong>
-  <div style="margin-bottom: 5px; white-space: nowrap;">الاسم: <span class="with-dots"
-  style="min-width: 150px;"></span></div>
-  <div style="white-space: nowrap;">التوقيع: <span class="with-dots"
-  style="min-width: 150px;"></span></div>
-  </div>
-  </td>
-  <td>
+  <td style="width: 50%;">
   <div class="signature-block">
   <strong style="display: block; margin-bottom: 0.8em;">ولي الأمر</strong>
   <div style="margin-bottom: 5px; white-space: nowrap;">الاسم: <span class="with-dots"
@@ -1359,9 +1291,9 @@ function getTemplateHtml(formId: FormId): string {
   style="min-width: 150px;"></span></div>
   </div>
   </td>
-  <td>
+  <td style="width: 50%;">
   <div class="signature-block">
-  <strong style="display: block; margin-bottom: 0.8em;">مدير المدرسة</strong>
+  <strong style="display: block; margin-bottom: 0.8em;">وكيل شؤون الطلاب</strong>
   <div style="margin-bottom: 5px; white-space: nowrap;">الاسم: <span class="with-dots"
   style="min-width: 150px;"></span></div>
   <div style="white-space: nowrap;">التوقيع: <span class="with-dots"
@@ -1902,7 +1834,7 @@ export interface ListReportConfig {
 export function printListReport(config: ListReportConfig, settings: SchoolSettings): void {
   const letterheadHtml = buildLetterheadHtml(settings);
   const css = getSharedPrintCSS();
-  const headerBg = config.headerBg || '#ea580c';
+  const headerBg = config.headerBg || '#f2f2f2';
   const showSigs = config.signatures !== false;
 
   // بناء أعمدة الرأس
@@ -1935,9 +1867,7 @@ export function printListReport(config: ListReportConfig, settings: SchoolSettin
   // بناء التوقيعات الثلاثية
   const signaturesHtml = showSigs
     ? `<div class="footer-block"><table style="width:100%;margin-top:30px;border:none"><tr>
-        <td style="border:none;width:33%;text-align:center;vertical-align:top"><strong>وكيل شؤون الطلاب</strong><br><span class="with-dots" style="min-width:120px"></span></td>
-        <td style="border:none;width:33%;text-align:center;vertical-align:top"><strong>المرشد الطلابي</strong><br><span class="with-dots" style="min-width:120px"></span></td>
-        <td style="border:none;width:33%;text-align:center;vertical-align:top"><strong>مدير المدرسة</strong><br><span class="with-dots" style="min-width:120px"></span></td>
+        <td style="border:none;width:100%;text-align:left;padding-left:30px;vertical-align:top"><strong>وكيل شؤون الطلاب</strong><br><span class="with-dots" style="min-width:150px"></span></td>
       </tr></table></div>`
     : '';
 
@@ -1945,7 +1875,7 @@ export function printListReport(config: ListReportConfig, settings: SchoolSettin
     + `<title>${escapeHtml(config.title)}</title>`
     + `<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Traditional+Arabic&display=swap" rel="stylesheet">`
     + `<style>${css}
-      .report-header-row th { background:${headerBg};color:white;padding:8px;font-weight:bold;font-size:13pt;border:1px solid #000 }
+      .report-header-row th { background:${headerBg};color:#000;padding:8px;font-weight:bold;font-size:13pt;border:1px solid #000 }
     </style></head><body>`
     + `<table class="main-table"><thead>`
     + `<tr><td colspan="${config.headers.length}" class="header-cell">`
