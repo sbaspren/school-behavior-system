@@ -134,7 +134,7 @@ body{margin:0;padding:0;font-family:'Traditional Arabic','Amiri',serif;font-size
 .main-table thead{display:table-header-group}
 .main-table tfoot{display:table-footer-group}
 .header-cell{border:none;padding:0}
-.form-title{text-align:center;font-size:19pt;font-weight:bold;font-family:'Amiri',serif;color:#000;margin:5mm 0 3mm;line-height:1.4}
+.form-title{text-align:center;font-size:17pt;font-weight:bold;font-family:'Amiri',serif;color:#000;margin:5mm 0 3mm;line-height:1.4}
 .form-subtitle{text-align:center;font-size:14pt;color:#444;margin-bottom:2mm}
 .form-date{text-align:center;font-size:12pt;color:#666;margin-bottom:4mm}
 .col-header{border:1px solid #000;padding:4px 5px;text-align:center;vertical-align:middle;background:#f2f2f2;font-weight:bold;font-size:13pt}
