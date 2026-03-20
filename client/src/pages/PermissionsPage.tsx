@@ -68,17 +68,20 @@ const PermissionsPage: React.FC = () => {
     return (<div style={{ textAlign: 'center', padding: '60px' }}><div className="spinner" /><p style={{ color: '#666', marginTop: '16px' }}>جاري التحميل...</p></div>);
   }
 
+  const stageLabel = stageFilter !== '__all__' ? (SETTINGS_STAGES.find((s) => s.name === stageFilter)?.name || stageFilter) : '';
+  const hijriNow = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
   return (
     <div className="sec-permissions">
       {/* Hero Banner — مطابق لـ .page-hero: gradient سماوي + عدادات */}
       <PageHero
-        title="الاستئذان"
-        subtitle="تسجيل ومتابعة حالات الاستئذان"
+        title={stageLabel ? `الاستئذان — ${stageLabel}` : 'الاستئذان'}
+        subtitle={hijriNow}
         gradient="linear-gradient(135deg, #0891b2, #06b6d4)"
         stats={[
-          { icon: 'exit_to_app', label: 'استئذان اليوم', value: todayRecords.length, color: '#fbbf24' },
+          { icon: 'exit_to_app', label: 'مستأذنو اليوم', value: todayRecords.length, color: '#fbbf24' },
           { icon: 'bar_chart', label: 'إجمالي الاستئذان', value: filteredByStage.length, color: '#c084fc' },
-          { icon: 'check_circle', label: 'تم التأكيد', value: filteredByStage.filter((r) => r.confirmationTime).length, color: '#86efac' },
+          { icon: 'send', label: 'لم تُرسل', value: filteredByStage.filter((r) => !r.isSent).length, color: '#f87171' },
         ]}
       />
 
@@ -180,15 +183,33 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
     printDailyReport('permissions', toPrint as unknown as Record<string, unknown>[], schoolSettings as any, stage);
   };
 
+  const unsentCount = filtered.filter(r => !r.isSent).length;
+  const confirmedCount = filtered.filter(r => r.confirmationTime).length;
+  const pendingCount = filtered.filter(r => !r.confirmationTime).length;
+  const sentCount = filtered.filter(r => r.isSent).length;
+
+  const handleSendAll = async () => {
+    const unsent = filtered.filter(r => !r.isSent);
+    if (unsent.length === 0) { showError('تم إرسال الجميع سابقاً'); return; }
+    try { const res = await permissionsApi.sendWhatsAppBulk(unsent.map(r => r.id)); if (res.data?.data) { showSuccess(`تم إرسال ${res.data.data.sentCount} من ${unsent.length}`); onRefresh(); } }
+    catch { showError('خطأ'); }
+  };
+
   return (
     <>
       <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={onAdd} style={{ height: '38px', padding: '0 16px', background: '#0891b2', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>add_circle</span> تسجيل استئذان</button>
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث..."
-          style={{ flex: 1, minWidth: '200px', height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px' }} />
-        <button onClick={handlePrint} style={{ height: '38px', padding: '0 16px', background: '#4f46e5', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
-        <button onClick={handleExport} style={{ height: '38px', padding: '0 16px', background: '#059669', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>download</span> تصدير</button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={onAdd} style={{ height: '38px', padding: '0 16px', background: '#0891b2', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>add_circle</span> تسجيل استئذان</button>
+          <button onClick={onRefresh} style={{ height: '38px', padding: '0 16px', background: '#f3f4f6', color: '#374151', borderRadius: '8px', border: '1px solid #d1d5db', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span> تحديث</button>
+        </div>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={handleSendAll} disabled={unsentCount === 0} style={{ height: '38px', padding: '0 16px', background: unsentCount > 0 ? '#25d366' : '#d1d5db', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: unsentCount > 0 ? 'pointer' : 'not-allowed', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>send</span> إرسال للجميع</button>
+          <button onClick={handlePrint} style={{ height: '38px', padding: '0 16px', background: '#f3f4f6', color: '#374151', borderRadius: '8px', border: '1px solid #d1d5db', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
+        </div>
       </div>
+      <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث..."
+        style={{ width: '100%', height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' }} />
 
       {/* Floating Selection Bar */}
       {selected.size > 0 && (
@@ -248,6 +269,16 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
       )}
 
       {confirmDelete && <ConfirmModal title="تأكيد حذف الاستئذان" message={`حذف سجل الاستئذان للطالب ${confirmDelete.studentName}؟`} onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} />}
+
+      {/* شريط أسفل الجدول — مطابق للقديم */}
+      {filtered.length > 0 && (
+        <div style={{ display: 'flex', gap: '16px', padding: '10px 16px', background: '#f9fafb', borderRadius: '8px', marginTop: '8px', fontSize: '13px', fontWeight: 600, flexWrap: 'wrap' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#dcfce7', border: '1px solid #86efac' }} /> مؤكد: {confirmedCount}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#fef3c7', border: '1px solid #fde68a' }} /> معلق: {pendingCount}</span>
+          <span style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#d1fae5' }} /> تم: {sentCount}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#fef3c7' }} /> لم يُرسل: {unsentCount}</span>
+        </div>
+      )}
 
       {msgEditorRow && (
         <PermMsgEditorModal record={msgEditorRow} onSend={(msg) => handleConfirmSend(msgEditorRow, msg)} onClose={() => setMsgEditorRow(null)} />
@@ -354,63 +385,102 @@ const ApprovedTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; s
     printDailyReport('permissions', allFilteredRecords as unknown as Record<string, unknown>[], schoolSettings as any);
   };
 
+  const handlePrintContactReport = () => {
+    const sent = allFilteredRecords.filter((r) => r.isSent);
+    if (sent.length === 0) { showError('لا يوجد سجلات تم إرسالها'); return; }
+    printDailyReport('permissions', sent as unknown as Record<string, unknown>[], schoolSettings as any);
+  };
+
   return (
     <>
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث..."
-          style={{ flex: 1, minWidth: '200px', height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px' }} />
-        <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); }}
-          style={{ height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', background: '#fff' }}>
-          <option value="">كل الصفوف</option>{grades.map((g) => <option key={g} value={g}>{g}</option>)}
-        </select>
-        <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}
-          style={{ height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', background: '#fff' }}>
-          <option value="">كل الفصول</option>{classes.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={reasonFilter} onChange={(e) => setReasonFilter(e.target.value)}
-          style={{ height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', background: '#fff' }}>
-          <option value="">كل الأسباب</option>{reasons.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-        <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '8px', padding: '2px' }}>
-          <button onClick={() => setViewMode('cards')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? '#7c3aed' : '#6b7280', fontWeight: 700, fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>view_carousel</span> بطاقات</button>
-          <button onClick={() => setViewMode('table')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? '#7c3aed' : '#6b7280', fontWeight: 700, fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>assignment</span> جدول</button>
-        </div>
-        <button onClick={handlePrintArchive} style={{ height: '38px', padding: '0 16px', background: '#4f46e5', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
+      {/* أزرار — مطابق: تحديث + طباعة القائمة + تقرير التواصل */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+        <button onClick={onRefresh} style={{ height: '34px', padding: '0 12px', background: '#f3f4f6', color: '#374151', borderRadius: '8px', border: '1px solid #d1d5db', fontWeight: 700, cursor: 'pointer', fontSize: '12px' }}><span className="material-symbols-outlined" style={{fontSize:14,verticalAlign:'middle'}}>refresh</span> تحديث</button>
+        <button onClick={handlePrintArchive} style={{ height: '34px', padding: '0 12px', background: '#7c3aed', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '12px' }}><span className="material-symbols-outlined" style={{fontSize:14,verticalAlign:'middle'}}>print</span> طباعة القائمة</button>
+        <button onClick={handlePrintContactReport} style={{ height: '34px', padding: '0 12px', background: '#16a34a', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '12px' }}><span className="material-symbols-outlined" style={{fontSize:14,verticalAlign:'middle'}}>contact_phone</span> تقرير التواصل</button>
       </div>
 
-      {/* Date range filter */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '13px', fontWeight: 700, color: '#6b7280' }}>الفترة:</span>
-        <input type="text" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} placeholder="من تاريخ (هجري)"
-          style={{ height: '34px', padding: '0 10px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '13px', width: '140px' }} />
-        <input type="text" value={dateTo} onChange={(e) => setDateTo(e.target.value)} placeholder="إلى تاريخ (هجري)"
-          style={{ height: '34px', padding: '0 10px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '13px', width: '140px' }} />
-        {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ padding: '4px 10px', background: '#fee2e2', color: '#dc2626', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>مسح</button>
-        )}
+      {/* فلاتر */}
+      <div style={{ background: '#fff', padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث بالاسم..."
+            style={{ width: '180px', height: '34px', padding: '0 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '13px' }} />
+        <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); }}
+            style={{ height: '34px', padding: '0 8px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '12px', background: '#f9fafb' }}>
+            <option value="">كل الصفوف</option>{grades.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}
+            style={{ height: '34px', padding: '0 8px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '12px', background: '#f9fafb' }}>
+            <option value="">كل الفصول</option>{classes.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select value={reasonFilter} onChange={(e) => setReasonFilter(e.target.value)}
+            style={{ height: '34px', padding: '0 8px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '12px', background: '#f9fafb' }}>
+            <option value="">كل الأسباب</option>{reasons.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <div style={{ display: 'flex', gap: '2px', background: '#f3f4f6', borderRadius: '6px', padding: '2px' }}>
+            <button onClick={() => setViewMode('cards')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? '#7c3aed' : '#9ca3af' }}><span className="material-symbols-outlined" style={{fontSize:16}}>grid_view</span></button>
+            <button onClick={() => setViewMode('table')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? '#7c3aed' : '#9ca3af' }}><span className="material-symbols-outlined" style={{fontSize:16}}>table_rows</span></button>
+          </div>
+        </div>
+        {/* فلاتر التاريخ */}
+        <div style={{ display: 'flex', gap: '8px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #f3f4f6', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#9ca3af' }}>فترة:</span>
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+            style={{ height: '30px', padding: '0 8px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '12px' }} />
+          <span style={{ fontSize: '12px', color: '#9ca3af' }}>إلى</span>
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+            style={{ height: '30px', padding: '0 8px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '12px' }} />
+          {(dateFrom || dateTo) && (
+            <button onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ padding: '2px 8px', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px' }}><span className="material-symbols-outlined" style={{fontSize:14,verticalAlign:'middle'}}>clear</span> مسح</button>
+          )}
+          <span style={{ width: '1px', height: '16px', background: '#e5e7eb', margin: '0 4px' }} />
+          <span style={{ fontSize: '11px', color: '#6b7280' }}>{allFilteredRecords.length} سجل</span>
+        </div>
       </div>
 
       {studentGroups.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 20px', color: '#9ca3af' }}><p style={{ fontSize: '48px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>assignment</span></p><p style={{ fontSize: '18px', fontWeight: 500 }}>لا توجد سجلات</p></div>
+        <div style={{ textAlign: 'center', padding: '64px 20px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: 64, color: '#d1d5db' }}>search_off</span><p style={{ fontSize: '18px', fontWeight: 500, marginTop: '8px' }}>لا توجد سجلات مطابقة</p></div>
       ) : viewMode === 'cards' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
-          {studentGroups.map(({ student, records: rList }) => (
-            <div key={student.studentId} onClick={() => setDetailStudent({ studentId: student.studentId, studentName: student.studentName })}
-              style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '16px', cursor: 'pointer', transition: 'box-shadow 0.2s' }}
-              onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)')}
-              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <div><div style={{ fontWeight: 700, fontSize: '16px' }}>{student.studentName}</div><div style={{ fontSize: '13px', color: '#6b7280' }}>{student.grade} ({student.className})</div></div>
-                <div style={{ fontSize: '24px', fontWeight: 800, color: rList.length >= 5 ? '#dc2626' : '#7c3aed' }}>{rList.length}</div>
+          {studentGroups.map(({ student, records: rList }) => {
+            const total = rList.length;
+            const borderColor = total >= 10 ? '#ef4444' : total >= 7 ? '#a78bfa' : total >= 5 ? '#fb923c' : total >= 3 ? '#fbbf24' : '#e5e7eb';
+            const badge = total >= 10 ? 'متكرر جداً' : total >= 7 ? 'متكرر' : total >= 5 ? 'ملاحظ' : total >= 3 ? 'تنبيه' : '';
+            const badgeBg = total >= 10 ? '#dc2626' : total >= 7 ? '#f3e8ff' : total >= 5 ? '#fff7ed' : total >= 3 ? '#fefce8' : '';
+            const badgeColor = total >= 10 ? '#fff' : total >= 7 ? '#6b21a8' : total >= 5 ? '#9a3412' : total >= 3 ? '#854d0e' : '';
+            // تصنيف حسب السبب
+            const reasons: Record<string, number> = {};
+            rList.forEach((r) => { const k = r.reason || 'غير محدد'; reasons[k] = (reasons[k] || 0) + 1; });
+            const reasonColors: Record<string, string> = { 'مرض': '#dc2626', 'مراجعة طبية': '#dc2626', 'ظرف صحي': '#dc2626', 'ظروف عائلية': '#2563eb', 'ظرف أسري': '#2563eb', 'مراجعة حكومية': '#d97706', 'موعد حكومي': '#d97706', 'طلب ولي الأمر': '#7c3aed', 'أخرى': '#6b7280' };
+
+            return (
+              <div key={student.studentId} onClick={() => setDetailStudent({ studentId: student.studentId, studentName: student.studentName })}
+                style={{ background: '#fff', borderRadius: '12px', border: `2px solid ${borderColor}`, padding: '16px', cursor: 'pointer', transition: 'box-shadow 0.2s' }}
+                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)')}
+                onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '22px', fontWeight: 900, color: total >= 7 ? '#dc2626' : total >= 4 ? '#7c3aed' : '#4b5563' }}>{total}</span>
+                    <span style={{ fontSize: '10px', color: '#9ca3af' }}>استئذان</span>
+                  </div>
+                  {badge && <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '9999px', background: badgeBg, color: badgeColor }}>{badge}</span>}
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '14px', lineHeight: 1.3 }}>{student.studentName}</div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px', marginBottom: '10px' }}>{student.grade} / {student.className}</div>
+                {/* أسباب */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '10px' }}>
+                  {Object.entries(reasons).map(([reason, count]) => {
+                    const c = reasonColors[reason] || '#6b7280';
+                    return <div key={reason} style={{ flex: '1 1 60px', textAlign: 'center', borderRadius: '8px', padding: '6px 4px', background: `${c}10`, border: `1px solid ${c}30` }}>
+                      <div style={{ fontSize: '16px', fontWeight: 900, color: c }}>{count}</div>
+                      <div style={{ fontSize: '8px', color: `${c}cc`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reason}</div>
+                    </div>;
+                  })}
+                </div>
+                <div style={{ textAlign: 'center', fontSize: '11px', color: '#7c3aed', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}><span className="material-symbols-outlined" style={{fontSize:14}}>open_in_new</span> عرض التفاصيل</div>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <span style={{ padding: '2px 8px', borderRadius: '100px', fontSize: '12px', background: '#f5f3ff', color: '#7c3aed' }}>{rList.length} استئذان</span>
-                {rList.filter((r) => !r.confirmationTime).length > 0 && (
-                  <span style={{ padding: '2px 8px', borderRadius: '100px', fontSize: '12px', background: '#fef3c7', color: '#92400e' }}>بانتظار: {rList.filter((r) => !r.confirmationTime).length}</span>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
@@ -499,25 +569,39 @@ const StudentDetailModal: React.FC<{ studentName: string; records: PermissionRow
 // Reports Tab
 // ============================================================
 const ReportsTab: React.FC<{ records: PermissionRow[] }> = ({ records }) => {
+  const [gradeFilter, setGradeFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('');
+
+  const grades = useMemo(() => Array.from(new Set(records.map((r) => r.grade))).sort(), [records]);
+  const classes = useMemo(() => Array.from(new Set(records.filter((r) => !gradeFilter || r.grade === gradeFilter).map((r) => r.className))).sort(), [records, gradeFilter]);
+
+  const filtered = useMemo(() => {
+    let list = records;
+    if (gradeFilter) list = list.filter((r) => r.grade === gradeFilter);
+    if (classFilter) list = list.filter((r) => r.className === classFilter);
+    return list;
+  }, [records, gradeFilter, classFilter]);
+
+  const uniqueStudents = useMemo(() => new Set(filtered.map((r) => r.studentId)).size, [filtered]);
+
   const topStudents = useMemo(() => {
     const g = new Map<number, { name: string; grade: string; cls: string; count: number }>();
-    for (const r of records) { const x = g.get(r.studentId) || { name: r.studentName, grade: r.grade, cls: r.className, count: 0 }; x.count++; g.set(r.studentId, x); }
+    for (const r of filtered) { const x = g.get(r.studentId) || { name: r.studentName, grade: r.grade, cls: r.className, count: 0 }; x.count++; g.set(r.studentId, x); }
     return Array.from(g.entries()).map(([id, x]) => ({ id, ...x })).sort((a, b) => b.count - a.count).slice(0, 10);
-  }, [records]);
+  }, [filtered]);
 
   const byReason = useMemo(() => {
     const g = new Map<string, number>();
-    for (const r of records) { const key = r.reason || 'غير محدد'; g.set(key, (g.get(key) || 0) + 1); }
+    for (const r of filtered) { const key = r.reason || 'غير محدد'; g.set(key, (g.get(key) || 0) + 1); }
     return Array.from(g.entries()).map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count);
-  }, [records]);
+  }, [filtered]);
 
   const byClass = useMemo(() => {
     const g = new Map<string, number>();
-    for (const r of records) { const key = `${r.grade} (${r.className})`; g.set(key, (g.get(key) || 0) + 1); }
+    for (const r of filtered) { const key = `${r.grade} (${r.className})`; g.set(key, (g.get(key) || 0) + 1); }
     return Array.from(g.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-  }, [records]);
+  }, [filtered]);
 
-  const maxByClass = Math.max(...byClass.map((c) => c.count), 1);
   const maxByReason = Math.max(...byReason.map((r) => r.count), 1);
 
   const handlePrint = () => {
@@ -525,67 +609,88 @@ const ReportsTab: React.FC<{ records: PermissionRow[] }> = ({ records }) => {
     const studentRows = topStudents.map((s, i) => `<tr><td>${i + 1}</td><td>${s.name}</td><td>${s.grade} (${s.cls})</td><td>${s.count}</td></tr>`).join('');
     pw.document.write(`<html dir="rtl"><head><title>تقرير الاستئذان</title>
       <style>body{font-family:Tahoma,'IBM Plex Sans Arabic',Arial;padding:30px;direction:rtl}table{width:100%;border-collapse:collapse;margin:20px 0}td,th{border:1px solid #333;padding:8px;text-align:right}th{background:#f0f0f0}h2,h3{text-align:center}@media print{body{padding:15px}}</style></head>
-      <body><h2>تقرير الاستئذان</h2><p style="text-align:center">الإجمالي: ${records.length}</p>
+      <body><h2>تقرير الاستئذان</h2><p style="text-align:center">الإجمالي: ${filtered.length}</p>
       <h3>أكثر الطلاب استئذاناً</h3><table><thead><tr><th>#</th><th>الطالب</th><th>الصف</th><th>العدد</th></tr></thead><tbody>${studentRows}</tbody></table></body></html>`);
     pw.document.close(); pw.print();
   };
 
+  const sentCount = filtered.filter((r) => r.isSent).length;
+
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
-        <button onClick={handlePrint} style={{ padding: '8px 16px', background: '#4f46e5', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة التقرير</button>
+      {/* فلاتر — مطابق للقديم: صف + فصل + تحديث */}
+      <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '16px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div><label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>الصف</label>
+            <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); }} style={{ width: '160px', height: '40px', padding: '0 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px' }}><option value="">كل الصفوف</option>{grades.map((g) => <option key={g} value={g}>{g}</option>)}</select></div>
+          <div><label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>الفصل</label>
+            <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} disabled={!gradeFilter} style={{ width: '120px', height: '40px', padding: '0 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', background: gradeFilter ? '#fff' : '#f9fafb' }}><option value="">كل الفصول</option>{classes.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+          <button onClick={handlePrint} style={{ height: '40px', padding: '0 20px', background: '#4f46e5', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '14px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة التقرير</button>
+        </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '24px' }}>
-        <StatCard label="إجمالي الاستئذان" value={records.length} color="#7c3aed" />
-        <StatCard label="تم التأكيد" value={records.filter((r) => r.confirmationTime).length} color="#15803d" />
-        <StatCard label="تم الإرسال" value={records.filter((r) => r.isSent).length} color="#2563eb" />
-      </div>
-
-      {/* By Reason */}
-      <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '20px', marginBottom: '20px' }}>
-        <h4 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 700 }}>التوزيع حسب السبب</h4>
-        {byReason.map((r) => (
-          <div key={r.reason} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-            <span style={{ width: '100px', fontSize: '13px', fontWeight: 700, color: '#4b5563' }}>{r.reason}</span>
-            <div style={{ flex: 1, height: '24px', background: '#f3f4f6', borderRadius: '6px', overflow: 'hidden' }}>
-              <div style={{ width: `${(r.count / maxByReason) * 100}%`, height: '100%', background: '#7c3aed', borderRadius: '6px' }} />
-            </div>
-            <span style={{ width: '40px', fontSize: '14px', fontWeight: 700 }}>{r.count}</span>
+      {/* 4 بطاقات إحصائية — مطابق للقديم */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '20px' }}>
+        {([
+          { label: 'إجمالي الاستئذان', value: filtered.length, color: '#7c3aed', borderColor: '#a78bfa' },
+          { label: 'عدد الطلاب', value: uniqueStudents, color: '#2563eb', borderColor: '#60a5fa' },
+          { label: 'تم إرسالها', value: sentCount, color: '#16a34a', borderColor: '#4ade80' },
+          { label: 'لم تُرسل', value: filtered.length - sentCount, color: '#ea580c', borderColor: '#fb923c' },
+        ] as const).map((s, i) => (
+          <div key={i} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '16px', borderRight: `4px solid ${s.borderColor}` }}>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: s.color, marginBottom: '2px' }}>{s.value}</div>
+            <div style={{ fontSize: '14px', color: '#6b7280' }}>{s.label}</div>
           </div>
         ))}
       </div>
 
-      {/* By Class */}
-      {byClass.length > 0 && (
-        <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '20px', marginBottom: '20px' }}>
-          <h4 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 700 }}>الاستئذان حسب الفصل</h4>
-          {byClass.slice(0, 10).map((c) => (
-            <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
-              <span style={{ width: '120px', fontSize: '13px', fontWeight: 600, color: '#4b5563' }}>{c.name}</span>
-              <div style={{ flex: 1, height: '20px', background: '#f3f4f6', borderRadius: '6px', overflow: 'hidden' }}>
-                <div style={{ width: `${(c.count / maxByClass) * 100}%`, height: '100%', background: '#8b5cf6', borderRadius: '6px' }} />
-              </div>
-              <span style={{ width: '30px', fontSize: '13px', fontWeight: 700 }}>{c.count}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Top Students */}
-      {topStudents.length > 0 && (
+      {/* رسمين بيانيين — مطابق للقديم: أكثر الطلاب + حسب السبب */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        {/* أكثر الطلاب استئذاناً */}
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb' }}><h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>أكثر الطلاب استئذاناً</h4></div>
-          <table className="data-table">
-            <thead><tr><th>#</th><th>الطالب</th><th>الصف</th><th>العدد</th></tr></thead>
-            <tbody>
-              {topStudents.map((s, i) => (
-                <tr key={s.id}><td style={{ fontWeight: 700, color: '#6b7280' }}>{i + 1}</td><td style={{ fontWeight: 700 }}>{s.name}</td><td>{s.grade} ({s.cls})</td><td style={{ fontWeight: 700, color: '#7c3aed' }}>{s.count}</td></tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', background: '#faf5ff' }}>
+            <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}><span className="material-symbols-outlined" style={{fontSize:18,color:'#7c3aed'}}>trending_up</span> أكثر الطلاب استئذاناً</h4>
+          </div>
+          <div style={{ padding: '12px' }}>
+            {topStudents.length === 0 ? <p style={{ textAlign: 'center', color: '#9ca3af', padding: '32px 0' }}>لا توجد بيانات</p> : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {topStudents.map((s, i) => (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderRadius: '8px', background: i < 3 ? '#faf5ff' : '#f9fafb' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: i < 3 ? '#7c3aed' : '#d1d5db', color: i < 3 ? '#fff' : '#4b5563', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700 }}>{i + 1}</span>
+                      <div><span style={{ fontSize: '13px', fontWeight: 600 }}>{s.name}</span><span style={{ fontSize: '11px', color: '#9ca3af', marginRight: '6px' }}>{s.grade} {s.cls}</span></div>
+                    </div>
+                    <span style={{ padding: '2px 8px', background: '#f3e8ff', color: '#7c3aed', borderRadius: '9999px', fontSize: '12px', fontWeight: 700 }}>{s.count} مرة</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* حسب السبب */}
+        <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', background: '#fffbeb' }}>
+            <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}><span className="material-symbols-outlined" style={{fontSize:18,color:'#d97706'}}>pie_chart</span> حسب السبب</h4>
+          </div>
+          <div style={{ padding: '16px' }}>
+            {byReason.length === 0 ? <p style={{ textAlign: 'center', color: '#9ca3af', padding: '32px 0' }}>لا توجد بيانات</p> : (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                {byReason.map((r, i) => {
+                  const colors = ['#7c3aed', '#2563eb', '#d97706', '#e11d48', '#0d9488', '#4f46e5'];
+                  const c = colors[i % colors.length];
+                  const pct = filtered.length > 0 ? Math.round((r.count / filtered.length) * 100) : 0;
+                  return <div key={r.reason} style={{ textAlign: 'center', padding: '12px', background: '#f9fafb', borderRadius: '12px', minWidth: '80px' }}>
+                    <div style={{ fontSize: '22px', fontWeight: 700, color: c, marginBottom: '2px' }}>{r.count}</div>
+                    <div style={{ fontSize: '12px', color: '#4b5563', fontWeight: 600 }}>{r.reason}</div>
+                    <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '2px' }}>{pct}%</div>
+                  </div>;
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </>
   );
 };
@@ -593,12 +698,6 @@ const ReportsTab: React.FC<{ records: PermissionRow[] }> = ({ records }) => {
 // ============================================================
 // Shared Components
 // ============================================================
-const StatCard: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => (
-  <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-    <span style={{ fontSize: '24px', fontWeight: 800, color }}>{value}</span>
-    <span style={{ fontSize: '12px', color: '#6b7280', fontWeight: 500 }}>{label}</span>
-  </div>
-);
 
 const FilterBtn: React.FC<{ label: string; count: number; active: boolean; onClick: () => void; color: string }> = ({ label, count, active, onClick, color }) => (
   <button onClick={onClick} style={{ padding: '6px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 700, background: active ? '#fff' : 'transparent', color: active ? color : '#6b7280', boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', border: 'none', cursor: 'pointer' }}>
