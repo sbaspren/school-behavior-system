@@ -10,6 +10,8 @@ import {
 } from 'chart.js';
 import { Doughnut, Bar, Radar } from 'react-chartjs-2';
 import AcademicAnalysis from '../components/AcademicAnalysis';
+import PageHero from '../components/shared/PageHero';
+import TabBar from '../components/shared/TabBar';
 import { computeAdvancedAnalysis, getTeacherWeakStudents, type AdvancedAnalysis, type SummaryRow as StatSummaryRow, type GradeRow as StatGradeRow } from '../utils/academicStats';
 import * as AcadPrint from '../utils/academicPrints';
 
@@ -213,6 +215,22 @@ const AcademicPage: React.FC = () => {
         return;
       }
 
+      // ── التحقق من تطابق المرحلة ──
+      const stageInfo = SETTINGS_STAGES.find(s => s.id === currentStage);
+      if (stageInfo) {
+        const importedGrades = [...new Set(students.map(s => s.grade).filter(Boolean))];
+        const expectedGrades = stageInfo.grades;
+        const mismatchedGrades = importedGrades.filter(g => !expectedGrades.includes(g));
+        if (mismatchedGrades.length > 0) {
+          const msg = `الشهادات تحتوي على صفوف (${mismatchedGrades.join('، ')}) غير متوافقة مع المرحلة "${stageInfo.name}" (${expectedGrades.join('، ')})\n\nهل تريد المتابعة؟`;
+          if (!window.confirm(msg)) {
+            setImportStatus({ type: 'error', msg: `تم إلغاء الاستيراد — صفوف غير متوافقة مع مرحلة ${stageInfo.name}` });
+            setImporting(false);
+            return;
+          }
+        }
+      }
+
       setImportStatus({ type: 'info', msg: `تم تحليل ${students.length} طالب في ${parseTime} ثانية - جاري الحفظ...` });
 
       const res = await academicApi.import({ stage: currentStage, period: importPeriod, students });
@@ -321,54 +339,36 @@ const AcademicPage: React.FC = () => {
   const avgColor = (avg: number) => avg >= 90 ? 'emerald' : avg >= 75 ? 'blue' : avg >= 60 ? 'amber' : 'red';
   const subjectColor = (avg: number) => avg >= 90 ? 'emerald' : avg >= 80 ? 'blue' : avg >= 70 ? 'amber' : 'red';
 
+  const stageName = SETTINGS_STAGES.find(x => x.id === currentStage)?.name || '';
+  let hijriDate = '';
+  try { hijriDate = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { /* empty */ }
+
   return (
     <div style={{ maxWidth: '100%', position: 'relative' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', gap: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div className="bg-teal-50 border border-teal-200" style={{ padding: '10px', borderRadius: '8px' }}>
-            <span className="material-symbols-outlined text-3xl text-teal-600">analytics</span>
-          </div>
-          <div>
-            <h2 className="text-xl font-extrabold text-gray-900">التحصيل الدراسي</h2>
-            <p className="text-sm text-gray-400 font-medium">المرحلة: <span className="text-teal-600 font-bold">{SETTINGS_STAGES.find(x => x.id === currentStage)?.name || stages.find(s => s.stage === currentStage)?.stage || currentStage || '...'}</span></p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <div style={{ borderRadius: '8px', padding: '8px 16px', textAlign: 'center', border: '1px solid', backgroundColor: '#f0fdfa', borderColor: '#99f6e4' }}>
-            <div className="text-2xl font-bold text-teal-600">{headerStats.students}</div>
-            <div className="text-xs text-gray-500">طالب</div>
-          </div>
-          <div style={{ borderRadius: '8px', padding: '8px 16px', textAlign: 'center', border: '1px solid', backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }}>
-            <div className="text-2xl font-bold text-blue-600">{headerStats.periods}</div>
-            <div className="text-xs text-gray-500">فترة</div>
-          </div>
-          <div style={{ borderRadius: '8px', padding: '8px 16px', textAlign: 'center', border: '1px solid', backgroundColor: '#fffbeb', borderColor: '#fde68a' }}>
-            <div className="text-2xl font-black text-amber-600">{headerStats.avg !== '-' ? headerStats.avg + '%' : '-'}</div>
-            <div className="text-xs text-gray-500">المعدل العام</div>
-          </div>
-        </div>
-      </div>
+      {/* Header — PageHero موحد مع باقي الصفحات */}
+      <PageHero
+        title={`التحصيل الدراسي${stageName ? ' — ' + stageName : ''}`}
+        subtitle={hijriDate}
+        gradient="linear-gradient(135deg, #0d9488, #14b8a6)"
+        stats={[
+          { icon: 'groups', label: 'طالب', value: headerStats.students },
+          { icon: 'calendar_month', label: 'فترة', value: headerStats.periods },
+          { icon: 'trending_up', label: 'المعدل العام', value: headerStats.avg !== '-' ? headerStats.avg + '%' : '-' },
+        ]}
+      />
 
-      {/* Tabs */}
-      <div style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: '1px solid #e5e7eb', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
-          {([
-            { id: 'dashboard' as const, label: 'لوحة المؤشرات', icon: 'dashboard', color: '#14b8a6', bg: '#f0fdfa' },
-            { id: 'reports' as const, label: 'تقارير تفصيلية', icon: 'description', color: '#a855f7', bg: '#faf5ff' },
-            { id: 'charts' as const, label: 'رسوم بيانية', icon: 'bar_chart', color: '#6366f1', bg: '#eef2ff' },
-            { id: 'analysis' as const, label: 'تحليل وطباعة', icon: 'analytics', color: '#dc2626', bg: '#fef2f2' },
-          ]).map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`font-bold ${tab === t.id
-                ? ''
-                : 'text-gray-500 hover:text-gray-700'}`}
-              style={{ flex: 1, padding: '16px', textAlign: 'center', transition: 'all 0.2s', borderBottom: '2px solid', whiteSpace: 'nowrap', ...(tab === t.id ? { color: t.color, backgroundColor: t.bg, borderColor: t.color } : { borderColor: 'transparent' }) }}>
-              <span className="material-symbols-outlined align-middle ml-1">{t.icon}</span> {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Tabs — TabBar موحد */}
+      <TabBar
+        tabs={[
+          { id: 'dashboard', label: 'لوحة المؤشرات', icon: 'dashboard' },
+          { id: 'reports', label: 'تقارير تفصيلية', icon: 'description' },
+          { id: 'charts', label: 'رسوم بيانية', icon: 'bar_chart' },
+          { id: 'analysis', label: 'تحليل وطباعة', icon: 'analytics' },
+        ]}
+        activeTab={tab}
+        onTabChange={(id) => setTab(id as typeof tab)}
+        sectionColor="#0d9488"
+      />
 
       {loading && (
         <div style={{ textAlign: 'center', padding: '32px 0' }}>
@@ -427,20 +427,46 @@ const AcademicPage: React.FC = () => {
                         importStatus.type === 'success' ? 'text-green-700' : 'text-blue-700'}`}>{importStatus.msg}</p>
                     </div>
                   )}
-                  {periods.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '16px' }}>
-                      {periods.map((p, i) => {
-                        const cnt = summary.filter(r => r.semester === p.semester && r.period === p.period).length;
-                        return (
-                          <span key={i} className="bg-teal-100 text-teal-700 text-xs font-bold" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '9999px' }}>
-                            {p.semester} — {p.period} ({cnt} طالب)
-                            <button onClick={(e) => { e.stopPropagation(); deletePeriod(p.semester, p.period); }}
-                              className="text-teal-400 hover:text-red-500 mr-1" title="حذف">&times;</button>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
+                  {periods.length > 0 && (() => {
+                    // تنظيم الفترات حسب الفصل الدراسي
+                    const bySemester: Record<string, typeof periods> = {};
+                    periods.forEach(p => {
+                      if (!bySemester[p.semester]) bySemester[p.semester] = [];
+                      bySemester[p.semester].push(p);
+                    });
+                    const PERIOD_ORDER = ['الفترة الاولى', 'الفترة الثانية', 'نهاية الفصل'];
+                    return (
+                      <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {Object.entries(bySemester).map(([sem, pList]) => (
+                          <div key={sem} style={{ background: '#f0fdfa', borderRadius: 10, padding: '10px 14px', border: '1px solid #ccfbf1' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#0d9488', marginBottom: 6 }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle', marginLeft: 4 }}>school</span>
+                              {sem}
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                              {pList.sort((a, b) => PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period)).map((p, i) => {
+                                const cnt = summary.filter(r => r.semester === p.semester && r.period === p.period).length;
+                                return (
+                                  <span key={i} style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px',
+                                    borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                    background: '#fff', color: '#115e59', border: '1px solid #99f6e4',
+                                  }}>
+                                    {p.period} ({cnt} طالب)
+                                    <button onClick={(e) => { e.stopPropagation(); deletePeriod(p.semester, p.period); }}
+                                      style={{ color: '#99f6e4', cursor: 'pointer', border: 'none', background: 'none', fontSize: 16, lineHeight: 1, padding: 0 }}
+                                      onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                                      onMouseLeave={e => (e.currentTarget.style.color = '#99f6e4')}
+                                      title="حذف">&times;</button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}

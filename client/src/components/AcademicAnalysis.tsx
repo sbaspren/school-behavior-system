@@ -29,19 +29,31 @@ interface Props {
 
 const AcademicAnalysis: React.FC<Props> = ({ stage, semester, period, summary, grades, periods, onStudentClick }) => {
   const [data, setData] = useState<AdvancedStatsData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [section, setSection] = useState<'overview' | 'subjects' | 'gaps' | 'risk' | 'correlation' | 'prints'>('overview');
+  const [selectedPeriod, setSelectedPeriod] = useState(() => {
+    if (semester && period) return `${semester}|${period}`;
+    if (periods.length > 0) { const lp = periods[periods.length - 1]; return `${lp.semester}|${lp.period}`; }
+    return '';
+  });
+
+  // Sync when parent props change
+  useEffect(() => {
+    if (semester && period) setSelectedPeriod(`${semester}|${period}`);
+    else if (periods.length > 0) { const lp = periods[periods.length - 1]; setSelectedPeriod(`${lp.semester}|${lp.period}`); }
+  }, [semester, period, periods]);
 
   const loadData = useCallback(async () => {
-    if (!stage) return;
+    if (!stage || !selectedPeriod) { setLoading(false); setData(null); return; }
+    const [sem, per] = selectedPeriod.split('|');
     setLoading(true);
     try {
-      const res = await academicApi.getAdvancedStats(stage, semester, period);
+      const res = await academicApi.getAdvancedStats(stage, sem, per);
       if (res.data?.data && !res.data.data.empty) setData(res.data.data);
       else setData(null);
     } catch { showError('خطأ في تحميل الإحصائيات'); }
     finally { setLoading(false); }
-  }, [stage, semester, period]);
+  }, [stage, selectedPeriod]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -74,8 +86,35 @@ const AcademicAnalysis: React.FC<Props> = ({ stage, semester, period, summary, g
     { id: 'prints' as const, label: 'طباعة التقارير', icon: 'print' },
   ];
 
+  const activeSem = selectedPeriod ? selectedPeriod.split('|')[0] : semester;
+  const activePer = selectedPeriod ? selectedPeriod.split('|')[1] : period;
+  const filteredSummary = activeSem ? summary.filter(r => r.semester === activeSem && r.period === activePer) : summary;
+  const filteredGrades = activeSem ? grades.filter((g: any) => g.semester === activeSem && g.period === activePer) : grades;
+
   return (
     <div>
+      {/* Period selector */}
+      {periods.length > 1 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginLeft: 4 }}>الفترة:</span>
+          {periods.map((p, i) => {
+            const val = `${p.semester}|${p.period}`;
+            const isActive = val === selectedPeriod;
+            return (
+              <button key={i} onClick={() => setSelectedPeriod(val)}
+                style={{
+                  padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  transition: 'all 0.2s', border: 'none',
+                  background: isActive ? '#0d9488' : '#f3f4f6',
+                  color: isActive ? '#fff' : '#4b5563',
+                }}>
+                {p.semester} — {p.period}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Sub-navigation */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
         {sections.map(s => (
@@ -163,7 +202,7 @@ const AcademicAnalysis: React.FC<Props> = ({ stage, semester, period, summary, g
           <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '20px', marginBottom: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <h4 className="font-bold text-gray-700">🏆 العشرة الأوائل (حسب الفصل)</h4>
-              <button onClick={() => printTopPerClass(d.topPerClass, stage, semester, period)}
+              <button onClick={() => printTopPerClass(d.topPerClass, stage, activeSem, activePer)}
                 className="text-xs bg-teal-500 text-white hover:bg-teal-600" style={{ padding: '6px 12px', borderRadius: '6px' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>print</span> طباعة
               </button>
@@ -259,7 +298,7 @@ const AcademicAnalysis: React.FC<Props> = ({ stage, semester, period, summary, g
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h4 className="font-bold text-gray-700">🔍 فجوات الفصول حسب المادة</h4>
-            <button onClick={() => printGapReport(d.gapAnalysis, stage, semester, period)}
+            <button onClick={() => printGapReport(d.gapAnalysis, stage, activeSem, activePer)}
               className="text-xs bg-teal-500 text-white hover:bg-teal-600" style={{ padding: '6px 12px', borderRadius: '6px' }}>
               <span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>print</span> طباعة
             </button>
@@ -305,11 +344,11 @@ const AcademicAnalysis: React.FC<Props> = ({ stage, semester, period, summary, g
 
           {/* Print buttons */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
-            <button onClick={() => printFailingStudents(d.failingStudents, stage, semester, period)}
+            <button onClick={() => printFailingStudents(d.failingStudents, stage, activeSem, activePer)}
               className="text-xs bg-red-500 text-white hover:bg-red-600" style={{ padding: '6px 12px', borderRadius: '6px' }}>
               <span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>print</span> طباعة الراسبين
             </button>
-            <button onClick={() => printWeakStudents(d.weakStudents, stage, semester, period)}
+            <button onClick={() => printWeakStudents(d.weakStudents, stage, activeSem, activePer)}
               className="text-xs bg-amber-500 text-white hover:bg-amber-600" style={{ padding: '6px 12px', borderRadius: '6px' }}>
               <span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>print</span> طباعة الضعاف
             </button>
@@ -365,7 +404,7 @@ const AcademicAnalysis: React.FC<Props> = ({ stage, semester, period, summary, g
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h4 className="font-bold text-gray-700">📉 العلاقة بين الغياب والتحصيل</h4>
-            <button onClick={() => printCorrelationReport(d.correlation, d.overall, stage, semester, period)}
+            <button onClick={() => printCorrelationReport(d.correlation, d.overall, stage, activeSem, activePer)}
               className="text-xs bg-teal-500 text-white hover:bg-teal-600" style={{ padding: '6px 12px', borderRadius: '6px' }}>
               <span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>print</span> طباعة
             </button>
@@ -405,18 +444,18 @@ const AcademicAnalysis: React.FC<Props> = ({ stage, semester, period, summary, g
       {section === 'prints' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
           {[
-            { label: 'التقرير الإحصائي الشامل', icon: 'analytics', color: '#0d9488', onClick: () => printAdvancedReport(d, stage, semester, period) },
-            { label: 'كشف نتائج الصف', icon: 'format_list_numbered', color: '#2563eb', onClick: () => printGradeResults(summary, stage, semester, period) },
-            { label: 'العشرة الأوائل (كل فصل)', icon: 'emoji_events', color: '#d97706', onClick: () => printTopPerClass(d.topPerClass, stage, semester, period) },
-            { label: 'قائمة الراسبين', icon: 'error', color: '#dc2626', onClick: () => printFailingStudents(d.failingStudents, stage, semester, period) },
-            { label: 'الضعاف مع مواد الضعف', icon: 'warning', color: '#f97316', onClick: () => printWeakStudents(d.weakStudents, stage, semester, period) },
-            { label: 'تقرير فجوات الفصول', icon: 'compare_arrows', color: '#7c3aed', onClick: () => printGapReport(d.gapAnalysis, stage, semester, period) },
-            { label: 'تقرير الغياب والتحصيل', icon: 'trending_down', color: '#be185d', onClick: () => printCorrelationReport(d.correlation, d.overall, stage, semester, period) },
-            { label: 'خطاب المعلم (الضعاف)', icon: 'school', color: '#0369a1', onClick: () => printTeacherLetter(d.weakStudents, grades, stage, semester, period) },
-            { label: 'استدعاء ولي الأمر', icon: 'contact_phone', color: '#b91c1c', onClick: () => printParentSummon(d.weakStudents, stage, semester, period) },
-            { label: 'محضر اجتماع جمعي', icon: 'groups', color: '#4338ca', onClick: () => printGroupMeeting(d.weakStudents, stage, semester, period) },
-            { label: 'سجل متابعة (حسب الفصل)', icon: 'fact_check', color: '#166534', onClick: () => printClassFollowUp(d.weakStudents, stage, semester, period) },
-            { label: 'سجل متابعة فردي', icon: 'person_search', color: '#9333ea', onClick: () => printIndividualFollowUp(d.weakStudents, stage, semester, period) },
+            { label: 'التقرير الإحصائي الشامل', icon: 'analytics', color: '#0d9488', onClick: () => printAdvancedReport(d, stage, activeSem, activePer) },
+            { label: 'كشف نتائج الصف', icon: 'format_list_numbered', color: '#2563eb', onClick: () => printGradeResults(filteredSummary, stage, activeSem, activePer) },
+            { label: 'العشرة الأوائل (كل فصل)', icon: 'emoji_events', color: '#d97706', onClick: () => printTopPerClass(d.topPerClass, stage, activeSem, activePer) },
+            { label: 'قائمة الراسبين', icon: 'error', color: '#dc2626', onClick: () => printFailingStudents(d.failingStudents, stage, activeSem, activePer) },
+            { label: 'الضعاف مع مواد الضعف', icon: 'warning', color: '#f97316', onClick: () => printWeakStudents(d.weakStudents, stage, activeSem, activePer) },
+            { label: 'تقرير فجوات الفصول', icon: 'compare_arrows', color: '#7c3aed', onClick: () => printGapReport(d.gapAnalysis, stage, activeSem, activePer) },
+            { label: 'تقرير الغياب والتحصيل', icon: 'trending_down', color: '#be185d', onClick: () => printCorrelationReport(d.correlation, d.overall, stage, activeSem, activePer) },
+            { label: 'خطاب المعلم (الضعاف)', icon: 'school', color: '#0369a1', onClick: () => printTeacherLetter(d.weakStudents, filteredGrades, stage, activeSem, activePer) },
+            { label: 'استدعاء ولي الأمر', icon: 'contact_phone', color: '#b91c1c', onClick: () => printParentSummon(d.weakStudents, stage, activeSem, activePer) },
+            { label: 'محضر اجتماع جمعي', icon: 'groups', color: '#4338ca', onClick: () => printGroupMeeting(d.weakStudents, stage, activeSem, activePer) },
+            { label: 'سجل متابعة (حسب الفصل)', icon: 'fact_check', color: '#166534', onClick: () => printClassFollowUp(d.weakStudents, stage, activeSem, activePer) },
+            { label: 'سجل متابعة فردي', icon: 'person_search', color: '#9333ea', onClick: () => printIndividualFollowUp(d.weakStudents, stage, activeSem, activePer) },
           ].map((btn, i) => (
             <button key={i} onClick={btn.onClick}
               className="hover:shadow-md" style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', transition: 'all 0.2s', textAlign: 'right' }}>
