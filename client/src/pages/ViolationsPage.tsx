@@ -1992,8 +1992,8 @@ const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, 
     <InputModal
       title="تسجيل مخالفة سلوكية"
       icon="warning"
-      headerBg="linear-gradient(to left, #dc2626, #ef4444)"
-      accentColor="#dc2626"
+      headerBg="linear-gradient(to left, #4f46e5, #6366f1)"
+      accentColor="#4f46e5"
       saveLabel={saveLabel}
       counterText={counterText}
       maxWidth={700}
@@ -2005,12 +2005,12 @@ const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, 
       <div style={{ display: 'flex', gap: '8px', background: '#f3f4f6', borderRadius: '8px', padding: '4px' }}>
         <button onClick={() => { setBatchMode(false); setBatchStudents([]); }} style={{
           flex: 1, padding: '8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-          background: !batchMode ? '#fff' : 'transparent', color: !batchMode ? '#dc2626' : '#6b7280',
+          background: !batchMode ? '#fff' : 'transparent', color: !batchMode ? '#4f46e5' : '#6b7280',
           fontWeight: 700, fontSize: '13px', boxShadow: !batchMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', fontFamily: 'inherit',
         }}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>person</span> طالب واحد</button>
         <button onClick={() => { setBatchMode(true); setSelectedStudent(null); }} style={{
           flex: 1, padding: '8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-          background: batchMode ? '#fff' : 'transparent', color: batchMode ? '#dc2626' : '#6b7280',
+          background: batchMode ? '#fff' : 'transparent', color: batchMode ? '#4f46e5' : '#6b7280',
           fontWeight: 700, fontSize: '13px', boxShadow: batchMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', fontFamily: 'inherit',
         }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>groups</span> عدة طلاب</button>
       </div>
@@ -2019,8 +2019,8 @@ const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, 
       {batchMode ? (
         <StudentSelector
           onSelectionChange={setBatchStudents}
-          accentColor="#dc2626"
-          accentBg="#fef2f2"
+          accentColor="#4f46e5"
+          accentBg="#eef2ff"
         />
       ) : (
         <div>

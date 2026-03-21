@@ -784,8 +784,8 @@ const AddPermissionModal: React.FC<{ stages: StageConfigData[]; onClose: () => v
     <InputModal
       title="تسجيل استئذان"
       icon="exit_to_app"
-      headerBg="linear-gradient(to left, #7c3aed, #9333ea)"
-      accentColor="#7c3aed"
+      headerBg="linear-gradient(to left, #0891b2, #06b6d4)"
+      accentColor="#0891b2"
       saveLabel="حفظ"
       counterText={`${selectedStudents.length} طالب محدد`}
       saving={saving}
@@ -794,8 +794,8 @@ const AddPermissionModal: React.FC<{ stages: StageConfigData[]; onClose: () => v
     >
       <StudentSelector
         onSelectionChange={setSelectedStudents}
-        accentColor="#7c3aed"
-        accentBg="#f5f3ff"
+        accentColor="#0891b2"
+        accentBg="#ecfeff"
       />
       {/* وقت الخروج + السبب */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
