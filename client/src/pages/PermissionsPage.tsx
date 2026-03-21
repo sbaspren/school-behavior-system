@@ -526,11 +526,11 @@ const StudentDetailModal: React.FC<{ studentName: string; records: PermissionRow
     const { hijri } = getTodayDates();
     const rows: ListReportRow[] = records.map((r, i) => ({ cells: [
       toIndic(i + 1),
-      escapeHtml(r.hijriDate || '-'),
-      escapeHtml(r.exitTime || '-'),
+      toIndic(r.hijriDate || '-'),
+      toIndic(r.exitTime || '-'),
       `<span style="font-size:12pt">${escapeHtml(r.reason || '-')}</span>`,
       escapeHtml(r.receiver || '-'),
-      r.confirmationTime ? `<span style="color:#15803d;font-weight:bold">${escapeHtml(r.confirmationTime)}</span>` : '<span style="color:#999">-</span>',
+      r.confirmationTime ? `<span style="color:#15803d;font-weight:bold">${toIndic(r.confirmationTime)}</span>` : '<span style="color:#999">-</span>',
       r.isSent ? '<span style="color:green;font-weight:bold">تم</span>' : '<span style="color:#999">لا</span>',
     ] }));
     printListReport({
