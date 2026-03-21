@@ -11,8 +11,9 @@ import { studentsApi } from '../api/students';
 import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { SETTINGS_STAGES } from '../utils/constants';
-import { printForm } from '../utils/printTemplates';
+import { printForm, printListReport, ListReportRow } from '../utils/printTemplates';
 import { printDailyReport } from '../utils/printDaily';
+import { toIndic, escapeHtml, getTodayDates } from '../utils/printUtils';
 import { templatesApi } from '../api/templates';
 
 interface PermissionRow {
@@ -110,7 +111,7 @@ const PermissionsPage: React.FC = () => {
 
       {activeTab === 'today' && <TodayTab records={todayRecords} onRefresh={loadData} stageFilter={stageFilter} schoolSettings={schoolSettings} onAdd={() => setModalOpen(true)} />}
       {activeTab === 'approved' && <ApprovedTab records={filteredByStage} onRefresh={loadData} schoolSettings={schoolSettings} />}
-      {activeTab === 'reports' && <ReportsTab records={filteredByStage} />}
+      {activeTab === 'reports' && <ReportsTab records={filteredByStage} schoolSettings={schoolSettings} />}
 
       {modalOpen && <AddPermissionModal stages={enabledStages} onClose={() => setModalOpen(false)} onSaved={() => { setModalOpen(false); loadData(); }} />}
     </div>
@@ -504,7 +505,7 @@ const ApprovedTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; s
       )}
 
       {detailStudent && (
-        <StudentDetailModal studentName={detailStudent.studentName} records={records.filter((r) => r.studentId === detailStudent.studentId)} onClose={() => setDetailStudent(null)} onRefresh={onRefresh} />
+        <StudentDetailModal studentName={detailStudent.studentName} records={records.filter((r) => r.studentId === detailStudent.studentId)} onClose={() => setDetailStudent(null)} onRefresh={onRefresh} schoolSettings={schoolSettings} />
       )}
     </>
   );
@@ -513,7 +514,7 @@ const ApprovedTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; s
 // ============================================================
 // Student Detail Modal
 // ============================================================
-const StudentDetailModal: React.FC<{ studentName: string; records: PermissionRow[]; onClose: () => void; onRefresh: () => void }> = ({ studentName, records, onClose, onRefresh }) => {
+const StudentDetailModal: React.FC<{ studentName: string; records: PermissionRow[]; onClose: () => void; onRefresh: () => void; schoolSettings: Record<string, string> }> = ({ studentName, records, onClose, onRefresh, schoolSettings }) => {
   const handleSendAll = async () => {
     const unsent = records.filter((r) => !r.isSent);
     if (unsent.length === 0) { showError('جميع السجلات تم إرسالها'); return; }
@@ -521,13 +522,27 @@ const StudentDetailModal: React.FC<{ studentName: string; records: PermissionRow
   };
 
   const handlePrint = () => {
-    const pw = window.open('', '_blank'); if (!pw) return;
-    const rows = records.map((r) => `<tr><td>${r.hijriDate}</td><td>${r.exitTime}</td><td>${r.reason}</td><td>${r.receiver}</td><td>${r.confirmationTime || '-'}</td><td>${r.isSent ? 'نعم' : 'لا'}</td></tr>`).join('');
-    pw.document.write(`<html dir="rtl"><head><title>سجل الاستئذان - ${studentName}</title>
-      <style>body{font-family:Tahoma,'IBM Plex Sans Arabic',Arial;padding:30px;direction:rtl}table{width:100%;border-collapse:collapse}td,th{border:1px solid #333;padding:8px;text-align:right}th{background:#f0f0f0}h2{text-align:center}@media print{body{padding:15px}}</style></head>
-      <body><h2>سجل الاستئذان</h2><p><strong>الطالب:</strong> ${studentName} | <strong>الإجمالي:</strong> ${records.length}</p>
-      <table><thead><tr><th>التاريخ</th><th>وقت الخروج</th><th>السبب</th><th>المستلم</th><th>التأكيد</th><th>إرسال</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
-    pw.document.close(); pw.print();
+    if (records.length === 0) { showError('لا يوجد بيانات'); return; }
+    const { hijri } = getTodayDates();
+    const rows: ListReportRow[] = records.map((r, i) => ({ cells: [
+      toIndic(i + 1),
+      escapeHtml(r.hijriDate || '-'),
+      escapeHtml(r.exitTime || '-'),
+      `<span style="font-size:12pt">${escapeHtml(r.reason || '-')}</span>`,
+      escapeHtml(r.receiver || '-'),
+      r.confirmationTime ? `<span style="color:#15803d;font-weight:bold">${escapeHtml(r.confirmationTime)}</span>` : '<span style="color:#999">-</span>',
+      r.isSent ? '<span style="color:green;font-weight:bold">تم</span>' : '<span style="color:#999">لا</span>',
+    ] }));
+    printListReport({
+      title: `سجل الاستئذان — ${studentName}`,
+      dateText: `${hijri} | الإجمالي: ${toIndic(records.length)}`,
+      headers: [
+        { label: 'م', width: '5%' }, { label: 'التاريخ', width: '15%' }, { label: 'وقت الخروج', width: '12%' },
+        { label: 'السبب', width: '20%' }, { label: 'المستلم', width: '15%' }, { label: 'التأكيد', width: '13%' }, { label: 'الإرسال', width: '8%' },
+      ],
+      rows,
+      summary: `إجمالي: ${toIndic(records.length)} استئذان`,
+    }, schoolSettings as any);
   };
 
   return (
@@ -566,7 +581,7 @@ const StudentDetailModal: React.FC<{ studentName: string; records: PermissionRow
 // ============================================================
 // Reports Tab
 // ============================================================
-const ReportsTab: React.FC<{ records: PermissionRow[] }> = ({ records }) => {
+const ReportsTab: React.FC<{ records: PermissionRow[]; schoolSettings: Record<string, string> }> = ({ records, schoolSettings }) => {
   const [gradeFilter, setGradeFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
 
@@ -603,13 +618,23 @@ const ReportsTab: React.FC<{ records: PermissionRow[] }> = ({ records }) => {
   const maxByReason = Math.max(...byReason.map((r) => r.count), 1);
 
   const handlePrint = () => {
-    const pw = window.open('', '_blank'); if (!pw) return;
-    const studentRows = topStudents.map((s, i) => `<tr><td>${i + 1}</td><td>${s.name}</td><td>${s.grade} (${s.cls})</td><td>${s.count}</td></tr>`).join('');
-    pw.document.write(`<html dir="rtl"><head><title>تقرير الاستئذان</title>
-      <style>body{font-family:Tahoma,'IBM Plex Sans Arabic',Arial;padding:30px;direction:rtl}table{width:100%;border-collapse:collapse;margin:20px 0}td,th{border:1px solid #333;padding:8px;text-align:right}th{background:#f0f0f0}h2,h3{text-align:center}@media print{body{padding:15px}}</style></head>
-      <body><h2>تقرير الاستئذان</h2><p style="text-align:center">الإجمالي: ${filtered.length}</p>
-      <h3>أكثر الطلاب استئذاناً</h3><table><thead><tr><th>#</th><th>الطالب</th><th>الصف</th><th>العدد</th></tr></thead><tbody>${studentRows}</tbody></table></body></html>`);
-    pw.document.close(); pw.print();
+    if (topStudents.length === 0) { showError('لا يوجد بيانات'); return; }
+    const { hijri } = getTodayDates();
+    const rows: ListReportRow[] = topStudents.map((s, i) => ({ cells: [
+      toIndic(i + 1),
+      `<span style="font-weight:bold">${escapeHtml(s.name)}</span>`,
+      escapeHtml(`${s.grade} (${s.cls})`),
+      `<span style="font-weight:bold;color:#7c3aed">${toIndic(s.count)}</span>`,
+    ] }));
+    printListReport({
+      title: 'تقرير الاستئذان — أكثر الطلاب استئذاناً',
+      dateText: `${hijri} | الإجمالي: ${toIndic(filtered.length)}`,
+      headers: [
+        { label: 'م', width: '8%' }, { label: 'الطالب', width: '40%' }, { label: 'الصف', width: '25%' }, { label: 'العدد', width: '15%' },
+      ],
+      rows,
+      summary: `إجمالي الاستئذان: ${toIndic(filtered.length)} | عدد الطلاب: ${toIndic(uniqueStudents)}`,
+    }, schoolSettings as any);
   };
 
   const sentCount = filtered.filter((r) => r.isSent).length;
