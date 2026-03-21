@@ -117,7 +117,7 @@ const AcademicPage: React.FC = () => {
       setLoading(false);
     });
     // Load school settings for printing
-    settingsApi.getSchoolSettings?.().then((res: any) => {
+    settingsApi.getSettings?.().then((res: any) => {
       if (res?.data?.data) setSchoolSettings(res.data.data);
     }).catch(() => {});
   }, []);
