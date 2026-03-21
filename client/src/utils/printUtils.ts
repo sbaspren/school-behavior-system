@@ -16,6 +16,26 @@ export function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/** ★ تحويل رقم الفصل إلى حرف عربي (أبجد هوز حطي كلمن سعفص قرشت) */
+const _CLASS_LETTERS = ['أ', 'ب', 'ج', 'د', 'هـ', 'و', 'ز', 'ح', 'ط', 'ي', 'ك', 'ل', 'م', 'ن', 'س', 'ع', 'ف', 'ص', 'ق', 'ر'];
+export function classToLetter(cls: string | number | undefined): string {
+  if (cls === undefined || cls === null || cls === '') return '';
+  const s = String(cls).trim();
+  if (_CLASS_LETTERS.includes(s)) return s;
+  const num = parseInt(s.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))));
+  if (!isNaN(num) && num >= 1 && num <= _CLASS_LETTERS.length) return _CLASS_LETTERS[num - 1];
+  return s;
+}
+
+/** ★ تحويل نوع التأخر من الإنجليزية إلى العربية */
+const _TARDINESS_LABELS: Record<string, string> = {
+  'Morning': 'تأخر صباحي', 'Period': 'تأخر عن الحصة', 'Assembly': 'تأخر عن الاصطفاف',
+  'تأخر صباحي': 'تأخر صباحي', 'تأخر عن الحصة': 'تأخر عن الحصة', 'تأخر حصة': 'تأخر عن الحصة', 'تأخر عن الاصطفاف': 'تأخر عن الاصطفاف',
+};
+export function tardinessTypeLabel(type: string): string {
+  return _TARDINESS_LABELS[type] || type || 'تأخر صباحي';
+}
+
 /** اختصار الاسم: الأول + الثاني + الأخير */
 export function shortenName(fullName: string): string {
   if (!fullName) return '';
@@ -45,9 +65,7 @@ export function formatClass(grade: string, cls: string, stage?: string): string 
   const g = ORDINALS[grade] || grade || '';
   const STAGE_ABBR: Record<string, string> = { 'متوسط': 'م', 'ثانوي': 'ث', 'ابتدائي': 'ب', 'طفولة مبكرة': 'ط' };
   const s = stage ? (STAGE_ABBR[stage] || '') : '';
-  const classLetters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و', 'ز', 'ح', 'ط', 'ي'];
-  const cNum = parseInt(String(cls).replace(/[^0-9٠-٩]/g, '').replace(/[٠-٩]/g, (d) => String('\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669'.indexOf(d))));
-  const c = (cNum >= 1 && cNum <= classLetters.length) ? classLetters[cNum - 1] : cls;
+  const c = classToLetter(cls) || cls;
   return `${g}/${s}${c}`;
 }
 

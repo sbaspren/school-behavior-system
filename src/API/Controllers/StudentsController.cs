@@ -70,7 +70,7 @@ public class StudentsController : ControllerBase
             Name = request.Name,
             Stage = stage,
             Grade = request.Grade ?? "",
-            Class = request.ClassName ?? "",
+            Class = ClassNumberToLetter(request.ClassName),
             Mobile = request.Mobile ?? "",
             CreatedAt = DateTime.UtcNow
         };
@@ -115,7 +115,7 @@ public class StudentsController : ControllerBase
             {
                 existing.Name = s.Name;
                 if (!string.IsNullOrEmpty(s.Grade)) existing.Grade = s.Grade;
-                if (!string.IsNullOrEmpty(s.ClassName)) existing.Class = s.ClassName;
+                if (!string.IsNullOrEmpty(s.ClassName)) existing.Class = ClassNumberToLetter(s.ClassName);
                 if (!string.IsNullOrEmpty(s.Mobile)) existing.Mobile = s.Mobile;
                 existing.Stage = stage;
                 updated++;
@@ -128,7 +128,7 @@ public class StudentsController : ControllerBase
                     Name = s.Name,
                     Stage = stage,
                     Grade = s.Grade ?? "",
-                    Class = s.ClassName ?? "",
+                    Class = ClassNumberToLetter(s.ClassName),
                     Mobile = s.Mobile ?? "",
                     CreatedAt = DateTime.UtcNow
                 });
@@ -280,7 +280,7 @@ public class StudentsController : ControllerBase
             {
                 existing.Name = name;
                 if (!string.IsNullOrEmpty(grade)) existing.Grade = grade;
-                if (!string.IsNullOrEmpty(className)) existing.Class = className;
+                if (!string.IsNullOrEmpty(className)) existing.Class = ClassNumberToLetter(className);
                 if (!string.IsNullOrEmpty(mobile)) existing.Mobile = mobile;
                 existing.Stage = rowStage.Value;
                 updated++;
@@ -293,7 +293,7 @@ public class StudentsController : ControllerBase
                     Name = name,
                     Stage = rowStage.Value,
                     Grade = grade,
-                    Class = className,
+                    Class = ClassNumberToLetter(className),
                     Mobile = mobile,
                     CreatedAt = DateTime.UtcNow
                 });
@@ -579,6 +579,40 @@ public class StudentsController : ControllerBase
             if (match.Value > 0) return match.Value;
         }
         return 0;
+    }
+
+    // ★ تحويل رقم الفصل إلى حرف عربي (أبجد هوز حطي كلمن سعفص قرشت)
+    private static readonly string[] _ClassLetters = { "أ", "ب", "ج", "د", "هـ", "و", "ز", "ح", "ط", "ي", "ك", "ل", "م", "ن", "س", "ع", "ف", "ص", "ق", "ر" };
+
+    private static string ClassNumberToLetter(string? className)
+    {
+        if (string.IsNullOrWhiteSpace(className)) return className ?? "";
+        var trimmed = className.Trim();
+        // إذا كان بالفعل حرف عربي، أعده كما هو
+        if (_ClassLetters.Contains(trimmed)) return trimmed;
+        // حاول تحويل الرقم
+        if (int.TryParse(trimmed, out var num) && num >= 1 && num <= _ClassLetters.Length)
+            return _ClassLetters[num - 1];
+        return trimmed;
+    }
+
+    // ★ إصلاح أرقام الفصول الموجودة في قاعدة البيانات → حروف عربية
+    [HttpPost("fix-class-letters")]
+    public async Task<ActionResult<ApiResponse<object>>> FixClassLetters()
+    {
+        var students = await _db.Students.ToListAsync();
+        int fixedCount = 0;
+        foreach (var s in students)
+        {
+            var converted = ClassNumberToLetter(s.Class);
+            if (converted != s.Class)
+            {
+                s.Class = converted;
+                fixedCount++;
+            }
+        }
+        if (fixedCount > 0) await _db.SaveChangesAsync();
+        return Ok(ApiResponse<object>.Ok(new { fixedCount, totalStudents = students.Count, message = $"تم تحويل {fixedCount} فصل من أرقام إلى حروف" }));
     }
 }
 

@@ -10,6 +10,9 @@ import { showSuccess, showError } from '../components/shared/Toast';
 // ════════════════════════════════════════════════════════════
 // تعريفات التبويبات الخمسة — مطابق للأصلي NOOR_TABS
 // ════════════════════════════════════════════════════════════
+
+const _TARD_LABELS: Record<string, string> = { Morning: 'تأخر صباحي', Period: 'تأخر عن الحصة', Assembly: 'تأخر عن الاصطفاف' };
+const tardLabel = (t?: string) => (t && _TARD_LABELS[t]) || t || 'تأخر صباحي';
 interface TabDef {
   id: string;
   label: string;
@@ -348,7 +351,7 @@ const NoorPage: React.FC = () => {
           name: rec.studentName || '',
           grade: rec.grade || '',
           className: rec.className || rec.class || '',
-          type: rec.description || rec.tardinessType || rec.behaviorType || rec.excuseType || '',
+          type: rec.description || tardLabel(rec.tardinessType) || rec.behaviorType || rec.excuseType || '',
           ok: i < updated,
         }));
         setResultDetails(details);
@@ -710,7 +713,7 @@ const NoorPage: React.FC = () => {
 
                         {activeTab === 'tardiness' && (
                           <>
-                            <td style={{ fontSize: '13px', color: '#374151' }}>{rec.tardinessType || 'تأخر صباحي'}</td>
+                            <td style={{ fontSize: '13px', color: '#374151' }}>{tardLabel(rec.tardinessType)}</td>
                             <td style={{ fontSize: '12px', color: '#6b7280' }}>{rec.date}</td>
                           </>
                         )}

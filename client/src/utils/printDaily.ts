@@ -1,6 +1,6 @@
 // ===== طباعة الكشوف اليومية (6 أنواع) — موحّد عبر printListReport =====
 import {
-  toIndic, escapeHtml, formatClass, getTodayDates, extractTime, sortByClass,
+  toIndic, escapeHtml, formatClass, getTodayDates, extractTime, sortByClass, tardinessTypeLabel,
 } from './printUtils';
 import { printListReport, ListReportRow } from './printTemplates';
 
@@ -96,7 +96,7 @@ const DAILY_CONFIGS: Record<string, DailyConfig> = {
       toIndic(i + 1),
       `<span style="font-weight:bold;text-align:right">${escapeHtml(getField(rec, 'studentName') || '-')}</span>`,
       formatClass(g.grade, g.cls),
-      escapeHtml(getField(rec, 'tardinessType') || 'صباحي'),
+      escapeHtml(tardinessTypeLabel(getField(rec, 'tardinessType'))),
       toIndic(getField(rec, 'period') || '-'),
       toIndic(extractTime(getField(rec, 'recordedAt'))),
       sentIcon(rec.isSent === true),

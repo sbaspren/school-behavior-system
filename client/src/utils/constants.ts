@@ -11,7 +11,7 @@ export const SECONDARY_TRACKS: Record<string, string[]> = {
   Tracks: ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس'],
 };
 
-export const CLASS_LETTERS = ['أ', 'ب', 'ج', 'د', 'هـ', 'و', 'ز', 'ح', 'ط', 'ي', 'ك', 'ل', 'م', 'ن', 'س'];
+export const CLASS_LETTERS = ['أ', 'ب', 'ج', 'د', 'هـ', 'و', 'ز', 'ح', 'ط', 'ي', 'ك', 'ل', 'م', 'ن', 'س', 'ع', 'ف', 'ص', 'ق', 'ر'];
 
 export const STAGE_SUBJECTS: Record<string, { name: string; subjects: string[] }> = {
   Primary: {
