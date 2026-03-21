@@ -170,8 +170,7 @@ const CommunicationPage: React.FC = () => {
     });
 
     printListReport({
-      title: 'سجل التواصل مع أولياء الأمور',
-      subtitle: stgName || undefined,
+      title: 'سجل التواصل مع أولياء الأمور' + (stgName ? ' — ' + stgName : ''),
       dateText: `${hijri} | عدد الرسائل: ${toIndic(filtered.length)}`,
       headers: [
         { label: 'م', width: '5%' }, { label: 'التاريخ', width: '12%' }, { label: 'اسم الطالب', width: '24%' },
