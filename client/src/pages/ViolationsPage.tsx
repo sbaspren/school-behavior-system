@@ -631,15 +631,15 @@ const ApprovedTab: React.FC<{
       const deg = DEGREE_LABELS[r.degree] || DEGREE_LABELS[1];
       const classKey = `${r.grade} (${r.className})`;
       if (classKey !== prevClass) { rows.push({ cells: [], isGroupHeader: true, groupLabel: classKey }); prevClass = classKey; }
-      rows.push({ cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, r.studentNumber, r.description, deg.label, toIndic(r.deduction), toIndic(r.hijriDate || ''), r.isSent ? '<span style="color:green;font-weight:bold">تم</span>' : '<span style="color:#999">لا</span>'] });
+      rows.push({ cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, r.studentNumber, r.description, deg.label, `${r.grade} / ${r.className}`, toIndic(r.hijriDate || ''), r.isSent ? '<span style="color:green;font-weight:bold">تم</span>' : '<span style="color:#999">لا</span>'] });
     });
     printListReport({
       title: 'سجل المخالفات التراكمي',
       dateText: hijri,
       statsBar: `عدد السجلات: ${toIndic(allFilteredRecords.length)} | عدد الطلاب: ${toIndic(studentGroups.length)}${dateRange ? ' | ' + dateRange : ''}`,
       headers: [
-        { label: '#', width: '5%' }, { label: 'الطالب', width: '20%' }, { label: 'الرقم', width: '10%' },
-        { label: 'المخالفة', width: '20%' }, { label: 'الدرجة', width: '8%' }, { label: 'الحسم', width: '7%' },
+        { label: 'م', width: '5%' }, { label: 'الطالب', width: '20%' }, { label: 'الرقم', width: '10%' },
+        { label: 'المخالفة', width: '20%' }, { label: 'الدرجة', width: '8%' }, { label: 'الصف', width: '10%' },
         { label: 'التاريخ', width: '12%' }, { label: 'إرسال', width: '8%' },
       ],
       rows,
