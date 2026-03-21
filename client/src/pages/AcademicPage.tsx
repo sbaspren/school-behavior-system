@@ -9,6 +9,9 @@ import {
   BarElement, RadialLinearScale, PointElement, LineElement, Filler,
 } from 'chart.js';
 import { Doughnut, Bar, Radar } from 'react-chartjs-2';
+import AcademicAnalysis from '../components/AcademicAnalysis';
+import { computeAdvancedAnalysis, getTeacherWeakStudents, type AdvancedAnalysis, type SummaryRow as StatSummaryRow, type GradeRow as StatGradeRow } from '../utils/academicStats';
+import * as AcadPrint from '../utils/academicPrints';
 
 ChartJS.register(
   ArcElement, Tooltip, Legend, CategoryScale, LinearScale,
@@ -58,12 +61,14 @@ const AcademicPage: React.FC = () => {
   // ── State ──
   const [stages, setStages] = useState<StageConfigData[]>([]);
   const [currentStage, setCurrentStage] = useState('');
-  const [tab, setTab] = useState<'dashboard' | 'reports' | 'charts'>('dashboard');
+  const [tab, setTab] = useState<'dashboard' | 'reports' | 'charts' | 'analysis'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<SummaryRow[]>([]);
   const [grades, setGrades] = useState<GradeRow[]>([]);
   const [periods, setPeriods] = useState<PeriodInfo[]>([]);
   const [stats, setStats] = useState<StatsData | null>(null);
+  const [advancedAnalysis, setAdvancedAnalysis] = useState<AdvancedAnalysis | null>(null);
+  const [schoolSettings, setSchoolSettings] = useState<any>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importPeriod, setImportPeriod] = useState('نهاية الفصل');
   const [importStatus, setImportStatus] = useState<{ type: string; msg: string } | null>(null);
@@ -111,6 +116,10 @@ const AcademicPage: React.FC = () => {
     }).catch(() => {
       setLoading(false);
     });
+    // Load school settings for printing
+    settingsApi.getSchoolSettings?.().then((res: any) => {
+      if (res?.data?.data) setSchoolSettings(res.data.data);
+    }).catch(() => {});
   }, []);
 
   // ── Load data ──
@@ -134,6 +143,13 @@ const AcademicPage: React.FC = () => {
           const lp = d.periods?.length > 0 ? d.periods[d.periods.length - 1] : null;
           const sRes = await academicApi.getStats(currentStage, lp?.semester, lp?.period);
           if (sRes.data?.data) setStats(sRes.data.data);
+          // Compute advanced analysis
+          try {
+            const filtered = lp ? d.summary.filter((r: SummaryRow) => r.semester === lp.semester && r.period === lp.period) : d.summary;
+            const filteredGrades = lp ? (d.grades || []).filter((g: GradeRow) => g.semester === lp.semester && g.period === lp.period) : (d.grades || []);
+            const aa = computeAdvancedAnalysis(filtered as unknown as StatSummaryRow[], filteredGrades as unknown as StatGradeRow[]);
+            setAdvancedAnalysis(aa);
+          } catch { /* empty */ }
         } else {
           setStats(null);
           setImportOpen(true);
@@ -341,6 +357,7 @@ const AcademicPage: React.FC = () => {
             { id: 'dashboard' as const, label: 'لوحة المؤشرات', icon: 'dashboard', color: '#14b8a6', bg: '#f0fdfa' },
             { id: 'reports' as const, label: 'تقارير تفصيلية', icon: 'description', color: '#a855f7', bg: '#faf5ff' },
             { id: 'charts' as const, label: 'رسوم بيانية', icon: 'bar_chart', color: '#6366f1', bg: '#eef2ff' },
+            { id: 'analysis' as const, label: 'تحليل وطباعة', icon: 'analytics', color: '#dc2626', bg: '#fef2f2' },
           ]).map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`font-bold ${tab === t.id
@@ -823,6 +840,19 @@ const AcademicPage: React.FC = () => {
             />
           </div>
         </div>
+      )}
+
+      {/* Analysis Tab */}
+      {!loading && tab === 'analysis' && (
+        <AcademicAnalysis
+          stage={currentStage}
+          semester={periods.length > 0 ? periods[periods.length - 1].semester : ''}
+          period={periods.length > 0 ? periods[periods.length - 1].period : ''}
+          summary={summary}
+          grades={grades}
+          periods={periods}
+          onStudentClick={showStudentReport}
+        />
       )}
 
       {reportLoading && (

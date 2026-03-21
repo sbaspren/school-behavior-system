@@ -1,491 +1,214 @@
-/**
- * ══════════════════════════════════════════════════════════════
- * مطبوعات التحصيل الدراسي — 16 تقرير/نموذج
- * ══════════════════════════════════════════════════════════════
- * جميع المطبوعات تستخدم printListReport / printSingleDetail
- */
+import { printListReport, ListReportRow } from './printTemplates';
+import { toIndic, shortenStudentName, escapeHtml } from './printUtils';
+import { settingsApi } from '../api/settings';
 
-import { toIndic, escapeHtml, shortenStudentName, classToLetter, getTodayDates } from './printUtils';
-import { printListReport, printSingleDetail, ListReportRow, SchoolSettings } from './printTemplates';
-import type {
-  SummaryRow, GradeRow, AdvancedAnalysis, RiskStudent,
-  TopStudent, SubjectAnalysis, ClassGapAnalysis, DescriptiveStats
-} from './academicStats';
+let _s: any = null;
+async function gs() {
+  if (_s) return _s;
+  try { const r = await settingsApi.getSettings(); _s = r.data?.data || {}; return _s; } catch { return { letterheadMode: 'text' }; }
+}
+const pl = (sem: string, per: string) => `${sem || ''} — ${per || ''}`.replace(/^—\s*/, '').replace(/\s*—$/, '');
+const td = () => new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric', calendar: 'islamic-umalqura' });
 
-const D = () => { const d = getTodayDates(); return `${d.dayName} ${d.hijri}`; };
-const N = (n: number) => toIndic(n.toFixed(1));
-const NI = (n: number) => toIndic(Math.round(n));
+function openPrint(html: string) {
+  const w = window.open('', '_blank');
+  if (!w) return;
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(() => w.print(), 300);
+}
 
-// ══════════════════════════════════════════════════════
+const CSS = `@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap');
+body{font-family:'Amiri',serif;direction:rtl;margin:25px;font-size:12pt;color:#333;line-height:1.7}
+h2{color:#0d9488;border-bottom:2px solid #0d9488;padding-bottom:4px;margin-top:24px}
+h3{color:#2563eb;margin-top:16px}
+table{width:100%;border-collapse:collapse;margin:8px 0;font-size:11pt}
+th{background:#f2f2f2;border:1px solid #000;padding:6px;font-weight:700}
+td{border:1px solid #000;padding:5px}
+.page{page-break-after:always}.page:last-child{page-break-after:auto}
+.red{color:#dc2626}.green{color:#16a34a}.blue{color:#2563eb}.amber{color:#d97706}
+.sig{margin-top:35px;text-align:left;font-weight:700}
+.stat-box{display:inline-block;text-align:center;border:1px solid #ccc;border-radius:8px;padding:8px 16px;margin:4px}
+.stat-val{font-size:18pt;font-weight:700}
+.alert{background:#fef2f2;border:1px solid #fecaca;padding:8px;border-radius:6px;margin:8px 0}
+.msg{background:#fffbeb;border:1px solid #fde68a;padding:12px;border-radius:6px;margin:16px 0}
+.section{margin-top:14px;border:1px solid #ccc;border-radius:6px;padding:10px}
+.section h4{color:#7c3aed;margin:0 0 8px 0}
+.cb{display:inline-block;width:14px;height:14px;border:1px solid #333;margin-left:4px;vertical-align:middle}`;
+
 // 1. التقرير الإحصائي الشامل
-// ══════════════════════════════════════════════════════
-export function printStatisticalReport(analysis: AdvancedAnalysis, periodLabel: string, settings: SchoolSettings): void {
-  const a = analysis;
+export async function printAdvancedReport(d: any, stage: string, sem: string, per: string) {
+  let h = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>التقرير الإحصائي الشامل</title><style>${CSS}</style></head><body>`;
+  h += `<div style="text-align:center;margin-bottom:20px"><h1 style="color:#0d9488">التقرير الإحصائي الشامل</h1><p>${escapeHtml(pl(sem, per))} | ${td()}</p></div>`;
+  h += `<h2>المؤشرات العامة</h2><div style="text-align:center">`;
+  [['الطلاب', d.overall.totalStudents], ['المتوسط', d.overall.mean + '%'], ['الوسيط', d.overall.median + '%'], ['الانحراف', d.overall.sd], ['م.الاختلاف', d.overall.cv + '%']].forEach(([l, v]) => { h += `<div class="stat-box"><div class="stat-val">${toIndic(v as any)}</div><div>${l}</div></div>`; });
+  h += `</div>`;
+  h += `<h2>الصفوف</h2><table><tr><th>الصف</th><th>العدد</th><th>المتوسط</th><th>الوسيط</th><th>الانحراف</th><th>ممتاز</th><th>جيد جداً</th><th>جيد</th><th>مقبول</th><th>ضعيف</th></tr>`;
+  (d.gradeStats || []).forEach((g: any) => { h += `<tr><td><b>${g.grade}</b></td><td>${toIndic(g.count)}</td><td class="blue"><b>${toIndic(g.mean)}%</b></td><td>${toIndic(g.median)}%</td><td${g.sd > 10 ? ' class="red"' : ''}>${toIndic(g.sd)}</td><td class="green">${toIndic(g.distribution.excellent)}</td><td class="blue">${toIndic(g.distribution.veryGood)}</td><td class="amber">${toIndic(g.distribution.good)}</td><td>${toIndic(g.distribution.pass)}</td><td class="red">${toIndic(g.distribution.fail)}</td></tr>`; });
+  h += `</table>`;
+  const bg = (d.gapAnalysis || []).filter((g: any) => g.gap > 3);
+  if (bg.length) { h += `<h2>فجوات > ٣%</h2><table><tr><th>المادة</th><th>الصف</th><th>الفجوة</th><th>التصنيف</th><th>الفصول</th></tr>`; bg.forEach((g: any) => { h += `<tr><td><b>${g.subject}</b></td><td>${g.grade}</td><td class="${g.gap > 10 ? 'red' : 'amber'}"><b>${toIndic(g.gap)}%</b></td><td>${g.severity}</td><td>${g.classes.map((c: any) => `ف${toIndic(c.classNum)}: ${toIndic(c.avg)}%`).join(' | ')}</td></tr>`; }); h += `</table>`; }
+  h += `<h2>الغياب والتحصيل</h2><p>معامل بيرسون: <b>${toIndic(d.correlation.pearsonR)}</b> — ${d.correlation.interpretation}</p><p>غائبون: <span class="red">${toIndic(d.correlation.absentAvg)}%</span> | غير غائبين: <span class="green">${toIndic(d.correlation.nonAbsentAvg)}%</span> | الفرق: <b>${toIndic(d.correlation.difference)}%</b></p>`;
+  h += `<h2>الملخص</h2>`;
+  if (d.executiveSummary.weakestSubjects?.length) h += `<div class="alert"><b>أضعف المواد:</b> ${d.executiveSummary.weakestSubjects.map((s: any) => `${s.subject} (${toIndic(s.mean)}%)`).join(' — ')}</div>`;
+  h += `<p><b>طلاب الخطر:</b> ${toIndic(d.executiveSummary.totalAtRisk)} (${toIndic(d.executiveSummary.atRiskPercent)}%)</p>`;
+  h += `<div class="sig">وكيل شؤون الطلاب: _______________</div></body></html>`;
+  openPrint(h);
+}
+
+// 2. كشف النتائج
+export async function printGradeResults(summary: any[], stage: string, sem: string, per: string) {
+  const s = await gs();
+  const sorted = [...summary].sort((a, b) => (b.average || b.Average || 0) - (a.average || a.Average || 0));
+  const grouped: Record<string, any[]> = {};
+  sorted.forEach(r => { const k = `${r.grade || r.Grade} فصل ${r.classNum || r.ClassNum}`; if (!grouped[k]) grouped[k] = []; grouped[k].push(r); });
   const rows: ListReportRow[] = [];
-
-  // === المؤشرات الوصفية ===
-  rows.push({ cells: [], isGroupHeader: true, groupLabel: '📊 المؤشرات الإحصائية الأساسية' });
-  rows.push({ cells: ['', 'العدد', 'المتوسط', 'الوسيط', 'المنوال', 'الانحراف', 'المدى', 'معامل الاختلاف'] });
-
-  const addStats = (label: string, s: DescriptiveStats) => {
-    rows.push({ cells: [label, NI(s.count), N(s.mean) + '%', N(s.median) + '%', NI(s.mode) + '%', N(s.stdDev), N(s.range), N(s.cv) + '%'] });
-  };
-  addStats('المدرسة', a.overall);
-  a.byGrade.forEach(g => addStats(g.grade, g.stats));
-  a.byClass.forEach(c => addStats(c.label, c.stats));
-
-  rows.push({ cells: [], isSeparator: true });
-
-  // === توزيع التقديرات ===
-  rows.push({ cells: [], isGroupHeader: true, groupLabel: '📈 توزيع التقديرات' });
-  rows.push({ cells: ['', 'ممتاز', 'جيد جداً', 'جيد', 'مقبول', 'ضعيف', '', ''] });
-  for (const gd of a.gradeDistByGrade) {
-    const cells = [gd.grade, ...gd.dist.map(d => `${NI(d.count)} (${NI(d.pct)}%)`)];
-    while (cells.length < 8) cells.push('');
-    rows.push({ cells });
+  let idx = 0;
+  for (const [label, sts] of Object.entries(grouped)) {
+    if (idx > 0) rows.push({ isSeparator: true, cells: [] });
+    rows.push({ isGroupHeader: true, groupLabel: label, groupCount: sts.length, cells: [] });
+    sts.forEach((st, i) => { rows.push({ cells: [toIndic(i + 1), shortenStudentName(st.studentName || st.StudentName || ''), st.classNum || st.ClassNum || '', toIndic(((st.average || st.Average || 0) as number).toFixed(1)) + '%', st.generalGrade || st.GeneralGrade || '', toIndic(st.absence || st.Absence || 0), ''] }); });
+    idx++;
   }
+  printListReport({ title: 'كشف نتائج الطلاب', subtitle: pl(sem, per), dateText: td(), statsBar: `إجمالي: ${toIndic(sorted.length)}`, headers: [{ label: 'م', width: '5%' }, { label: 'الطالب', width: '30%' }, { label: 'الفصل', width: '8%' }, { label: 'المعدل', width: '12%' }, { label: 'التقدير', width: '15%' }, { label: 'الغياب', width: '8%' }, { label: 'ملاحظات', width: '22%' }], rows }, s);
+}
 
-  rows.push({ cells: [], isSeparator: true });
-
-  // === فجوات الفصول ===
-  rows.push({ cells: [], isGroupHeader: true, groupLabel: '🔍 فجوات الفصول (> ٥%)' });
-  const critGaps = a.classGaps.filter(g => g.gap > 3);
-  for (const g of critGaps) {
-    const classStr = g.classes.map(c => `${c.classLabel}: ${N(c.avg)}%`).join(' | ');
-    const color = g.gap > 10 ? '🔴' : g.gap > 5 ? '🟠' : '🟡';
-    rows.push({ cells: [g.subject, `${color} فجوة ${N(g.gap)}%`, classStr, g.gapLevel, '', '', '', ''] });
+// 3. العشرة الأوائل
+export async function printTopPerClass(topData: any[], stage: string, sem: string, per: string) {
+  const s = await gs();
+  const grouped: Record<string, any[]> = {};
+  topData.forEach(t => { if (!grouped[t.label]) grouped[t.label] = []; grouped[t.label].push(t); });
+  const rows: ListReportRow[] = [];
+  let idx = 0;
+  for (const [label, sts] of Object.entries(grouped)) {
+    if (idx > 0) rows.push({ isSeparator: true, cells: [] });
+    rows.push({ isGroupHeader: true, groupLabel: '🏆 ' + label, cells: [] });
+    sts.forEach((st, i) => { rows.push({ cells: [i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : toIndic(i + 1), shortenStudentName(st.name), toIndic((st.average || 0).toFixed(1)) + '%', st.generalGrade || ''] }); });
+    idx++;
   }
-
-  rows.push({ cells: [], isSeparator: true });
-
-  // === الارتباط ===
-  rows.push({ cells: [], isGroupHeader: true, groupLabel: '📉 العلاقة بين الغياب والتحصيل' });
-  rows.push({ cells: ['معامل بيرسون', toIndic(a.correlation.pearsonR.toString()), a.correlation.interpretation, '', '', '', '', ''] });
-  rows.push({ cells: ['الغائبون (>٢ أيام)', `${N(a.correlation.absentAvg)}%`, `${NI(a.correlation.absentCount)} طالب`, '', '', '', '', ''] });
-  rows.push({ cells: ['غير الغائبين', `${N(a.correlation.nonAbsentAvg)}%`, `${NI(a.correlation.nonAbsentCount)} طالب`, '', '', '', '', ''] });
-  rows.push({ cells: ['الفرق', `${N(a.correlation.difference)}%`, '', '', '', '', '', ''] });
-
-  const statsBar = `إجمالي الطلاب: ${NI(a.overall.count)} | المعدل العام: ${N(a.overall.mean)}% | أعلى: ${N(a.overall.max)}% | أقل: ${N(a.overall.min)}% | طلاب خطر: ${NI(a.riskSummary.high + a.riskSummary.medium)}`;
-
-  const summary = `<b>الملخص التنفيذي:</b> أضعف المواد: ${a.weakestSubjects.map(s => s.name + ' ' + N(s.avg) + '%').join('، ')} | طلاب خطر عالي: ${NI(a.riskSummary.high)} | خطر متوسط: ${NI(a.riskSummary.medium)} | فجوات حرجة: ${NI(a.criticalGaps.length)}`;
-
-  printListReport({
-    title: 'التقرير الإحصائي الشامل للتحصيل الدراسي',
-    subtitle: periodLabel,
-    dateText: D(),
-    statsBar,
-    headers: [
-      { label: 'البند', width: '18%' }, { label: 'القيمة', width: '12%' },
-      { label: 'التفصيل', width: '20%' }, { label: 'الحالة', width: '10%' },
-      { label: '', width: '10%' }, { label: '', width: '10%' },
-      { label: '', width: '10%' }, { label: '', width: '10%' }
-    ],
-    rows, summary,
-  }, settings);
+  printListReport({ title: 'العشرة الأوائل', subtitle: pl(sem, per), dateText: td(), headers: [{ label: 'الترتيب', width: '12%' }, { label: 'الطالب', width: '48%' }, { label: 'المعدل', width: '20%' }, { label: 'التقدير', width: '20%' }], rows }, s);
 }
 
-// ══════════════════════════════════════════════════════
-// 2. كشف نتائج الصف / الفصل
-// ══════════════════════════════════════════════════════
-export function printGradeSheet(summary: SummaryRow[], periodLabel: string, settings: SchoolSettings): void {
-  const sorted = [...summary].sort((a, b) => (b.average || 0) - (a.average || 0));
-  const gradeGroups = new Map<string, SummaryRow[]>();
-  sorted.forEach(s => {
-    const key = `${s.grade} — فصل ${classToLetter(s.classNum)}`;
-    if (!gradeGroups.has(key)) gradeGroups.set(key, []);
-    gradeGroups.get(key)!.push(s);
-  });
-
-  const rows: ListReportRow[] = [];
-  let globalIdx = 0;
-  gradeGroups.forEach((students, label) => {
-    rows.push({ cells: [], isGroupHeader: true, groupLabel: label, groupCount: students.length });
-    students.forEach((s, i) => {
-      globalIdx++;
-      rows.push({ cells: [
-        toIndic(globalIdx), shortenStudentName(s.studentName), classToLetter(s.classNum),
-        s.average ? N(s.average) + '%' : '-', s.generalGrade || '-',
-        s.absence > 0 ? `<span style="color:red">${toIndic(s.absence)}</span>` : toIndic(0), ''
-      ] });
-    });
-    rows.push({ cells: [], isSeparator: true });
-  });
-
-  const avgs = summary.map(s => s.average || 0).filter(a => a > 0);
-  const avg = avgs.length > 0 ? (avgs.reduce((a, b) => a + b, 0) / avgs.length).toFixed(1) : '0';
-  const statsBar = `إجمالي: ${toIndic(summary.length)} طالب | المعدل العام: ${toIndic(avg)}%`;
-
-  printListReport({
-    title: 'كشف نتائج الطلاب',
-    subtitle: periodLabel,
-    dateText: D(), statsBar,
-    headers: [
-      { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '30%' },
-      { label: 'الفصل', width: '8%' }, { label: 'المعدل', width: '12%' },
-      { label: 'التقدير', width: '15%' }, { label: 'الغياب', width: '10%' },
-      { label: 'ملاحظات', width: '20%' }
-    ],
-    rows,
-  }, settings);
+// 4. الراسبين
+export async function printFailingStudents(data: any[], stage: string, sem: string, per: string) {
+  const s = await gs();
+  const rows: ListReportRow[] = data.map((st, i) => ({ cells: [toIndic(i + 1), shortenStudentName(st.name), `${st.grade} ف${st.classNum}`, toIndic((st.average || 0).toFixed(1)) + '%', toIndic(st.failCount), st.failSubjects.map((f: any) => f.subject).join('، '), toIndic(st.absence)] }));
+  printListReport({ title: 'قائمة الطلاب الراسبين', subtitle: pl(sem, per), dateText: td(), statsBar: `الإجمالي: ${toIndic(data.length)}`, headers: [{ label: 'م', width: '5%' }, { label: 'الطالب', width: '20%' }, { label: 'الصف', width: '12%' }, { label: 'المعدل', width: '10%' }, { label: 'مواد', width: '8%' }, { label: 'المواد الراسب فيها', width: '33%' }, { label: 'الغياب', width: '7%' }], rows }, s);
 }
 
-// ══════════════════════════════════════════════════════
-// 3. العشرة الأوائل من كل فصل
-// ══════════════════════════════════════════════════════
-export function printTopTen(topTenByClass: { label: string; students: TopStudent[] }[], periodLabel: string, settings: SchoolSettings): void {
-  const rows: ListReportRow[] = [];
-  topTenByClass.forEach(cls => {
-    rows.push({ cells: [], isGroupHeader: true, groupLabel: `🏆 ${cls.label}`, groupCount: cls.students.length });
-    cls.students.forEach(s => {
-      const medal = s.rank === 1 ? '🥇' : s.rank === 2 ? '🥈' : s.rank === 3 ? '🥉' : toIndic(s.rank);
-      rows.push({ cells: [medal, shortenStudentName(s.name), classToLetter(s.classNum), N(s.average) + '%', s.generalGrade || '-'] });
-    });
-    rows.push({ cells: [], isSeparator: true });
-  });
-
-  printListReport({
-    title: 'العشرة الأوائل',
-    subtitle: periodLabel,
-    dateText: D(),
-    headers: [
-      { label: 'الترتيب', width: '10%' }, { label: 'اسم الطالب', width: '35%' },
-      { label: 'الفصل', width: '10%' }, { label: 'المعدل', width: '15%' },
-      { label: 'التقدير', width: '15%' }
-    ],
-    rows,
-  }, settings);
+// 5. الضعاف
+export async function printWeakStudents(data: any[], stage: string, sem: string, per: string) {
+  const s = await gs();
+  const rows: ListReportRow[] = data.map((st: any, i: number) => ({ cells: [toIndic(i + 1), shortenStudentName(st.name), `${st.grade} ف${st.classNum}`, toIndic((st.average || 0).toFixed(1)) + '%', st.failSubjects?.join('، ') || '', st.weakSubjects?.join('، ') || '', `${st.riskLevel} (${toIndic(st.riskScore)})`, toIndic(st.absence)] }));
+  printListReport({ title: 'الضعاف ومؤشر الخطر', subtitle: pl(sem, per), dateText: td(), statsBar: `إجمالي: ${toIndic(data.length)} | 🔴 ${toIndic(data.filter((s: any) => s.riskLevel === 'عالي').length)} | 🟠 ${toIndic(data.filter((s: any) => s.riskLevel === 'متوسط').length)} | 🟡 ${toIndic(data.filter((s: any) => s.riskLevel === 'منخفض').length)}`, headers: [{ label: 'م', width: '4%' }, { label: 'الطالب', width: '18%' }, { label: 'الصف', width: '10%' }, { label: 'المعدل', width: '8%' }, { label: '<٦٠', width: '17%' }, { label: '<٧٠', width: '17%' }, { label: 'الخطر', width: '12%' }, { label: 'غياب', width: '7%' }], rows }, s);
 }
 
-// ══════════════════════════════════════════════════════
-// 6. قائمة الطلاب الراسبين
-// ══════════════════════════════════════════════════════
-export function printFailedStudents(students: RiskStudent[], periodLabel: string, settings: SchoolSettings): void {
-  const rows: ListReportRow[] = students.map((s, i) => ({
-    cells: [
-      toIndic(i + 1), shortenStudentName(s.name), s.grade, classToLetter(s.classNum),
-      N(s.average) + '%', toIndic(s.weakSubjects.length),
-      `<span style="color:red">${s.weakSubjects.join('، ')}</span>`,
-      s.absence > 0 ? toIndic(s.absence) : '-'
-    ]
-  }));
-
-  printListReport({
-    title: 'قائمة الطلاب الراسبين',
-    subtitle: periodLabel,
-    dateText: D(),
-    statsBar: `إجمالي الراسبين: ${toIndic(students.length)} طالب`,
-    headers: [
-      { label: 'م', width: '4%' }, { label: 'اسم الطالب', width: '22%' },
-      { label: 'الصف', width: '10%' }, { label: 'الفصل', width: '6%' },
-      { label: 'المعدل', width: '8%' }, { label: 'عدد المواد', width: '8%' },
-      { label: 'المواد الراسب فيها', width: '32%' }, { label: 'الغياب', width: '6%' }
-    ],
-    rows,
-  }, settings);
+// 6. الفجوات
+export async function printGapReport(data: any[], stage: string, sem: string, per: string) {
+  const s = await gs();
+  const rows: ListReportRow[] = data.map((g: any, i: number) => ({ cells: [toIndic(i + 1), g.subject, g.grade, toIndic(g.gap) + '%', g.severity, g.classes.map((c: any) => `ف${toIndic(c.classNum)}: ${toIndic(c.avg)}%`).join(' | ')] }));
+  printListReport({ title: 'فجوات الفصول حسب المادة', subtitle: pl(sem, per), dateText: td(), headers: [{ label: 'م', width: '5%' }, { label: 'المادة', width: '25%' }, { label: 'الصف', width: '15%' }, { label: 'الفجوة', width: '10%' }, { label: 'التصنيف', width: '12%' }, { label: 'الفصول', width: '33%' }], rows }, s);
 }
 
-// ══════════════════════════════════════════════════════
-// 7. الضعاف مع مواد الضعف
-// ══════════════════════════════════════════════════════
-export function printWeakStudents(students: RiskStudent[], periodLabel: string, settings: SchoolSettings): void {
-  const rows: ListReportRow[] = students.map((s, i) => {
-    const riskEmoji = s.riskLevel === 'خطر عالي' ? '🔴' : s.riskLevel === 'خطر متوسط' ? '🟠' : '🟡';
-    const weakHtml = s.weakSubjects.length > 0 ? `<span style="color:red">${s.weakSubjects.join('، ')}</span>` : '-';
-    const belowHtml = s.belowSubjects.length > 0 ? `<span style="color:#d97706">${s.belowSubjects.join('، ')}</span>` : '-';
-    return {
-      cells: [
-        toIndic(i + 1), shortenStudentName(s.name), `${s.grade} / ${classToLetter(s.classNum)}`,
-        N(s.average) + '%', weakHtml, belowHtml,
-        `${riskEmoji} ${s.riskLevel}`, s.absence > 0 ? toIndic(s.absence) : '-'
-      ]
-    };
-  });
-
-  printListReport({
-    title: 'قائمة الطلاب الضعاف دراسياً',
-    subtitle: periodLabel,
-    dateText: D(),
-    statsBar: `الإجمالي: ${toIndic(students.length)} طالب | خطر عالي: ${toIndic(students.filter(s => s.riskLevel === 'خطر عالي').length)} | متوسط: ${toIndic(students.filter(s => s.riskLevel === 'خطر متوسط').length)}`,
-    headers: [
-      { label: 'م', width: '4%' }, { label: 'الطالب', width: '18%' },
-      { label: 'الصف/الفصل', width: '10%' }, { label: 'المعدل', width: '8%' },
-      { label: 'مواد < ٦٠%', width: '20%' }, { label: 'مواد < ٧٠%', width: '18%' },
-      { label: 'مؤشر الخطر', width: '12%' }, { label: 'الغياب', width: '6%' }
-    ],
-    rows,
-  }, settings);
-}
-
-// ══════════════════════════════════════════════════════
-// 9. خطاب المعلم — طلاب الضعف في مادته
-// ══════════════════════════════════════════════════════
-export function printTeacherLetter(
-  subjectName: string,
-  students: { name: string; classNum: string; grade: string; total: number; gradeLabel: string; average: number }[],
-  periodLabel: string,
-  settings: SchoolSettings
-): void {
-  const rows: ListReportRow[] = students.map((s, i) => ({
-    cells: [toIndic(i + 1), shortenStudentName(s.name), `${s.grade} / ${classToLetter(s.classNum)}`, N(s.total), s.gradeLabel || '-', N(s.average) + '%']
-  }));
-
-  const message = `نظراً لحرص المدرسة على رفع مستوى التحصيل الدراسي، ولأهمية دور المعلم في رعاية الطلاب المتعثرين دراسياً، نأمل الاطلاع على قائمة الطلاب أدناه والعناية بهم من خلال تكثيف المتابعة وتقديم الدعم اللازم وتنويع أساليب التدريس بما يتناسب مع احتياجاتهم.`;
-
-  printListReport({
-    title: `خطاب متابعة الطلاب الضعاف — مادة ${subjectName}`,
-    subtitle: periodLabel,
-    dateText: D(),
-    statsBar: `سعادة معلم مادة ${subjectName} &nbsp;&nbsp; المحترم | عدد الطلاب: ${toIndic(students.length)}`,
-    headers: [
-      { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '28%' },
-      { label: 'الصف/الفصل', width: '15%' }, { label: 'الدرجة', width: '12%' },
-      { label: 'التقدير', width: '15%' }, { label: 'المعدل العام', width: '12%' }
-    ],
-    rows,
-    summary: `<b>الرسالة التربوية:</b> ${message}`,
-  }, settings);
-}
-
-// ══════════════════════════════════════════════════════
-// 10. استدعاء ولي الأمر (أكاديمي)
-// ══════════════════════════════════════════════════════
-export function printParentSummons(
-  student: RiskStudent,
-  grades: GradeRow[],
-  periodLabel: string,
-  settings: SchoolSettings
-): void {
-  const weakGrades = grades.filter(g => g.identityNo === student.identity && g.total < 70 && !['السلوك', 'المواظبة', 'النشاط'].includes(g.subject));
-
-  const fields = [
-    { label: 'ولي أمر الطالب', value: student.name },
-    { label: 'الصف', value: student.grade },
-    { label: 'الفصل', value: classToLetter(student.classNum) },
-    { label: 'المعدل العام', value: `${student.average.toFixed(1)}%` },
-    { label: 'الغياب', value: `${student.absence} يوم` },
-  ];
-
-  const tableHtml = weakGrades.length > 0
-    ? `<table style="width:100%;border-collapse:collapse;margin:10px 0"><tr style="background:#f2f2f2"><th style="border:1px solid #000;padding:6px">المادة</th><th style="border:1px solid #000;padding:6px">الدرجة</th><th style="border:1px solid #000;padding:6px">التقدير</th></tr>`
-      + weakGrades.map(g => `<tr><td style="border:1px solid #000;padding:6px">${escapeHtml(g.subject)}</td><td style="border:1px solid #000;padding:6px;text-align:center;color:red">${toIndic(g.total)}</td><td style="border:1px solid #000;padding:6px;text-align:center">${escapeHtml(g.gradeLabel)}</td></tr>`).join('')
-      + '</table>'
-    : '';
-
-  const body = `يسر المدرسة إبلاغكم بأن ابنكم قد أظهر تراجعاً في مستواه الدراسي، حيث يعاني من ضعف في المواد التالية:`
-    + tableHtml
-    + `<p style="margin-top:15px">لذا نأمل التكرم بمراجعة المدرسة يوم .................. الموافق ...../...../..... لمناقشة الوضع الدراسي لابنكم.</p>`
-    + `<p>مع التأكيد على أهمية التعاون بين المدرسة والأسرة لتحسين مستوى الطالب.</p>`
-    + `<div style="border:1px solid #000;padding:10px;margin-top:20px"><b>إقرار ولي الأمر:</b><br>أقر أنا / ........................... ولي أمر الطالب بالاطلاع على المستوى الدراسي لابني وأتعهد بمتابعته.<br><br>التوقيع: ........................... &nbsp;&nbsp;&nbsp; التاريخ: ...../...../..... </div>`;
-
-  printSingleDetail({
-    title: 'خطاب استدعاء ولي أمر طالب',
-    fields,
-    messageTitle: 'السبب: تدني المستوى الدراسي',
-    messageBody: body,
-    dateText: D(),
-  }, settings);
-}
-
-// ══════════════════════════════════════════════════════
-// 11. محضر اجتماع جمعي
-// ══════════════════════════════════════════════════════
-export function printGroupMeeting(students: RiskStudent[], periodLabel: string, settings: SchoolSettings): void {
-  const rows: ListReportRow[] = students.map((s, i) => ({
-    cells: [toIndic(i + 1), shortenStudentName(s.name), `${s.grade} / ${classToLetter(s.classNum)}`, N(s.average) + '%', '']
-  }));
-
-  printListReport({
-    title: 'محضر اجتماع الإرشاد الجمعي',
-    subtitle: `${periodLabel} | الهدف: مناقشة أسباب التأخر الدراسي وتقديم الدعم اللازم`,
-    dateText: D(),
-    statsBar: `عدد الحضور: ${toIndic(students.length)} طالب | التاريخ: .................. | المكان: ..................`,
-    headers: [
-      { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '30%' },
-      { label: 'الصف/الفصل', width: '15%' }, { label: 'المعدل', width: '12%' },
-      { label: 'التوقيع', width: '20%' }
-    ],
-    rows,
-    summary: `<b>محاور النقاش:</b><br>١. مراجعة المستوى الدراسي لكل طالب<br>٢. مناقشة أسباب الضعف (أكاديمية / سلوكية / أسرية)<br>٣. الاتفاق على خطة التحسين<br><br><b>التوصيات:</b><br>...............................................................................................................<br>...............................................................................................................<br><br><b>المرشد الطلابي:</b> ........................... &nbsp;&nbsp;&nbsp; <b>التوقيع:</b> ...........................`,
-  }, settings);
-}
-
-// ══════════════════════════════════════════════════════
-// 12. سجل متابعة الطلاب الضعاف (حسب الفصل)
-// ══════════════════════════════════════════════════════
-export function printClassFollowUp(
-  gradeLabel: string, classNum: string,
-  students: RiskStudent[], periodLabel: string, settings: SchoolSettings
-): void {
-  const rows: ListReportRow[] = students.map((s, i) => {
-    const weakAll = [...s.weakSubjects, ...s.belowSubjects].join('، ');
-    return {
-      cells: [
-        toIndic(i + 1), shortenStudentName(s.name), N(s.average) + '%',
-        `<span style="font-size:10pt">${weakAll}</span>`,
-        '', '', '', '', ''  // 4 أعمدة متابعة + الحالة
-      ]
-    };
-  });
-
-  printListReport({
-    title: 'سجل متابعة الطلاب الضعاف دراسياً',
-    subtitle: `${gradeLabel} — فصل ${classToLetter(classNum)} | ${periodLabel}`,
-    dateText: D(),
-    statsBar: `عدد الطلاب: ${toIndic(students.length)} | المرشد: ....................`,
-    headers: [
-      { label: 'م', width: '3%' }, { label: 'الطالب', width: '15%' },
-      { label: 'المعدل', width: '7%' }, { label: 'مواد الضعف', width: '18%' },
-      { label: 'متابعة ١', width: '12%' }, { label: 'متابعة ٢', width: '12%' },
-      { label: 'متابعة ٣', width: '12%' }, { label: 'متابعة ٤', width: '12%' },
-      { label: 'الحالة', width: '9%' }
-    ],
-    rows,
-    summary: `<b>الحالة النهائية:</b> ✅ تحسّن | ⚠️ مستمر في الضعف | 🔴 تراجع<br><b>ملاحظات:</b> ...............................................................................................................`,
-  }, settings);
-}
-
-// ══════════════════════════════════════════════════════
-// 13. سجل متابعة فردي للطالب الضعيف
-// ══════════════════════════════════════════════════════
-export function printIndividualFollowUp(
-  student: RiskStudent,
-  grades: GradeRow[],
-  periodLabel: string,
-  settings: SchoolSettings
-): void {
-  const weakGrades = grades.filter(g =>
-    g.identityNo === student.identity && g.total < 70
-    && !['السلوك', 'المواظبة', 'النشاط'].includes(g.subject)
-  );
-
-  const subjectRows = weakGrades.map((g, i) =>
-    `<tr><td style="border:1px solid #000;padding:6px;text-align:center">${toIndic(i + 1)}</td>
-     <td style="border:1px solid #000;padding:6px">${escapeHtml(g.subject)}</td>
-     <td style="border:1px solid #000;padding:6px;text-align:center;color:${g.total < 60 ? 'red' : '#d97706'}">${toIndic(g.total)}</td>
-     <td style="border:1px solid #000;padding:6px;text-align:center">${escapeHtml(g.gradeLabel)}</td>
-     <td style="border:1px solid #000;padding:6px"></td></tr>`
-  ).join('');
-
-  const followUpRows = Array.from({ length: 6 }, (_, i) =>
-    `<tr><td style="border:1px solid #000;padding:8px;text-align:center">${toIndic(i + 1)}</td>
-     <td style="border:1px solid #000;padding:8px">...../...../..... </td>
-     <td style="border:1px solid #000;padding:8px"></td>
-     <td style="border:1px solid #000;padding:8px"></td>
-     <td style="border:1px solid #000;padding:8px"></td>
-     <td style="border:1px solid #000;padding:8px"></td></tr>`
-  ).join('');
-
-  const body = `
-    <h3 style="text-align:center;margin:5px 0;font-size:16pt">سجل المتابعة الفردي للطالب الضعيف دراسياً</h3>
-    <p style="text-align:center;font-size:12pt;color:#666">${periodLabel}</p>
-
-    <table style="width:100%;border-collapse:collapse;margin:10px 0">
-      <tr style="background:#f2f2f2"><th colspan="6" style="border:1px solid #000;padding:8px;font-size:13pt">بيانات الطالب</th></tr>
-      <tr><td style="border:1px solid #000;padding:6px;width:15%;background:#f9f9f9"><b>الاسم</b></td><td style="border:1px solid #000;padding:6px;width:35%" colspan="2">${escapeHtml(student.name)}</td>
-          <td style="border:1px solid #000;padding:6px;width:12%;background:#f9f9f9"><b>رقم الهوية</b></td><td style="border:1px solid #000;padding:6px" colspan="2">${toIndic(student.identity)}</td></tr>
-      <tr><td style="border:1px solid #000;padding:6px;background:#f9f9f9"><b>الصف</b></td><td style="border:1px solid #000;padding:6px">${escapeHtml(student.grade)}</td>
-          <td style="border:1px solid #000;padding:6px;background:#f9f9f9"><b>الفصل</b></td><td style="border:1px solid #000;padding:6px">${classToLetter(student.classNum)}</td>
-          <td style="border:1px solid #000;padding:6px;background:#f9f9f9"><b>المعدل</b></td><td style="border:1px solid #000;padding:6px;color:red;font-weight:bold">${N(student.average)}%</td></tr>
-      <tr><td style="border:1px solid #000;padding:6px;background:#f9f9f9"><b>الغياب</b></td><td style="border:1px solid #000;padding:6px">${toIndic(student.absence)} يوم</td>
-          <td style="border:1px solid #000;padding:6px;background:#f9f9f9"><b>التأخر</b></td><td style="border:1px solid #000;padding:6px">${toIndic(student.tardiness)} مرة</td>
-          <td style="border:1px solid #000;padding:6px;background:#f9f9f9"><b>مؤشر الخطر</b></td><td style="border:1px solid #000;padding:6px;font-weight:bold">${student.riskLevel}</td></tr>
-    </table>
-
-    <table style="width:100%;border-collapse:collapse;margin:10px 0">
-      <tr style="background:#f2f2f2"><th colspan="4" style="border:1px solid #000;padding:8px;font-size:13pt">البيانات الاجتماعية</th></tr>
-      <tr><td style="border:1px solid #000;padding:6px;width:20%;background:#f9f9f9"><b>اسم ولي الأمر</b></td><td style="border:1px solid #000;padding:6px;width:30%"></td>
-          <td style="border:1px solid #000;padding:6px;width:20%;background:#f9f9f9"><b>رقم الجوال</b></td><td style="border:1px solid #000;padding:6px;width:30%"></td></tr>
-      <tr><td style="border:1px solid #000;padding:6px;background:#f9f9f9"><b>الحالة الأسرية</b></td><td style="border:1px solid #000;padding:6px">□ مستقرة &nbsp; □ منفصلين &nbsp; □ يتيم &nbsp; □ أخرى</td>
-          <td style="border:1px solid #000;padding:6px;background:#f9f9f9"><b>المستوى التعليمي</b></td><td style="border:1px solid #000;padding:6px">الأب: ......... | الأم: .........</td></tr>
-      <tr><td style="border:1px solid #000;padding:6px;background:#f9f9f9"><b>ملاحظات اجتماعية</b></td><td style="border:1px solid #000;padding:6px" colspan="3"></td></tr>
-    </table>
-
-    <table style="width:100%;border-collapse:collapse;margin:10px 0">
-      <tr style="background:#f2f2f2"><th colspan="5" style="border:1px solid #000;padding:8px;font-size:13pt">مواد الضعف</th></tr>
-      <tr style="background:#f9f9f9"><th style="border:1px solid #000;padding:6px;width:5%">م</th><th style="border:1px solid #000;padding:6px;width:30%">المادة</th><th style="border:1px solid #000;padding:6px;width:15%">الدرجة</th><th style="border:1px solid #000;padding:6px;width:15%">التقدير</th><th style="border:1px solid #000;padding:6px;width:35%">المعلم</th></tr>
-      ${subjectRows}
-    </table>
-
-    <table style="width:100%;border-collapse:collapse;margin:10px 0">
-      <tr style="background:#f2f2f2"><th colspan="2" style="border:1px solid #000;padding:8px;font-size:13pt">تشخيص أسباب الضعف</th></tr>
-      <tr><td style="border:1px solid #000;padding:10px" colspan="2">
-        □ أكاديمي (صعوبة المادة) &nbsp;&nbsp; □ سلوكي (غياب/تأخر) &nbsp;&nbsp; □ أسري &nbsp;&nbsp; □ صحي &nbsp;&nbsp; □ نفسي &nbsp;&nbsp; □ أخرى: ....................
-        <br><br><b>تفصيل الأسباب:</b> .......................................................................................................................................
-      </td></tr>
-    </table>
-
-    <table style="width:100%;border-collapse:collapse;margin:10px 0">
-      <tr style="background:#f2f2f2"><th colspan="2" style="border:1px solid #000;padding:8px;font-size:13pt">مقترحات التحسين</th></tr>
-      <tr><td style="border:1px solid #000;padding:10px" colspan="2">
-        □ حصص تقوية &nbsp;&nbsp; □ متابعة ولي الأمر &nbsp;&nbsp; □ جلسات إرشاد &nbsp;&nbsp; □ تغيير المقعد &nbsp;&nbsp; □ مجموعة دراسية &nbsp;&nbsp; □ تحويل للأخصائي &nbsp;&nbsp; □ أخرى: ....................
-      </td></tr>
-    </table>
-
-    <table style="width:100%;border-collapse:collapse;margin:10px 0">
-      <tr style="background:#f2f2f2">
-        <th style="border:1px solid #000;padding:6px;width:5%">م</th>
-        <th style="border:1px solid #000;padding:6px;width:12%">التاريخ</th>
-        <th style="border:1px solid #000;padding:6px;width:25%">الإجراء المتخذ</th>
-        <th style="border:1px solid #000;padding:6px;width:15%">الجهة المنفذة</th>
-        <th style="border:1px solid #000;padding:6px;width:18%">النتيجة</th>
-        <th style="border:1px solid #000;padding:6px;width:25%">ملاحظات</th>
-      </tr>
-      ${followUpRows}
-    </table>
-
-    <table style="width:100%;border-collapse:collapse;margin:10px 0">
-      <tr style="background:#f2f2f2"><th colspan="2" style="border:1px solid #000;padding:8px;font-size:13pt">مآل الحالة</th></tr>
-      <tr><td style="border:1px solid #000;padding:10px;width:30%;background:#f9f9f9"><b>التقييم النهائي</b></td>
-          <td style="border:1px solid #000;padding:10px">□ تحسّن ملحوظ &nbsp;&nbsp; □ تحسّن جزئي &nbsp;&nbsp; □ لم يتحسن &nbsp;&nbsp; □ تراجع</td></tr>
-      <tr><td style="border:1px solid #000;padding:10px;background:#f9f9f9"><b>التوصية</b></td>
-          <td style="border:1px solid #000;padding:10px">..........................................................................................................................................</td></tr>
-      <tr><td style="border:1px solid #000;padding:10px;background:#f9f9f9"><b>تاريخ إغلاق الملف</b></td>
-          <td style="border:1px solid #000;padding:10px">...../...../..... </td></tr>
-    </table>
-
-    <table style="width:100%;margin-top:20px;border:none"><tr>
-      <td style="border:none;text-align:right;width:50%"><b>المرشد الطلابي:</b> .............................</td>
-      <td style="border:none;text-align:left;width:50%"><b>وكيل شؤون الطلاب:</b> .............................</td>
-    </tr></table>
-  `;
-
-  // Use raw HTML print since this is a complex form
-  const css = `@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap');
-    body{font-family:'Amiri','Traditional Arabic',serif;direction:rtl;font-size:12pt;margin:0;padding:10mm}
-    table{font-family:inherit;font-size:inherit}
-    h3{font-family:inherit}
-    @media print{@page{size:A4 portrait;margin:5mm}body{padding:5mm 7mm}}`;
-
-  const win = window.open('', '_blank');
-  if (!win) return;
-  win.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>سجل متابعة فردي</title><style>${css}</style></head><body>${body}</body></html>`);
-  win.document.close();
-  setTimeout(() => win.print(), 300);
-}
-
-// ══════════════════════════════════════════════════════
-// 16. تقرير الغياب والتحصيل
-// ══════════════════════════════════════════════════════
-export function printAbsenceCorrelation(analysis: AdvancedAnalysis, periodLabel: string, settings: SchoolSettings): void {
-  const c = analysis.correlation;
+// 7. الارتباط
+export async function printCorrelationReport(corr: any, overall: any, stage: string, sem: string, per: string) {
+  const s = await gs();
   const rows: ListReportRow[] = [
-    { cells: ['معامل ارتباط بيرسون (r)', toIndic(c.pearsonR.toString()), c.interpretation, '', ''] },
-    { cells: ['', '', '', '', ''], isSeparator: true },
-    { cells: ['الفئة', 'العدد', 'المتوسط', '', ''], isGroupHeader: true, groupLabel: 'مقارنة الفئات' },
-    { cells: ['طلاب بغياب > ٢ أيام', toIndic(c.absentCount), N(c.absentAvg) + '%', '', ''] },
-    { cells: ['طلاب بدون غياب', toIndic(c.nonAbsentCount), N(c.nonAbsentAvg) + '%', '', ''] },
-    { cells: ['الفرق', '', N(c.difference) + '%', '', ''] },
+    { cells: ['معامل بيرسون', toIndic(corr.pearsonR), corr.interpretation] },
+    { cells: ['متوسط الغائبين', toIndic(corr.absentAvg) + '%', `${toIndic(corr.absentCount)} طالب`] },
+    { cells: ['متوسط غير الغائبين', toIndic(corr.nonAbsentAvg) + '%', `${toIndic(corr.nonAbsentCount)} طالب`] },
+    { cells: ['الفرق', toIndic(corr.difference) + '%', 'دليل على تأثير الغياب'] },
   ];
+  printListReport({ title: 'الغياب والتحصيل', subtitle: pl(sem, per), dateText: td(), summary: `النتيجة: ${corr.interpretation} — فرق ${toIndic(corr.difference)}%`, headers: [{ label: 'المؤشر', width: '35%' }, { label: 'القيمة', width: '25%' }, { label: 'التفسير', width: '40%' }], rows }, s);
+}
 
-  printListReport({
-    title: 'تقرير العلاقة بين الغياب والتحصيل الدراسي',
-    subtitle: periodLabel,
-    dateText: D(),
-    headers: [
-      { label: 'المؤشر', width: '25%' }, { label: 'القيمة', width: '15%' },
-      { label: 'التفسير', width: '30%' }, { label: '', width: '15%' }, { label: '', width: '15%' }
-    ],
-    rows,
-    summary: `<b>الخلاصة:</b> ${c.interpretation}. الفرق بين متوسط الطلاب الغائبين وغير الغائبين = ${N(c.difference)}% — ${c.difference > 5 ? 'دليل قوي على تأثير الغياب' : 'يحتاج مزيد من المتابعة'}.<br><b>التوصية:</b> تكثيف متابعة الطلاب ذوي الغياب المتكرر وإشراك أولياء الأمور.`,
-  }, settings);
+// 8. خطاب المعلم
+export async function printTeacherLetter(weak: any[], grades: any[], stage: string, sem: string, per: string) {
+  const bySubj: Record<string, any[]> = {};
+  weak.forEach(st => { (st.allSubjects || []).forEach((subj: any) => { if (!bySubj[subj.subject]) bySubj[subj.subject] = []; bySubj[subj.subject].push({ ...st, subjectTotal: subj.total }); }); });
+  let h = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>خطاب المعلم</title><style>${CSS}</style></head><body>`;
+  for (const [subject, students] of Object.entries(bySubj)) {
+    h += `<div class="page"><div style="text-align:center"><h2 style="color:#0d9488">خطاب للمعلم</h2><p>${pl(sem, per)}</p></div>`;
+    h += `<p><b>سعادة الأستاذ / _____________________ معلم مادة ${subject}</b></p>`;
+    h += `<div class="msg">نظراً لحرص المدرسة على رفع مستوى التحصيل الدراسي، نأمل الاطلاع على قائمة الطلاب أدناه والعناية بهم من خلال تكثيف المتابعة وتقديم الدعم اللازم.</div>`;
+    h += `<table><tr><th>م</th><th>الطالب</th><th>الفصل</th><th>الدرجة</th><th>المعدل</th></tr>`;
+    students.sort((a: any, b: any) => a.subjectTotal - b.subjectTotal);
+    students.forEach((st: any, i: number) => { h += `<tr><td style="text-align:center">${toIndic(i + 1)}</td><td>${shortenStudentName(st.name)}</td><td style="text-align:center">${st.grade} ف${st.classNum}</td><td style="text-align:center;color:${st.subjectTotal < 60 ? '#dc2626' : '#d97706'};font-weight:700">${toIndic(st.subjectTotal)}</td><td style="text-align:center">${toIndic((st.average || 0).toFixed(1))}%</td></tr>`; });
+    h += `</table><div class="sig">وكيل شؤون الطلاب: _______________</div></div>`;
+  }
+  h += `</body></html>`;
+  openPrint(h);
+}
+
+// 9. استدعاء ولي الأمر
+export async function printParentSummon(weak: any[], stage: string, sem: string, per: string) {
+  const hi = weak.filter((s: any) => s.riskLevel === 'عالي' || s.riskLevel === 'متوسط');
+  if (!hi.length) { alert('لا يوجد طلاب بخطر عالي أو متوسط'); return; }
+  let h = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>استدعاء</title><style>${CSS}</style></head><body>`;
+  hi.forEach((st: any) => {
+    h += `<div class="page"><div style="text-align:center"><h2 style="color:#dc2626">خطاب استدعاء ولي أمر</h2><p>${td()}</p></div>`;
+    h += `<p><b>ولي أمر الطالب / ${shortenStudentName(st.name)}</b> — ${st.grade} فصل ${st.classNum}</p>`;
+    h += `<p>أظهر ابنكم تراجعاً في مستواه الدراسي خلال ${pl(sem, per)}:</p>`;
+    h += `<table><tr><th>المادة</th><th>الدرجة</th></tr>`;
+    (st.allSubjects || []).forEach((s: any) => { h += `<tr><td>${s.subject}</td><td style="text-align:center;color:${s.total < 60 ? '#dc2626' : '#d97706'};font-weight:700">${toIndic(s.total)}</td></tr>`; });
+    h += `</table><p><b>المعدل:</b> ${toIndic((st.average || 0).toFixed(1))}% — <b>الغياب:</b> ${toIndic(st.absence)} يوم</p>`;
+    h += `<p>نأمل مراجعة المدرسة يوم <b>__________</b> الموافق <b>___/___/___</b></p>`;
+    h += `<div style="border:1px solid #ccc;padding:12px;margin:16px 0;border-radius:6px"><b>إقرار ولي الأمر:</b> اطلعت على المستوى وأتعهد بالمتابعة.<br><br>الاسم: _____________ التوقيع: _____________ التاريخ: ___/___/___</div>`;
+    h += `<div class="sig">وكيل شؤون الطلاب: _______________</div></div>`;
+  });
+  h += `</body></html>`;
+  openPrint(h);
+}
+
+// 10. محضر اجتماع جمعي
+export async function printGroupMeeting(weak: any[], stage: string, sem: string, per: string) {
+  let h = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>محضر اجتماع</title><style>${CSS}</style></head><body>`;
+  h += `<div style="text-align:center"><h2 style="color:#4338ca">محضر اجتماع الإرشاد الجمعي</h2></div>`;
+  h += `<p><b>التاريخ:</b> ___/___/___ &nbsp; <b>المكان:</b> مكتب التوجيه &nbsp; <b>المرشد:</b> _______________</p>`;
+  h += `<p><b>الهدف:</b> مناقشة أسباب التأخر الدراسي (${pl(sem, per)})</p>`;
+  h += `<table><tr><th>م</th><th>الطالب</th><th>الصف</th><th>المعدل</th><th>التوقيع</th></tr>`;
+  weak.slice(0, 30).forEach((st: any, i: number) => { h += `<tr><td style="text-align:center">${toIndic(i + 1)}</td><td>${shortenStudentName(st.name)}</td><td style="text-align:center">${st.grade} ف${st.classNum}</td><td style="text-align:center">${toIndic((st.average || 0).toFixed(1))}%</td><td></td></tr>`; });
+  h += `</table><h3>التوصيات:</h3><div style="border:1px solid #ccc;min-height:80px;padding:10px"></div>`;
+  h += `<table style="border:none;margin-top:25px"><tr><td style="border:none;width:50%"><b>المرشد:</b> ___________</td><td style="border:none;text-align:left"><b>وكيل الشؤون:</b> ___________</td></tr></table></body></html>`;
+  openPrint(h);
+}
+
+// 11. سجل متابعة حسب الفصل
+export async function printClassFollowUp(weak: any[], stage: string, sem: string, per: string) {
+  const byClass: Record<string, any[]> = {};
+  weak.forEach(st => { const k = `${st.grade} فصل ${st.classNum}`; if (!byClass[k]) byClass[k] = []; byClass[k].push(st); });
+  let h = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>سجل متابعة</title><style>${CSS} th,td{font-size:10pt;padding:4px}</style></head><body>`;
+  for (const [label, sts] of Object.entries(byClass)) {
+    h += `<div class="page"><div style="text-align:center"><h2 style="color:#166534">سجل متابعة الضعاف</h2><p><b>${label}</b> — ${pl(sem, per)}</p></div>`;
+    h += `<table><tr><th rowspan="2">م</th><th rowspan="2">الطالب</th><th rowspan="2">مواد الضعف</th><th rowspan="2">المعدل</th><th colspan="3">متابعة ١</th><th colspan="3">متابعة ٢</th><th colspan="3">متابعة ٣</th><th colspan="3">متابعة ٤</th></tr>`;
+    h += `<tr>${'<th>تاريخ</th><th>إجراء</th><th>نتيجة</th>'.repeat(4)}</tr>`;
+    sts.forEach((st: any, i: number) => { h += `<tr><td style="text-align:center">${toIndic(i + 1)}</td><td>${shortenStudentName(st.name)}</td><td style="font-size:9pt">${[...(st.failSubjects || []), ...(st.weakSubjects || [])].join('، ')}</td><td style="text-align:center">${toIndic((st.average || 0).toFixed(1))}%</td>${'<td></td><td></td><td></td>'.repeat(4)}</tr>`; });
+    h += `</table><div class="sig">وكيل شؤون الطلاب: _______________</div></div>`;
+  }
+  h += `</body></html>`;
+  openPrint(h);
+}
+
+// 12. سجل متابعة فردي
+export async function printIndividualFollowUp(weak: any[], stage: string, sem: string, per: string) {
+  const hi = weak.filter((s: any) => s.riskLevel === 'عالي' || s.riskLevel === 'متوسط');
+  if (!hi.length) { alert('لا يوجد طلاب بخطر عالي أو متوسط'); return; }
+  let h = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>سجل فردي</title><style>${CSS}</style></head><body>`;
+  hi.forEach((st: any) => {
+    const rc = st.riskLevel === 'عالي' ? '#dc2626' : '#f97316';
+    h += `<div class="page"><div style="text-align:center"><h2 style="color:#9333ea">سجل متابعة فردي — طالب ضعيف</h2></div>`;
+    h += `<div class="section"><h4>بيانات الطالب</h4><p><b>الاسم:</b> ${st.name} | <b>الصف:</b> ${st.grade} / ${st.classNum} | <b>المعدل:</b> ${toIndic((st.average || 0).toFixed(1))}% | <b>الخطر:</b> <span style="color:${rc}">${st.riskLevel} (${toIndic(st.riskScore)})</span> | <b>الغياب:</b> ${toIndic(st.absence)}</p></div>`;
+    h += `<div class="section"><h4>البيانات الاجتماعية</h4><p><b>ولي الأمر:</b> _______________ <b>الجوال:</b> _______________ <b>الإخوة:</b> _____ <b>ترتيبه:</b> _____</p><p><b>الحالة:</b> <span class="cb"></span> مستقرة <span class="cb"></span> منفصلين <span class="cb"></span> يتيم <span class="cb"></span> أخرى: _____</p></div>`;
+    h += `<div class="section"><h4>مواد الضعف</h4><table><tr><th>المادة</th><th>الدرجة</th><th>المعلم</th></tr>`;
+    (st.allSubjects || []).forEach((s: any) => { h += `<tr><td>${s.subject}</td><td style="text-align:center;color:${s.total < 60 ? '#dc2626' : '#d97706'};font-weight:700">${toIndic(s.total)}</td><td></td></tr>`; });
+    h += `</table></div>`;
+    h += `<div class="section"><h4>أسباب الضعف</h4><p><span class="cb"></span> أكاديمي <span class="cb"></span> سلوكي <span class="cb"></span> أسري <span class="cb"></span> صحي <span class="cb"></span> نفسي <span class="cb"></span> أخرى: _____</p></div>`;
+    h += `<div class="section"><h4>مقترحات التحسين</h4><p><span class="cb"></span> حصص تقوية <span class="cb"></span> متابعة ولي الأمر <span class="cb"></span> جلسات إرشاد <span class="cb"></span> مجموعة دراسية <span class="cb"></span> تحويل أخصائي</p></div>`;
+    h += `<div class="section"><h4>جدول المتابعة</h4><table><tr><th>التاريخ</th><th>الإجراء</th><th>المنفذ</th><th>النتيجة</th><th>ملاحظات</th></tr>`;
+    for (let r = 0; r < 5; r++) h += `<tr><td style="height:25px"></td><td></td><td></td><td></td><td></td></tr>`;
+    h += `</table></div>`;
+    h += `<div class="section"><h4>مآل الحالة</h4><p><span class="cb"></span> تحسّن ملحوظ <span class="cb"></span> تحسّن جزئي <span class="cb"></span> لم يتحسن <span class="cb"></span> تراجع</p><p><b>التوصية:</b> _________________________ <b>إغلاق الملف:</b> ___/___/___</p></div>`;
+    h += `<table style="border:none;margin-top:15px"><tr><td style="border:none;width:50%"><b>المرشد:</b> ___________</td><td style="border:none;text-align:left"><b>وكيل الشؤون:</b> ___________</td></tr></table></div>`;
+  });
+  h += `</body></html>`;
+  openPrint(h);
 }
