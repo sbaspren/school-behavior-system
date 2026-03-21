@@ -87,6 +87,24 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
     await DataSeeder.SeedAsync(db);
+
+    // ★ إصلاح تلقائي: تحويل أرقام الفصول إلى حروف عربية (أ، ب، ج...)
+    var classLetters = new[] { "أ", "ب", "ج", "د", "هـ", "و", "ز", "ح", "ط", "ي", "ك", "ل", "م", "ن", "س", "ع", "ف", "ص", "ق", "ر" };
+    var students = db.Students.Where(s => s.Class != null && s.Class.Length <= 2).ToList();
+    int fixed = 0;
+    foreach (var s in students)
+    {
+        if (int.TryParse(s.Class, out var num) && num >= 1 && num <= classLetters.Length)
+        {
+            s.Class = classLetters[num - 1];
+            fixed++;
+        }
+    }
+    if (fixed > 0)
+    {
+        db.SaveChanges();
+        Console.WriteLine($"★ تم تحويل {fixed} فصل من أرقام إلى حروف عربية");
+    }
 }
 
 if (app.Environment.IsDevelopment())
