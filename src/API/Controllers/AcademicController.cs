@@ -540,6 +540,362 @@ public class AcademicController : ControllerBase
         return File(System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv)).ToArray(),
             "text/csv; charset=utf-8", $"academic_{stage}.csv");
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // 11. Advanced Statistics — الإحصائيات المتقدمة
+    // SD, Median, Mode, CV, Gaps per Subject, Pearson Correlation,
+    // Weak/Failing students, Top 10 per class, Risk Index
+    // ══════════════════════════════════════════════════════════════
+    [HttpGet("advanced-stats")]
+    public async Task<ActionResult<ApiResponse<object>>> GetAdvancedStats(
+        [FromQuery] string stage,
+        [FromQuery] string? semester = null,
+        [FromQuery] string? period = null)
+    {
+        if (!Enum.TryParse<Stage>(stage, true, out var stageEnum))
+            return BadRequest(ApiResponse<object>.Fail("مرحلة غير صحيحة"));
+
+        var summaryQ = _db.AcademicSummaries.Where(s => s.Stage == stageEnum);
+        var gradesQ = _db.AcademicGrades.Where(s => s.Stage == stageEnum);
+        if (!string.IsNullOrEmpty(semester))
+        {
+            summaryQ = summaryQ.Where(s => s.Semester == semester);
+            gradesQ = gradesQ.Where(g => g.Semester == semester);
+        }
+        if (!string.IsNullOrEmpty(period))
+        {
+            summaryQ = summaryQ.Where(s => s.Period == period);
+            gradesQ = gradesQ.Where(g => g.Period == period);
+        }
+
+        var summaryList = await summaryQ.ToListAsync();
+        var gradesList = await gradesQ.ToListAsync();
+
+        if (summaryList.Count == 0)
+            return Ok(ApiResponse<object>.Ok(new { empty = true }));
+
+        var allAvgs = summaryList.Where(s => s.Average.HasValue && s.Average > 0)
+            .Select(s => s.Average!.Value).ToList();
+
+        // ── Helper functions ──
+        static double CalcSD(List<double> vals)
+        {
+            if (vals.Count < 2) return 0;
+            var mean = vals.Average();
+            return Math.Round(Math.Sqrt(vals.Sum(v => (v - mean) * (v - mean)) / (vals.Count - 1)), 2);
+        }
+        static double CalcMedian(List<double> vals)
+        {
+            if (vals.Count == 0) return 0;
+            var sorted = vals.OrderBy(v => v).ToList();
+            int n = sorted.Count;
+            return n % 2 == 1 ? sorted[n / 2] : Math.Round((sorted[n / 2 - 1] + sorted[n / 2]) / 2, 2);
+        }
+        static double CalcMode(List<double> vals)
+        {
+            if (vals.Count == 0) return 0;
+            return vals.GroupBy(v => Math.Round(v)).OrderByDescending(g => g.Count()).First().Key;
+        }
+        static double CalcCV(double mean, double sd) => mean > 0 ? Math.Round(sd / mean * 100, 2) : 0;
+        static double CalcPearson(List<double> x, List<double> y)
+        {
+            int n = Math.Min(x.Count, y.Count);
+            if (n < 3) return 0;
+            double mx = x.Take(n).Average(), my = y.Take(n).Average();
+            double num = 0, dx = 0, dy = 0;
+            for (int i = 0; i < n; i++)
+            {
+                num += (x[i] - mx) * (y[i] - my);
+                dx += (x[i] - mx) * (x[i] - mx);
+                dy += (y[i] - my) * (y[i] - my);
+            }
+            double den = Math.Sqrt(dx * dy);
+            return den > 0 ? Math.Round(num / den, 3) : 0;
+        }
+        static string GradeCategory(double avg) =>
+            avg >= 90 ? "ممتاز" : avg >= 80 ? "جيد جداً" : avg >= 70 ? "جيد" : avg >= 60 ? "مقبول" : "ضعيف";
+
+        // ══ 1. Overall descriptive stats ══
+        var overallStats = new
+        {
+            totalStudents = summaryList.Count,
+            mean = allAvgs.Count > 0 ? Math.Round(allAvgs.Average(), 2) : 0,
+            median = CalcMedian(allAvgs),
+            mode = CalcMode(allAvgs),
+            sd = CalcSD(allAvgs),
+            cv = CalcCV(allAvgs.Count > 0 ? allAvgs.Average() : 0, CalcSD(allAvgs)),
+            max = allAvgs.Count > 0 ? Math.Round(allAvgs.Max(), 2) : 0,
+            min = allAvgs.Count > 0 ? Math.Round(allAvgs.Min(), 2) : 0,
+            range = allAvgs.Count > 0 ? Math.Round(allAvgs.Max() - allAvgs.Min(), 2) : 0
+        };
+
+        // ══ 2. Per-grade stats ══
+        var gradeStats = summaryList
+            .GroupBy(s => s.Grade)
+            .Select(g =>
+            {
+                var avgs = g.Where(s => s.Average.HasValue && s.Average > 0).Select(s => s.Average!.Value).ToList();
+                return new
+                {
+                    grade = g.Key,
+                    count = g.Count(),
+                    mean = avgs.Count > 0 ? Math.Round(avgs.Average(), 2) : 0,
+                    median = CalcMedian(avgs),
+                    mode = CalcMode(avgs),
+                    sd = CalcSD(avgs),
+                    cv = CalcCV(avgs.Count > 0 ? avgs.Average() : 0, CalcSD(avgs)),
+                    max = avgs.Count > 0 ? Math.Round(avgs.Max(), 2) : 0,
+                    min = avgs.Count > 0 ? Math.Round(avgs.Min(), 2) : 0,
+                    distribution = new
+                    {
+                        excellent = avgs.Count(a => a >= 90),
+                        veryGood = avgs.Count(a => a >= 80 && a < 90),
+                        good = avgs.Count(a => a >= 70 && a < 80),
+                        pass = avgs.Count(a => a >= 60 && a < 70),
+                        fail = avgs.Count(a => a < 60)
+                    }
+                };
+            }).ToList();
+
+        // ══ 3. Per-class stats ══
+        var classStats = summaryList
+            .GroupBy(s => new { s.Grade, s.ClassNum })
+            .Select(g =>
+            {
+                var avgs = g.Where(s => s.Average.HasValue && s.Average > 0).Select(s => s.Average!.Value).ToList();
+                return new
+                {
+                    grade = g.Key.Grade,
+                    classNum = g.Key.ClassNum,
+                    label = g.Key.Grade + " فصل " + g.Key.ClassNum,
+                    count = g.Count(),
+                    mean = avgs.Count > 0 ? Math.Round(avgs.Average(), 2) : 0,
+                    sd = CalcSD(avgs),
+                    max = avgs.Count > 0 ? Math.Round(avgs.Max(), 2) : 0,
+                    min = avgs.Count > 0 ? Math.Round(avgs.Min(), 2) : 0,
+                    excellent = avgs.Count(a => a >= 90),
+                    weak = avgs.Count(a => a < 65)
+                };
+            }).ToList();
+
+        // ══ 4. Subject difficulty index with SD ══
+        var subjectStats = gradesList
+            .Where(g => !NonAcademicSubjects.Contains(g.Subject))
+            .GroupBy(g => new { g.Subject, g.Grade })
+            .Select(g =>
+            {
+                var totals = g.Select(x => (double)x.Total).ToList();
+                var finalExams = g.Where(x => x.FinalExam > 0).Select(x => (double)x.FinalExam).ToList();
+                return new
+                {
+                    subject = g.Key.Subject,
+                    grade = g.Key.Grade,
+                    count = totals.Count,
+                    mean = totals.Count > 0 ? Math.Round(totals.Average(), 1) : 0,
+                    sd = CalcSD(totals),
+                    median = CalcMedian(totals),
+                    failRate = totals.Count > 0 ? Math.Round(totals.Count(t => t < 60) * 100.0 / totals.Count, 1) : 0,
+                    weakRate = totals.Count > 0 ? Math.Round(totals.Count(t => t < 70) * 100.0 / totals.Count, 1) : 0,
+                    above90 = totals.Count(t => t >= 90),
+                    below60 = totals.Count(t => t < 60),
+                    below50 = totals.Count(t => t < 50),
+                    finalExamMean = finalExams.Count > 0 ? Math.Round(finalExams.Average(), 1) : 0
+                };
+            })
+            .OrderBy(s => s.mean)
+            .ToList();
+
+        // ══ 5. Gap analysis per subject between classes ══
+        var gapAnalysis = gradesList
+            .Where(g => !NonAcademicSubjects.Contains(g.Subject))
+            .GroupBy(g => new { g.Subject, g.Grade })
+            .Select(sg =>
+            {
+                var classAvgs = sg
+                    .GroupBy(g => g.ClassNum)
+                    .Select(cg => new
+                    {
+                        classNum = cg.Key,
+                        avg = cg.Average(x => (double)x.Total)
+                    }).ToList();
+
+                double gap = classAvgs.Count >= 2
+                    ? Math.Round(classAvgs.Max(c => c.avg) - classAvgs.Min(c => c.avg), 1)
+                    : 0;
+
+                return new
+                {
+                    subject = sg.Key.Subject,
+                    grade = sg.Key.Grade,
+                    gap,
+                    severity = gap > 10 ? "خلل" : gap > 5 ? "تدخل" : gap > 3 ? "مراقبة" : "طبيعي",
+                    classes = classAvgs.Select(c => new { c.classNum, avg = Math.Round(c.avg, 1) }).ToList()
+                };
+            })
+            .Where(g => g.gap > 0)
+            .OrderByDescending(g => g.gap)
+            .ToList();
+
+        // ══ 6. Top 10 per class ══
+        var topPerClass = summaryList
+            .GroupBy(s => new { s.Grade, s.ClassNum })
+            .SelectMany(g => g
+                .Where(s => s.Average.HasValue && s.Average > 0)
+                .OrderByDescending(s => s.Average)
+                .Take(10)
+                .Select((s, i) => new
+                {
+                    rank = i + 1,
+                    name = s.StudentName,
+                    identity = s.IdentityNo,
+                    grade = s.Grade,
+                    classNum = s.ClassNum,
+                    average = s.Average,
+                    generalGrade = s.GeneralGrade,
+                    label = s.Grade + " فصل " + s.ClassNum
+                })
+            ).ToList();
+
+        // ══ 7. Failing students (any subject < 60) ══
+        var failingStudents = gradesList
+            .Where(g => !NonAcademicSubjects.Contains(g.Subject) && g.Total < 60)
+            .GroupBy(g => g.IdentityNo)
+            .Select(g =>
+            {
+                var first = g.First();
+                var summaryRecord = summaryList.FirstOrDefault(s => s.IdentityNo == g.Key);
+                return new
+                {
+                    identity = g.Key,
+                    name = first.StudentName,
+                    grade = first.Grade,
+                    classNum = first.ClassNum,
+                    average = summaryRecord?.Average ?? 0,
+                    absence = summaryRecord?.Absence ?? 0,
+                    failSubjects = g.Select(x => new { subject = x.Subject, total = x.Total, gradeLabel = x.GradeLabel }).ToList(),
+                    failCount = g.Count()
+                };
+            })
+            .OrderByDescending(s => s.failCount)
+            .ThenBy(s => s.average)
+            .ToList();
+
+        // ══ 8. Weak students (any subject < 70) with risk index ══
+        var weakStudents = gradesList
+            .Where(g => !NonAcademicSubjects.Contains(g.Subject))
+            .GroupBy(g => g.IdentityNo)
+            .Select(g =>
+            {
+                var failSubj = g.Where(x => x.Total < 60).Select(x => x.Subject).ToList();
+                var weakSubj = g.Where(x => x.Total >= 60 && x.Total < 70).Select(x => x.Subject).ToList();
+                if (failSubj.Count == 0 && weakSubj.Count == 0) return null;
+
+                var first = g.First();
+                var summaryRecord = summaryList.FirstOrDefault(s => s.IdentityNo == g.Key);
+                double avg = summaryRecord?.Average ?? 0;
+                int absence = summaryRecord?.Absence ?? 0;
+                int tardiness = summaryRecord?.Tardiness ?? 0;
+
+                // Risk score calculation
+                int risk = failSubj.Count * 3 + weakSubj.Count;
+                if (avg > 0 && avg < 70) risk += 3;
+                else if (avg > 0 && avg < 80) risk += 1;
+                if (absence > 5) risk += 3;
+                else if (absence > 3) risk += 2;
+                else if (absence > 0) risk += 1;
+                if (tardiness > 5) risk += 1;
+
+                string riskLevel = risk >= 8 ? "عالي" : risk >= 4 ? "متوسط" : "منخفض";
+                string interventionType = absence > 3 && failSubj.Count > 0 ? "مزدوج"
+                    : absence > 3 ? "سلوكي" : "أكاديمي";
+
+                return new
+                {
+                    identity = g.Key,
+                    name = first.StudentName,
+                    grade = first.Grade,
+                    classNum = first.ClassNum,
+                    average = avg,
+                    generalGrade = summaryRecord?.GeneralGrade ?? "",
+                    absence,
+                    tardiness,
+                    failSubjects = failSubj,
+                    weakSubjects = weakSubj,
+                    allSubjects = g.Where(x => x.Total < 70).Select(x => new { subject = x.Subject, total = x.Total }).ToList(),
+                    riskScore = risk,
+                    riskLevel,
+                    interventionType
+                };
+            })
+            .Where(s => s != null)
+            .OrderByDescending(s => s!.riskScore)
+            .ThenBy(s => s!.average)
+            .ToList();
+
+        // ══ 9. Correlation: absence vs achievement ══
+        var corrPairs = summaryList
+            .Where(s => s.Average.HasValue && s.Average > 0)
+            .Select(s => new { absence = (double)s.Absence, avg = s.Average!.Value })
+            .ToList();
+
+        var absentStudents = corrPairs.Where(p => p.absence > 2).ToList();
+        var nonAbsentStudents = corrPairs.Where(p => p.absence == 0).ToList();
+
+        var correlation = new
+        {
+            pearsonR = CalcPearson(corrPairs.Select(p => p.absence).ToList(), corrPairs.Select(p => p.avg).ToList()),
+            absentAvg = absentStudents.Count > 0 ? Math.Round(absentStudents.Average(s => s.avg), 1) : 0,
+            absentCount = absentStudents.Count,
+            nonAbsentAvg = nonAbsentStudents.Count > 0 ? Math.Round(nonAbsentStudents.Average(s => s.avg), 1) : 0,
+            nonAbsentCount = nonAbsentStudents.Count,
+            difference = absentStudents.Count > 0 && nonAbsentStudents.Count > 0
+                ? Math.Round(nonAbsentStudents.Average(s => s.avg) - absentStudents.Average(s => s.avg), 1) : 0,
+            interpretation = CalcPearson(corrPairs.Select(p => p.absence).ToList(), corrPairs.Select(p => p.avg).ToList()) < -0.3
+                ? "علاقة سلبية واضحة" : "علاقة ضعيفة أو معدومة"
+        };
+
+        // ══ 10. Weakest subjects overall ══
+        var weakestSubjects = gradesList
+            .Where(g => !NonAcademicSubjects.Contains(g.Subject))
+            .GroupBy(g => g.Subject)
+            .Select(g => new
+            {
+                subject = g.Key,
+                mean = g.Average(x => (double)x.Total),
+                failRate = g.Count(x => x.Total < 60) * 100.0 / g.Count()
+            })
+            .OrderBy(s => s.mean)
+            .Take(3)
+            .Select(s => new { s.subject, mean = Math.Round(s.mean, 1), failRate = Math.Round(s.failRate, 1) })
+            .ToList();
+
+        // ══ 11. Executive summary ══
+        var executiveSummary = new
+        {
+            weakestSubjects,
+            weakestClasses = classStats.OrderBy(c => c.mean).Take(3).Select(c => new { c.label, c.mean }).ToList(),
+            totalAtRisk = weakStudents.Count,
+            atRiskPercent = summaryList.Count > 0 ? Math.Round(weakStudents.Count * 100.0 / summaryList.Count, 0) : 0,
+            highRisk = weakStudents.Count(s => s!.riskLevel == "عالي"),
+            mediumRisk = weakStudents.Count(s => s!.riskLevel == "متوسط"),
+            lowRisk = weakStudents.Count(s => s!.riskLevel == "منخفض"),
+            biggestGap = gapAnalysis.FirstOrDefault()
+        };
+
+        return Ok(ApiResponse<object>.Ok(new
+        {
+            overall = overallStats,
+            gradeStats,
+            classStats,
+            subjectStats,
+            gapAnalysis,
+            topPerClass,
+            failingStudents,
+            weakStudents,
+            correlation,
+            executiveSummary
+        }));
+    }
 }
 
 // ── DTOs ──

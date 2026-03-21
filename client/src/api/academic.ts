@@ -98,4 +98,11 @@ export const academicApi = {
     if (period) params.set('period', period);
     return api.get(`/academic/export-csv?${params.toString()}`, { responseType: 'blob' });
   },
+
+  getAdvancedStats: (stage: string, semester?: string, period?: string) => {
+    const params = new URLSearchParams({ stage });
+    if (semester) params.set('semester', semester);
+    if (period) params.set('period', period);
+    return api.get(`/academic/advanced-stats?${params.toString()}`);
+  },
 };
