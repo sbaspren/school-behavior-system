@@ -15,3 +15,6 @@ export { default as LoadingSpinner } from './LoadingSpinner';
 export { default as MI } from './MI';
 export { default as SchoolHeader } from './SchoolHeader';
 export { default as StageSelector } from './StageSelector';
+export { default as InputModal } from './InputModal';
+export { default as StudentSelector } from './StudentSelector';
+export type { StudentOption } from './StudentSelector';

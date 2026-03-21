@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { positiveBehaviorApi } from '../api/positiveBehavior';
-import { studentsApi } from '../api/students';
 import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
+import InputModal from '../components/shared/InputModal';
+import StudentSelector from '../components/shared/StudentSelector';
 import { SETTINGS_STAGES } from '../utils/constants';
 
 const THEME = '#10b981'; // emerald-500
@@ -327,42 +328,18 @@ const PositiveBehaviorPage: React.FC = () => {
 
 // ────────────────────────── ADD MODAL ──────────────────────────
 const AddBehaviorModal: React.FC<{ stage: string; onClose: () => void; onSaved: () => void }> = ({ stage, onClose, onSaved }) => {
-  const [students, setStudents] = useState<StudentOption[]>([]);
-  const [gradeFilter, setGradeFilter] = useState('');
-  const [classFilter, setClassFilter] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedStudents, setSelectedStudents] = useState<import('../components/shared/StudentSelector').StudentOption[]>([]);
   const [behaviorType, setBehaviorType] = useState('');
   const [degree, setDegree] = useState('');
   const [details, setDetails] = useState('');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { studentsApi.getAll().then(res => { if (res.data?.data) setStudents(res.data.data); }); }, []);
-
-  const stageStudents = useMemo(() => students.filter(s => s.stage === stage), [students, stage]);
-  const grades = useMemo(() => Array.from(new Set(stageStudents.map(s => s.grade))).sort(), [stageStudents]);
-  const classes = useMemo(() => {
-    if (!gradeFilter) return [];
-    return Array.from(new Set(stageStudents.filter(s => s.grade === gradeFilter).map(s => s.className))).sort();
-  }, [stageStudents, gradeFilter]);
-  const filteredStudents = useMemo(() => {
-    if (!gradeFilter || !classFilter) return [];
-    return stageStudents.filter(s => s.grade === gradeFilter && s.className === classFilter).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-  }, [stageStudents, gradeFilter, classFilter]);
-
-  const toggleStudent = (id: number) => {
-    setSelectedIds(prev => { const s = new Set(prev); if (s.has(id)) s.delete(id); else s.add(id); return s; });
-  };
-  const toggleAll = () => {
-    if (selectedIds.size === filteredStudents.length) setSelectedIds(new Set());
-    else setSelectedIds(new Set(filteredStudents.map(s => s.id)));
-  };
-
   const handleSave = async () => {
-    if (selectedIds.size === 0) return showError('اختر طالب واحد على الأقل');
+    if (selectedStudents.length === 0) return showError('اختر طالب واحد على الأقل');
     if (!behaviorType) return showError('اختر نوع السلوك');
     setSaving(true);
     try {
-      const res = await positiveBehaviorApi.addBatch(Array.from(selectedIds), { behaviorType, degree: degree || undefined, details: details || undefined });
+      const res = await positiveBehaviorApi.addBatch(selectedStudents.map(s => s.id), { behaviorType, degree: degree || undefined, details: details || undefined });
       if (res.data?.success !== false) { showSuccess(res.data?.data?.message || 'تم الحفظ'); onSaved(); }
       else showError(res.data?.message || 'فشل الحفظ');
     } catch { showError('فشل الحفظ'); }
@@ -370,64 +347,44 @@ const AddBehaviorModal: React.FC<{ stage: string; onClose: () => void; onSaved: 
   };
 
   return (
-    <div style={overlayStyle} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: '#fff', borderRadius: '20px', maxWidth: '640px', width: '95%', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ background: `linear-gradient(to right, ${THEME}, #059669)`, padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ color: '#fff', margin: 0, fontSize: '18px', fontWeight: 700 }}>تسجيل سلوك متمايز</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.8)', fontSize: '24px', cursor: 'pointer' }}>x</button>
-        </div>
-        <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-            <div>
-              <label style={labelStyle}>الصف</label>
-              <select value={gradeFilter} onChange={e => { setGradeFilter(e.target.value); setClassFilter(''); setSelectedIds(new Set()); }} style={inputStyle}>
-                <option value="">اختر الصف</option>{grades.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>الفصل</label>
-              <select value={classFilter} onChange={e => { setClassFilter(e.target.value); setSelectedIds(new Set()); }} disabled={!gradeFilter} style={inputStyle}>
-                <option value="">اختر الفصل</option>{classes.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <label style={labelStyle}>الطلاب</label>
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
-            <button type="button" onClick={toggleAll} disabled={filteredStudents.length === 0} style={{ padding: '4px 12px', background: '#ecfdf5', color: THEME, border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>تحديد الكل</button>
-            {selectedIds.size > 0 && <span style={{ fontSize: '12px', color: '#6b7280' }}>تم اختيار {selectedIds.size} طالب</span>}
-          </div>
-          <div style={{ border: '2px solid #d1d5db', borderRadius: '8px', maxHeight: '180px', overflowY: 'auto', marginBottom: '16px' }}>
-            {filteredStudents.length === 0 ? (
-              <p style={{ color: '#9ca3af', textAlign: 'center', padding: '24px', margin: 0 }}>اختر الصف والفصل أولاً</p>
-            ) : filteredStudents.map(s => (
-              <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', background: selectedIds.has(s.id) ? '#ecfdf5' : 'transparent' }}>
-                <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleStudent(s.id)} />
-                <span style={{ fontSize: '14px' }}>{s.name}</span>
-              </label>
-            ))}
-          </div>
-
-          <label style={labelStyle}>نوع السلوك الإيجابي</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
-            {BEHAVIOR_TYPES.map(bt => (
-              <button key={bt} onClick={() => setBehaviorType(bt)} type="button"
-                style={{ padding: '6px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', background: behaviorType === bt ? THEME : '#f3f4f6', color: behaviorType === bt ? '#fff' : '#374151', border: behaviorType === bt ? `2px solid #059669` : '1px solid #d1d5db' }}>{bt}</button>
-            ))}
-          </div>
-
-          <label style={labelStyle}>الدرجة (اختياري)</label>
-          <input type="text" value={degree} onChange={e => setDegree(e.target.value)} style={inputStyle} placeholder="مثال: 1 أو 2..." />
-
-          <label style={labelStyle}>التفاصيل (اختياري)</label>
-          <textarea value={details} onChange={e => setDetails(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical' }} placeholder="وصف إضافي..." />
-        </div>
-        <div style={{ padding: '16px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: '8px', justifyContent: 'flex-end', background: '#f9fafb' }}>
-          <button onClick={onClose} style={{ padding: '8px 20px', background: '#fff', border: '2px solid #d1d5db', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>إلغاء</button>
-          <button onClick={handleSave} disabled={saving} style={{ padding: '8px 24px', background: THEME, color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'جاري الحفظ...' : 'حفظ'}</button>
+    <InputModal
+      title="تسجيل سلوك متمايز"
+      icon="star"
+      headerBg={`linear-gradient(to right, ${THEME}, #059669)`}
+      accentColor={THEME}
+      saveLabel="حفظ"
+      counterText={`${selectedStudents.length} طالب محدد`}
+      saving={saving}
+      onClose={onClose}
+      onSave={handleSave}
+    >
+      <StudentSelector
+        stageFilter={stage}
+        onSelectionChange={setSelectedStudents}
+        accentColor={THEME}
+        accentBg="#ecfdf5"
+      />
+      {/* نوع السلوك الإيجابي */}
+      <div>
+        <label style={labelStyle}>نوع السلوك الإيجابي *</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {BEHAVIOR_TYPES.map(bt => (
+            <button key={bt} onClick={() => setBehaviorType(bt)} type="button"
+              style={{ padding: '6px 12px', borderRadius: 100, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', background: behaviorType === bt ? THEME : '#f3f4f6', color: behaviorType === bt ? '#fff' : '#374151', border: behaviorType === bt ? `2px solid #059669` : '1px solid #d1d5db' }}>{bt}</button>
+          ))}
         </div>
       </div>
-    </div>
+      {/* الدرجة */}
+      <div>
+        <label style={labelStyle}>الدرجة (اختياري)</label>
+        <input type="text" value={degree} onChange={e => setDegree(e.target.value)} style={inputStyle} placeholder="مثال: 1 أو 2..." />
+      </div>
+      {/* التفاصيل */}
+      <div>
+        <label style={labelStyle}>التفاصيل (اختياري)</label>
+        <textarea value={details} onChange={e => setDetails(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical' }} placeholder="وصف إضافي..." />
+      </div>
+    </InputModal>
   );
 };
 

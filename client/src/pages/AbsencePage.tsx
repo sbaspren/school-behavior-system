@@ -6,9 +6,10 @@ import ActionBar from '../components/shared/ActionBar';
 import FloatingBar from '../components/shared/FloatingBar';
 import EmptyState from '../components/shared/EmptyState';
 import ActionIcon from '../components/shared/ActionIcon';
+import InputModal from '../components/shared/InputModal';
+import StudentSelector from '../components/shared/StudentSelector';
 import { absenceApi, AbsenceData } from '../api/absence';
 import { parentExcuseApi, ParentExcuseRow } from '../api/parentExcuse';
-import { studentsApi } from '../api/students';
 import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { SETTINGS_STAGES } from '../utils/constants';
@@ -1726,55 +1727,15 @@ const DAY_NAMES = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأر
 const PERIODS = ['الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة', 'السادسة', 'السابعة'];
 
 const AddAbsenceModal: React.FC<{ stages: StageConfigData[]; onClose: () => void; onSaved: () => void }> = ({ onClose, onSaved }) => {
-  const [students, setStudents] = useState<StudentOption[]>([]);
-  const [selectedGrade, setSelectedGrade] = useState('');
-  const [selectedClass, setSelectedClass] = useState('');
-  const [selectedStudents, setSelectedStudents] = useState<Set<number>>(new Set());
+  const [selectedStudents, setSelectedStudents] = useState<import('../components/shared/StudentSelector').StudentOption[]>([]);
   const [absenceType, setAbsenceType] = useState('FullDay');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { studentsApi.getAll().then(res => { if (res.data?.data) setStudents(res.data.data); }); }, []);
-
-  const grades = useMemo(() => {
-    const g = [...new Set(students.map(s => s.grade))];
-    return g.sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [students]);
-
-  const classes = useMemo(() => {
-    if (!selectedGrade) return [];
-    const c = [...new Set(students.filter(s => s.grade === selectedGrade).map(s => s.className))];
-    return c.sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [students, selectedGrade]);
-
-  const classStudents = useMemo(() => {
-    if (!selectedGrade || !selectedClass) return [];
-    return students.filter(s => s.grade === selectedGrade && s.className === selectedClass);
-  }, [students, selectedGrade, selectedClass]);
-
-  const handleGradeChange = (g: string) => {
-    setSelectedGrade(g);
-    setSelectedClass('');
-    setSelectedStudents(new Set());
-  };
-
-  const handleClassChange = (c: string) => {
-    setSelectedClass(c);
-    setSelectedStudents(new Set());
-  };
-
-  const toggleStudent = (id: number) => {
-    setSelectedStudents(prev => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id); else n.add(id);
-      return n;
-    });
-  };
-
   const handleSave = async () => {
-    if (selectedStudents.size === 0) return showError('يرجى اختيار طالب واحد على الأقل');
+    if (selectedStudents.length === 0) return showError('يرجى اختيار طالب واحد على الأقل');
     setSaving(true);
     try {
-      const ids = Array.from(selectedStudents);
+      const ids = selectedStudents.map((s) => s.id);
       if (ids.length === 1) {
         const data: AbsenceData = { studentId: ids[0], absenceType, period: '', dayName: '', notes: '' };
         const res = await absenceApi.add(data);
@@ -1788,79 +1749,33 @@ const AddAbsenceModal: React.FC<{ stages: StageConfigData[]; onClose: () => void
   };
 
   return (
-    <div style={modalOverlay}>
-      <div style={{ ...modalBox, maxWidth: 520 }}>
-        {/* Header — bg-orange-50 + event_busy icon */}
-        <div style={{ padding: '16px 24px', background: '#fff7ed', borderBottom: '1px solid #fed7aa', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#1f2937' }}>
-            <span className="material-symbols-outlined" style={{ color: '#ea580c', fontSize: 22 }}>event_busy</span> تسجيل غياب يدوي
-          </h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18 }}>
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        {/* Body */}
-        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Grade + Class — grid-cols-2 */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 4 }}>الصف</label>
-              <select value={selectedGrade} onChange={(e) => handleGradeChange(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }}>
-                <option value="">اختر الصف</option>
-                {grades.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 4 }}>الفصل</label>
-              <select value={selectedClass} onChange={(e) => handleClassChange(e.target.value)} disabled={!selectedGrade}
-                style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }}>
-                <option value="">اختر الفصل</option>
-                {classes.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-          {/* Students — checkboxes list max-h-48 */}
-          <div>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 4 }}>الطلاب</label>
-            <div style={{ maxHeight: 192, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, background: '#f9fafb' }}>
-              {classStudents.length === 0 ? (
-                <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>
-                  {!selectedGrade ? 'اختر الصف والفصل أولاً' : !selectedClass ? 'اختر الفصل' : 'لا يوجد طلاب'}
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {classStudents.map(s => (
-                    <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', background: selectedStudents.has(s.id) ? '#fff7ed' : 'transparent' }}>
-                      <input type="checkbox" checked={selectedStudents.has(s.id)} onChange={() => toggleStudent(s.id)}
-                        style={{ width: 16, height: 16, accentColor: '#ea580c', cursor: 'pointer' }} />
-                      <span style={{ fontSize: 14 }}>{s.name}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          {/* Absence type — dropdown */}
-          <div>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 4 }}>نوع الغياب</label>
-            <select value={absenceType} onChange={(e) => setAbsenceType(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }}>
-              <option value="FullDay">يوم كامل</option>
-              <option value="Period">حصة</option>
-            </select>
-          </div>
-        </div>
-        {/* Footer */}
-        <div style={{ padding: '16px 24px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', color: '#374151', background: '#fff', border: '1px solid #d1d5db', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>إلغاء</button>
-          <button onClick={handleSave} disabled={saving || selectedStudents.size === 0}
-            style={{ padding: '8px 24px', background: '#ea580c', color: '#fff', borderRadius: 8, fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
-            {saving ? 'جاري الحفظ...' : 'حفظ'}
-          </button>
-        </div>
+    <InputModal
+      title="تسجيل غياب يدوي"
+      icon="event_busy"
+      headerBg="linear-gradient(to left, #ea580c, #f97316)"
+      accentColor="#ea580c"
+      saveLabel="حفظ"
+      counterText={`${selectedStudents.length} طالب محدد`}
+      maxWidth={560}
+      saving={saving}
+      onClose={onClose}
+      onSave={handleSave}
+    >
+      <StudentSelector
+        onSelectionChange={setSelectedStudents}
+        accentColor="#ea580c"
+        accentBg="#fff7ed"
+      />
+      {/* نوع الغياب */}
+      <div>
+        <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 6 }}>نوع الغياب</label>
+        <select value={absenceType} onChange={(e) => setAbsenceType(e.target.value)}
+          style={{ width: '100%', height: 44, padding: '0 12px', border: '2px solid #d1d5db', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', background: '#fff', boxSizing: 'border-box' as const }}>
+          <option value="FullDay">يوم كامل</option>
+          <option value="Period">حصة</option>
+        </select>
       </div>
-    </div>
+    </InputModal>
   );
 };
 

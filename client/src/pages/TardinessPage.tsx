@@ -6,8 +6,9 @@ import ActionBar from '../components/shared/ActionBar';
 import FloatingBar from '../components/shared/FloatingBar';
 import EmptyState from '../components/shared/EmptyState';
 import ActionIcon from '../components/shared/ActionIcon';
+import InputModal from '../components/shared/InputModal';
+import StudentSelector from '../components/shared/StudentSelector';
 import { tardinessApi, TardinessData } from '../api/tardiness';
-import { studentsApi } from '../api/students';
 import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { SETTINGS_STAGES } from '../utils/constants';
@@ -501,73 +502,78 @@ const ConfirmModal: React.FC<{ title: string; message: string; onConfirm: () => 
 );
 
 // ============================== Add Tardiness Modal ==============================
-const AddTardinessModal: React.FC<{ stages: StageConfigData[]; stageFilter: string; onClose: () => void; onSaved: () => void }> = ({ stages, stageFilter, onClose, onSaved }) => {
-  const [allStudents, setAllStudents] = useState<StudentOption[]>([]); const [selectedStudents, setSelectedStudents] = useState<StudentOption[]>([]);
-  const [tardinessType, setTardinessType] = useState('Morning'); const [period, setPeriod] = useState(''); const [saving, setSaving] = useState(false);
-  const [selectedGrade, setSelectedGrade] = useState(''); const [selectedClass, setSelectedClass] = useState('');
-  useEffect(() => { studentsApi.getAll().then(res => { if (res.data?.data) setAllStudents(res.data.data); }); }, []);
-  const stageId = useMemo(() => { if (stageFilter === '__all__') return ''; return SETTINGS_STAGES.find(s => s.name === stageFilter)?.id || stageFilter; }, [stageFilter]);
-  const stageStudents = useMemo(() => stageId ? allStudents.filter(s => s.stage === stageId) : allStudents, [allStudents, stageId]);
-  const availableGrades = useMemo(() => { const seen = new Set<string>(); return stageStudents.filter(s => { if (seen.has(s.grade)) return false; seen.add(s.grade); return true; }).map(s => s.grade).sort(); }, [stageStudents]);
-  const availableClasses = useMemo(() => { if (!selectedGrade) return []; const seen = new Set<string>(); return stageStudents.filter(s => s.grade === selectedGrade).filter(s => { if (seen.has(s.className)) return false; seen.add(s.className); return true; }).map(s => s.className).sort(); }, [stageStudents, selectedGrade]);
-  const availableStudents = useMemo(() => { if (!selectedGrade || !selectedClass) return []; const ids = new Set(selectedStudents.map(s => s.id)); return stageStudents.filter(s => s.grade === selectedGrade && s.className === selectedClass && !ids.has(s.id)).sort((a, b) => a.name.localeCompare(b.name, 'ar')); }, [stageStudents, selectedGrade, selectedClass, selectedStudents]);
+const AddTardinessModal: React.FC<{ stages: StageConfigData[]; stageFilter: string; onClose: () => void; onSaved: () => void }> = ({ stageFilter, onClose, onSaved }) => {
+  const [selectedStudents, setSelectedStudents] = useState<import('../components/shared/StudentSelector').StudentOption[]>([]);
+  const [tardinessType, setTardinessType] = useState('Morning');
+  const [period, setPeriod] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const handleStudentSelect = (e: React.ChangeEvent<HTMLSelectElement>) => { const ids = Array.from(e.target.selectedOptions as unknown as HTMLOptionElement[]).map((o: HTMLOptionElement) => parseInt(o.value)); setSelectedStudents(allStudents.filter(s => ids.includes(s.id))); };
+  const stageId = useMemo(() => {
+    if (stageFilter === '__all__') return '';
+    return SETTINGS_STAGES.find(s => s.name === stageFilter)?.id || stageFilter;
+  }, [stageFilter]);
+
   const handleSave = async () => {
     if (selectedStudents.length === 0) return showError('اختر طالب واحد على الأقل');
-    if (tardinessType === 'Period' && !period) return showError('يرجى اختيار الحصة'); // ★ validation
+    if (tardinessType === 'Period' && !period) return showError('يرجى اختيار الحصة');
     setSaving(true);
     try {
-      if (selectedStudents.length === 1) { const res = await tardinessApi.add({ studentId: selectedStudents[0].id, tardinessType, period }); if (res.data?.success) { showSuccess('تم تسجيل التأخر'); onSaved(); } else showError(res.data?.message || 'فشل'); }
-      else { const res = await tardinessApi.addBatch(selectedStudents.map(s => s.id), tardinessType, period); if (res.data?.data) { showSuccess(res.data.data.message || 'تم التسجيل'); onSaved(); } else showError(res.data?.message || 'فشل'); }
-    } catch { showError('فشل التسجيل'); } finally { setSaving(false); }
+      if (selectedStudents.length === 1) {
+        const res = await tardinessApi.add({ studentId: selectedStudents[0].id, tardinessType, period });
+        if (res.data?.success) { showSuccess('تم تسجيل التأخر'); onSaved(); } else showError(res.data?.message || 'فشل');
+      } else {
+        const res = await tardinessApi.addBatch(selectedStudents.map(s => s.id), tardinessType, period);
+        if (res.data?.data) { showSuccess(res.data.data.message || 'تم التسجيل'); onSaved(); } else showError(res.data?.message || 'فشل');
+      }
+    } catch { showError('فشل التسجيل'); }
+    finally { setSaving(false); }
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,.6)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 20, boxShadow: '0 25px 50px rgba(0,0,0,.25)', width: '100%', maxWidth: 560, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {/* ★ هيدر أحمر + أيقونة timer_off */}
-        <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #dc2626, #ef4444)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}><span className="material-symbols-outlined" style={{ fontSize: 20 }}>timer_off</span> تسجيل تأخر</h3>
-          <button onClick={onClose} style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.8)', fontSize: 24 }}>✕</button>
-        </div>
-        <div style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* ★ Radio buttons عربي */}
-          <div>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>نوع التأخر *</label>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', border: `2px solid ${tardinessType === 'Morning' ? '#dc2626' : '#d1d5db'}`, background: tardinessType === 'Morning' ? '#fef2f2' : '#fff', borderRadius: 8, cursor: 'pointer' }}>
-                <input type="radio" name="tard-type" checked={tardinessType === 'Morning'} onChange={() => { setTardinessType('Morning'); setPeriod(''); }} />
-                <span style={{ fontWeight: 700, color: tardinessType === 'Morning' ? '#dc2626' : '#374151' }}>تأخر صباحي</span>
-              </label>
-              <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', border: `2px solid ${tardinessType === 'Period' ? '#f59e0b' : '#d1d5db'}`, background: tardinessType === 'Period' ? '#fffbeb' : '#fff', borderRadius: 8, cursor: 'pointer' }}>
-                <input type="radio" name="tard-type" checked={tardinessType === 'Period'} onChange={() => setTardinessType('Period')} />
-                <span style={{ fontWeight: 700, color: tardinessType === 'Period' ? '#d97706' : '#374151' }}>تأخر حصة</span>
-              </label>
-            </div>
-          </div>
-          {/* ★ قائمة منسدلة للحصة */}
-          {tardinessType === 'Period' && <div><label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>الحصة *</label><select value={period} onChange={e => setPeriod(e.target.value)} style={{ width: '100%', height: 44, padding: '0 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }}><option value="">اختر الحصة</option>{PERIODS.map(p => <option key={p} value={p}>{p}</option>)}</select></div>}
-          {/* ★ صف → فصل → select multiple */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div><label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 4 }}>الصف *</label><select value={selectedGrade} onChange={e => { setSelectedGrade(e.target.value); setSelectedClass(''); setSelectedStudents([]); }} style={{ width: '100%', height: 44, padding: '0 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }}><option value="">اختر الصف</option>{availableGrades.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
-            <div><label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 4 }}>الفصل *</label><select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedStudents([]); }} disabled={!selectedGrade} style={{ width: '100%', height: 44, padding: '0 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, background: selectedGrade ? '#fff' : '#f9fafb' }}><option value="">اختر الفصل</option>{availableClasses.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 4 }}>الطلاب * <span style={{ fontWeight: 400, color: '#9ca3af' }}>(يمكنك اختيار أكثر من طالب)</span></label>
-            <select multiple value={selectedStudents.map(s => String(s.id))} onChange={handleStudentSelect} disabled={!selectedGrade || !selectedClass} style={{ width: '100%', height: 180, padding: 8, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, background: (selectedGrade && selectedClass) ? '#fff' : '#f9fafb' }}>
-              {availableStudents.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>اضغط Ctrl للاختيار المتعدد</p>
-          </div>
-        </div>
-        {/* ★ زر حفظ أحمر */}
-        <div style={{ padding: '16px 24px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-          <button onClick={onClose} style={{ padding: '8px 20px', color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}>إلغاء</button>
-          <button onClick={handleSave} disabled={saving} style={{ padding: '8px 24px', background: '#dc2626', color: '#fff', borderRadius: 8, fontWeight: 700, border: 'none', cursor: 'pointer', opacity: saving ? .7 : 1 }}>{saving ? 'جاري الحفظ...' : 'حفظ'}</button>
+    <InputModal
+      title="تسجيل تأخر"
+      icon="timer_off"
+      headerBg="linear-gradient(to left, #dc2626, #ef4444)"
+      accentColor="#dc2626"
+      saveLabel="حفظ"
+      counterText={`${selectedStudents.length} طالب محدد`}
+      maxWidth={560}
+      saving={saving}
+      onClose={onClose}
+      onSave={handleSave}
+    >
+      {/* نوع التأخر */}
+      <div>
+        <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>نوع التأخر *</label>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', border: `2px solid ${tardinessType === 'Morning' ? '#dc2626' : '#d1d5db'}`, background: tardinessType === 'Morning' ? '#fef2f2' : '#fff', borderRadius: 8, cursor: 'pointer' }}>
+            <input type="radio" name="tard-type" checked={tardinessType === 'Morning'} onChange={() => { setTardinessType('Morning'); setPeriod(''); }} />
+            <span style={{ fontWeight: 700, color: tardinessType === 'Morning' ? '#dc2626' : '#374151' }}>تأخر صباحي</span>
+          </label>
+          <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', border: `2px solid ${tardinessType === 'Period' ? '#f59e0b' : '#d1d5db'}`, background: tardinessType === 'Period' ? '#fffbeb' : '#fff', borderRadius: 8, cursor: 'pointer' }}>
+            <input type="radio" name="tard-type" checked={tardinessType === 'Period'} onChange={() => setTardinessType('Period')} />
+            <span style={{ fontWeight: 700, color: tardinessType === 'Period' ? '#d97706' : '#374151' }}>تأخر حصة</span>
+          </label>
         </div>
       </div>
-    </div>
+      {tardinessType === 'Period' && (
+        <div>
+          <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>الحصة *</label>
+          <select value={period} onChange={e => setPeriod(e.target.value)}
+            style={{ width: '100%', height: 44, padding: '0 12px', border: '2px solid #d1d5db', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box' as const }}>
+            <option value="">اختر الحصة</option>
+            {PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+      )}
+      {/* اختيار الطلاب — المكون المشترك */}
+      <StudentSelector
+        stageFilter={stageId || undefined}
+        onSelectionChange={setSelectedStudents}
+        accentColor="#dc2626"
+        accentBg="#fef2f2"
+      />
+    </InputModal>
   );
 };
 

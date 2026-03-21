@@ -6,8 +6,9 @@ import ActionBar from '../components/shared/ActionBar';
 import FloatingBar from '../components/shared/FloatingBar';
 import EmptyState from '../components/shared/EmptyState';
 import ActionIcon from '../components/shared/ActionIcon';
+import InputModal from '../components/shared/InputModal';
+import StudentSelector from '../components/shared/StudentSelector';
 import { permissionsApi, PermissionData } from '../api/permissions';
-import { studentsApi } from '../api/students';
 import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { SETTINGS_STAGES } from '../utils/constants';
@@ -749,121 +750,85 @@ const RECEIVERS = ['الأب', 'الأخ', 'الأم', 'الجد', 'العم', '
 const RESPONSIBLES = ['الموجه الطلابي', 'الوكيل', 'المدير'];
 
 const AddPermissionModal: React.FC<{ stages: StageConfigData[]; onClose: () => void; onSaved: () => void }> = ({ onClose, onSaved }) => {
-  const [students, setStudents] = useState<StudentOption[]>([]);
-  const [gradeFilter, setGradeFilter] = useState('');
-  const [classFilter, setClassFilter] = useState('');
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<import('../components/shared/StudentSelector').StudentOption[]>([]);
   const [exitTime, setExitTime] = useState('');
   const [reason, setReason] = useState('');
   const [receiver, setReceiver] = useState('');
   const [supervisor, setSupervisor] = useState('');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { studentsApi.getAll().then((res) => { if (res.data?.data) setStudents(res.data.data); }); }, []);
-
-  const grades = useMemo(() => Array.from(new Set(students.map((s) => s.grade))).sort(), [students]);
-  const classes = useMemo(() => {
-    if (!gradeFilter) return [];
-    return Array.from(new Set(students.filter((s) => s.grade === gradeFilter).map((s) => s.className))).sort();
-  }, [students, gradeFilter]);
-  const filteredStudents = useMemo(() => {
-    if (!gradeFilter || !classFilter) return [];
-    return students.filter((s) => s.grade === gradeFilter && s.className === classFilter).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-  }, [students, gradeFilter, classFilter]);
-
   const handleSave = async () => {
-    if (selectedIds.length === 0) return showError('اختر طالب واحد على الأقل');
+    if (selectedStudents.length === 0) return showError('اختر طالب واحد على الأقل');
     if (!reason) return showError('يرجى اختيار السبب');
     if (!receiver) return showError('يرجى اختيار المستلم');
     if (!supervisor) return showError('يرجى اختيار المسؤول');
     setSaving(true);
     try {
-      if (selectedIds.length === 1) {
-        const data: PermissionData = { studentId: selectedIds[0], exitTime, reason, receiver, supervisor };
+      const ids = selectedStudents.map((s) => s.id);
+      if (ids.length === 1) {
+        const data: PermissionData = { studentId: ids[0], exitTime, reason, receiver, supervisor };
         const res = await permissionsApi.add(data);
         if (res.data?.success) { showSuccess('تم تسجيل الاستئذان'); onSaved(); } else showError(res.data?.message || 'فشل');
       } else {
-        const res = await permissionsApi.addBatch(selectedIds, { exitTime, reason, receiver, supervisor });
+        const res = await permissionsApi.addBatch(ids, { exitTime, reason, receiver, supervisor });
         if (res.data?.data) { showSuccess(res.data.data.message || 'تم'); onSaved(); } else showError(res.data?.message || 'فشل');
       }
     } catch { showError('فشل التسجيل'); }
     finally { setSaving(false); }
   };
 
-  const selectStyle: React.CSSProperties = { width: '100%', height: '44px', padding: '0 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', fontFamily: 'inherit', background: '#fff' };
-  const labelStyle: React.CSSProperties = { display: 'block', fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '6px' };
+  const fldStyle: React.CSSProperties = { width: '100%', height: 44, padding: '0 12px', border: '2px solid #d1d5db', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', background: '#fff', boxSizing: 'border-box' };
+  const fldLabel: React.CSSProperties = { display: 'block', fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 6 };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.6)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div style={{ background: '#fff', borderRadius: '20px', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {/* هيدر بنفسجي — مطابق للقديم */}
-        <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #7c3aed, #9333ea)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}><span className="material-symbols-outlined" style={{ fontSize: 20 }}>exit_to_app</span> تسجيل استئذان</h3>
-          <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: 'rgba(255,255,255,0.8)' }}>✕</button>
+    <InputModal
+      title="تسجيل استئذان"
+      icon="exit_to_app"
+      headerBg="linear-gradient(to left, #7c3aed, #9333ea)"
+      accentColor="#7c3aed"
+      saveLabel="حفظ"
+      counterText={`${selectedStudents.length} طالب محدد`}
+      saving={saving}
+      onClose={onClose}
+      onSave={handleSave}
+    >
+      <StudentSelector
+        onSelectionChange={setSelectedStudents}
+        accentColor="#7c3aed"
+        accentBg="#f5f3ff"
+      />
+      {/* وقت الخروج + السبب */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div>
+          <label style={fldLabel}>وقت الخروج</label>
+          <input type="time" value={exitTime} onChange={(e) => setExitTime(e.target.value)} style={fldStyle} />
         </div>
-        <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* الصف + الفصل */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div>
-              <label style={labelStyle}>الصف *</label>
-              <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); setSelectedIds([]); }} style={selectStyle}>
-                <option value="">اختر الصف</option>{grades.map((g) => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>الفصل *</label>
-              <select value={classFilter} onChange={(e) => { setClassFilter(e.target.value); setSelectedIds([]); }} disabled={!gradeFilter} style={{ ...selectStyle, background: gradeFilter ? '#fff' : '#f9fafb' }}>
-                <option value="">اختر الفصل</option>{classes.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-          {/* الطلاب — multi-select */}
-          <div>
-            <label style={labelStyle}>الطلاب * <span style={{ color: '#9ca3af', fontWeight: 400 }}>(يمكنك اختيار أكثر من طالب)</span></label>
-            <select multiple value={selectedIds.map(String)} onChange={(e) => { setSelectedIds(Array.from(e.target.selectedOptions, (o) => Number(o.value))); }}
-              disabled={filteredStudents.length === 0}
-              style={{ width: '100%', height: '200px', padding: '8px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', fontFamily: 'inherit', background: filteredStudents.length > 0 ? '#fff' : '#f9fafb' }}>
-              {filteredStudents.length === 0 ? <option value="" disabled>اختر الصف والفصل أولاً</option> : filteredStudents.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>اضغط Ctrl للاختيار المتعدد</p>
-          </div>
-          {/* وقت الخروج + السبب */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div>
-              <label style={labelStyle}>وقت الخروج</label>
-              <input type="time" value={exitTime} onChange={(e) => setExitTime(e.target.value)} style={selectStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>السبب *</label>
-              <select value={reason} onChange={(e) => setReason(e.target.value)} style={selectStyle}>
-                <option value="">اختر السبب</option>{REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-          </div>
-          {/* المستلم + المسؤول */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div>
-              <label style={labelStyle}>المستلم *</label>
-              <select value={receiver} onChange={(e) => setReceiver(e.target.value)} style={selectStyle}>
-                <option value="">اختر المستلم</option>{RECEIVERS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>المسؤول *</label>
-              <select value={supervisor} onChange={(e) => setSupervisor(e.target.value)} style={selectStyle}>
-                <option value="">اختر المسؤول</option>{RESPONSIBLES.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-          </div>
-        </div>
-        <div style={{ padding: '16px 24px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-          <button onClick={onClose} style={{ padding: '8px 20px', color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit' }}>إلغاء</button>
-          <button onClick={handleSave} disabled={saving} style={{
-            padding: '10px 28px', background: '#7c3aed', color: '#fff', borderRadius: '8px', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: saving ? 0.7 : 1, fontSize: '14px', fontFamily: 'inherit',
-          }}>{saving ? 'جاري الحفظ...' : 'حفظ'}</button>
+        <div>
+          <label style={fldLabel}>السبب *</label>
+          <select value={reason} onChange={(e) => setReason(e.target.value)} style={fldStyle}>
+            <option value="">اختر السبب</option>
+            {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
         </div>
       </div>
-    </div>
+      {/* المستلم + المسؤول */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div>
+          <label style={fldLabel}>المستلم *</label>
+          <select value={receiver} onChange={(e) => setReceiver(e.target.value)} style={fldStyle}>
+            <option value="">اختر المستلم</option>
+            {RECEIVERS.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={fldLabel}>المسؤول *</label>
+          <select value={supervisor} onChange={(e) => setSupervisor(e.target.value)} style={fldStyle}>
+            <option value="">اختر المسؤول</option>
+            {RESPONSIBLES.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+      </div>
+    </InputModal>
   );
 };
 

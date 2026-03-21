@@ -13,6 +13,8 @@ import ActionBar from '../components/shared/ActionBar';
 import FloatingBar from '../components/shared/FloatingBar';
 import EmptyState from '../components/shared/EmptyState';
 import ActionIcon from '../components/shared/ActionIcon';
+import InputModal from '../components/shared/InputModal';
+import StudentSelector from '../components/shared/StudentSelector';
 
 const DEGREE_LABELS: Record<number, { label: string; color: string; bg: string }> = {
   1: { label: 'الأولى', color: '#15803d', bg: '#dcfce7' },
@@ -1895,7 +1897,7 @@ const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, 
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [studentSearch, setStudentSearch] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<StudentOption | null>(null);
-  const [selectedStudents, setSelectedStudents] = useState<StudentOption[]>([]);
+  const [batchStudents, setBatchStudents] = useState<import('../components/shared/StudentSelector').StudentOption[]>([]);
   const [batchMode, setBatchMode] = useState(false);
   const [degree, setDegree] = useState(1);
   const [description, setDescription] = useState('');
@@ -1904,9 +1906,6 @@ const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, 
   const [saving, setSaving] = useState(false);
   const [repInfo, setRepInfo] = useState<RepetitionInfo | null>(null);
   const [violationTypes, setViolationTypes] = useState<{ id: number; code: string; description: string; degree: number }[]>([]);
-  // Cascade filters for batch mode
-  const [batchGrade, setBatchGrade] = useState('');
-  const [batchClass, setBatchClass] = useState('');
   const [selectedViolCode, setSelectedViolCode] = useState('');
 
   useEffect(() => {
@@ -1935,25 +1934,6 @@ const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, 
     ).slice(0, 20);
   }, [students, studentSearch]);
 
-  // Batch mode: cascade data
-  const batchGrades = useMemo(() => Array.from(new Set(students.map((s) => s.grade))).sort(), [students]);
-  const batchClasses = useMemo(() => {
-    if (!batchGrade) return [];
-    return Array.from(new Set(students.filter((s) => s.grade === batchGrade).map((s) => s.className))).sort();
-  }, [students, batchGrade]);
-  const batchStudentList = useMemo(() => {
-    if (!batchGrade || !batchClass) return [];
-    return students.filter((s) => s.grade === batchGrade && s.className === batchClass).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-  }, [students, batchGrade, batchClass]);
-
-  const toggleBatchStudent = (s: StudentOption) => {
-    setSelectedStudents((prev) => prev.find((x) => x.id === s.id) ? prev.filter((x) => x.id !== s.id) : [...prev, s]);
-  };
-  const toggleSelectAll = () => {
-    if (selectedStudents.length === batchStudentList.length) setSelectedStudents([]);
-    else setSelectedStudents([...batchStudentList]);
-  };
-
   const filteredViolTypes = useMemo(() =>
     violationTypes.filter((t) => t.degree === degree),
     [violationTypes, degree]
@@ -1961,17 +1941,17 @@ const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, 
 
   const handleSave = async () => {
     if (batchMode) {
-      if (selectedStudents.length === 0) { showError('يرجى اختيار طالب واحد على الأقل'); return; }
+      if (batchStudents.length === 0) { showError('يرجى اختيار طالب واحد على الأقل'); return; }
       if (!selectedViolCode && !description.trim()) { showError('يرجى اختيار المخالفة أو كتابة الوصف'); return; }
       setSaving(true);
       try {
         const res = await violationsApi.addBatch(
-          selectedStudents.map((s) => s.id),
+          batchStudents.map((s) => s.id),
           selectedViolCode || '',
           { type: violationType, recordedBy: 'الوكيل', notes: notes.trim() }
         );
         if (res.data?.success) {
-          showSuccess(res.data.data?.message || `تم تسجيل ${selectedStudents.length} مخالفة`);
+          showSuccess(res.data.data?.message || `تم تسجيل ${batchStudents.length} مخالفة`);
           onSaved();
         } else showError(res.data?.message || 'خطأ');
       } catch { showError('خطأ في الاتصال'); }
@@ -2000,220 +1980,181 @@ const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, 
     }
   };
 
+  const counterText = batchMode
+    ? `${batchStudents.length} طالب محدد`
+    : (selectedStudent ? selectedStudent.name : 'لم يتم اختيار طالب');
+
+  const saveLabel = batchMode
+    ? (saving ? 'جاري التسجيل...' : `تسجيل لـ ${batchStudents.length} طالب`)
+    : (saving ? 'جاري التسجيل...' : 'تسجيل المخالفة');
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.6)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div style={{ background: '#fff', borderRadius: '20px', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', width: '100%', maxWidth: '700px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {/* Header */}
-        <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #fef2f2, #fee2e2)', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}><span className="material-symbols-outlined" style={{ fontSize: '20px', verticalAlign: 'middle' }}>warning</span> تسجيل مخالفة سلوكية</h3>
-          <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}>✕</button>
-        </div>
+    <InputModal
+      title="تسجيل مخالفة سلوكية"
+      icon="warning"
+      headerBg="linear-gradient(to left, #dc2626, #ef4444)"
+      accentColor="#dc2626"
+      saveLabel={saveLabel}
+      counterText={counterText}
+      maxWidth={700}
+      saving={saving}
+      onClose={onClose}
+      onSave={handleSave}
+    >
+      {/* Batch Toggle */}
+      <div style={{ display: 'flex', gap: '8px', background: '#f3f4f6', borderRadius: '8px', padding: '4px' }}>
+        <button onClick={() => { setBatchMode(false); setBatchStudents([]); }} style={{
+          flex: 1, padding: '8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+          background: !batchMode ? '#fff' : 'transparent', color: !batchMode ? '#dc2626' : '#6b7280',
+          fontWeight: 700, fontSize: '13px', boxShadow: !batchMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', fontFamily: 'inherit',
+        }}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>person</span> طالب واحد</button>
+        <button onClick={() => { setBatchMode(true); setSelectedStudent(null); }} style={{
+          flex: 1, padding: '8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+          background: batchMode ? '#fff' : 'transparent', color: batchMode ? '#dc2626' : '#6b7280',
+          fontWeight: 700, fontSize: '13px', boxShadow: batchMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', fontFamily: 'inherit',
+        }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>groups</span> عدة طلاب</button>
+      </div>
 
-        {/* Body */}
-        <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Batch Toggle */}
-          <div style={{ display: 'flex', gap: '8px', background: '#f3f4f6', borderRadius: '8px', padding: '4px' }}>
-            <button onClick={() => { setBatchMode(false); setSelectedStudents([]); }} style={{
-              flex: 1, padding: '8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-              background: !batchMode ? '#fff' : 'transparent', color: !batchMode ? '#dc2626' : '#6b7280',
-              fontWeight: 700, fontSize: '13px', boxShadow: !batchMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            }}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>person</span> طالب واحد</button>
-            <button onClick={() => { setBatchMode(true); setSelectedStudent(null); }} style={{
-              flex: 1, padding: '8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-              background: batchMode ? '#fff' : 'transparent', color: batchMode ? '#dc2626' : '#6b7280',
-              fontWeight: 700, fontSize: '13px', boxShadow: batchMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>groups</span> عدة طلاب</button>
-          </div>
-
-          {/* Student Selection */}
-          {batchMode ? (
-            <div>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>اختر الطلاب *</label>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                <select value={batchGrade} onChange={(e) => { setBatchGrade(e.target.value); setBatchClass(''); setSelectedStudents([]); }}
-                  style={{ flex: 1, height: '38px', padding: '0 10px', border: '2px solid #d1d5db', borderRadius: '10px', fontSize: '14px' }}>
-                  <option value="">اختر الصف</option>
-                  {batchGrades.map((g) => <option key={g} value={g}>{g}</option>)}
-                </select>
-                <select value={batchClass} onChange={(e) => { setBatchClass(e.target.value); setSelectedStudents([]); }}
-                  disabled={!batchGrade} style={{ flex: 1, height: '38px', padding: '0 10px', border: '2px solid #d1d5db', borderRadius: '10px', fontSize: '14px', opacity: batchGrade ? 1 : 0.5 }}>
-                  <option value="">اختر الفصل</option>
-                  {batchClasses.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+      {/* Student Selection */}
+      {batchMode ? (
+        <StudentSelector
+          onSelectionChange={setBatchStudents}
+          accentColor="#dc2626"
+          accentBg="#fef2f2"
+        />
+      ) : (
+        <div>
+          <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>اختر الطالب *</label>
+          {selectedStudent ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+              <div>
+                <span style={{ fontWeight: 700, color: '#15803d' }}>{selectedStudent.name}</span>
+                <span style={{ fontSize: '13px', color: '#6b7280', marginRight: '8px' }}>{selectedStudent.grade} ({selectedStudent.className})</span>
               </div>
-              {batchStudentList.length > 0 && (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <button onClick={toggleSelectAll} style={{ fontSize: '12px', color: '#4f46e5', background: '#eef2ff', border: 'none', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}>
-                      {selectedStudents.length === batchStudentList.length ? 'إلغاء الكل' : 'تحديد الكل'}
-                    </button>
-                    <span style={{ fontSize: '12px', color: '#9ca3af' }}>{selectedStudents.length} / {batchStudentList.length} محدد</span>
-                  </div>
-                  <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-                    {batchStudentList.map((s) => {
-                      const sel = selectedStudents.some((x) => x.id === s.id);
-                      return (
-                        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6', background: sel ? '#f0fdf4' : 'transparent' }}>
-                          <input type="checkbox" checked={sel} onChange={() => toggleBatchStudent(s)} style={{ width: '16px', height: '16px' }} />
-                          <span style={{ fontWeight: sel ? 700 : 400 }}>{s.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
+              <button onClick={() => setSelectedStudent(null)} style={{ padding: '4px 12px', background: '#fee2e2', color: '#dc2626', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>تغيير</button>
             </div>
           ) : (
-            <div>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>اختر الطالب *</label>
-              {selectedStudent ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
-                  <div>
-                    <span style={{ fontWeight: 700, color: '#15803d' }}>{selectedStudent.name}</span>
-                    <span style={{ fontSize: '13px', color: '#6b7280', marginRight: '8px' }}>{selectedStudent.grade} ({selectedStudent.className})</span>
+            <>
+              <input type="text" value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)}
+                placeholder="ابحث بالاسم أو رقم الطالب..."
+                style={{ width: '100%', height: '40px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', boxSizing: 'border-box', marginBottom: '8px' }} />
+              <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+                {filteredStudents.map((s) => (
+                  <div key={s.id} onClick={() => setSelectedStudent(s)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 600 }}>{s.name}</span>
+                    <span style={{ fontSize: '12px', color: '#6b7280' }}>{s.grade} ({s.className})</span>
                   </div>
-                  <button onClick={() => setSelectedStudent(null)} style={{ padding: '4px 12px', background: '#fee2e2', color: '#dc2626', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>تغيير</button>
-                </div>
-              ) : (
-                <>
-                  <input type="text" value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)}
-                    placeholder="ابحث بالاسم أو رقم الطالب..."
-                    style={{ width: '100%', height: '40px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', boxSizing: 'border-box', marginBottom: '8px' }} />
-                  <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-                    {filteredStudents.map((s) => (
-                      <div key={s.id} onClick={() => setSelectedStudent(s)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 600 }}>{s.name}</span>
-                        <span style={{ fontSize: '12px', color: '#6b7280' }}>{s.grade} ({s.className})</span>
-                      </div>
-                    ))}
-                    {filteredStudents.length === 0 && <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af' }}>لا توجد نتائج</div>}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Violation Type Tabs */}
-          <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>نوع المخالفة</label>
-            <div style={{ display: 'flex', gap: '0', borderRadius: '12px', overflow: 'hidden', border: '2px solid #e5e7eb' }}>
-              {[
-                { key: 'InPerson', label: 'حضورية', icon: 'apartment', color: '#4f46e5', bg: '#eef2ff' },
-                { key: 'Digital', label: 'رقمية', icon: 'laptop', color: '#0891b2', bg: '#ecfeff' },
-                { key: 'Educational', label: 'تجاه الهيئة', icon: 'school', color: '#e11d48', bg: '#fff1f2' },
-              ].map((t) => (
-                <button key={t.key} onClick={() => setViolationType(t.key)} style={{
-                  flex: 1, padding: '10px', border: 'none', cursor: 'pointer',
-                  background: violationType === t.key ? t.bg : '#fff',
-                  color: violationType === t.key ? t.color : '#6b7280',
-                  fontWeight: 700, fontSize: '13px',
-                  borderBottom: violationType === t.key ? `3px solid ${t.color}` : '3px solid transparent',
-                }}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>{t.icon}</span> {t.label}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* Degree */}
-          <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>درجة المخالفة *</label>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {[1, 2, 3, 4, 5].map((d) => {
-                const info = DEGREE_LABELS[d];
-                const isActive = degree === d;
-                return (
-                  <button key={d} onClick={() => { setDegree(d); setSelectedViolCode(''); setDescription(''); }} style={{
-                    flex: 1, padding: '10px 8px', borderRadius: '8px',
-                    background: isActive ? info.bg : '#f9fafb',
-                    color: isActive ? info.color : '#6b7280',
-                    border: isActive ? `2px solid ${info.color}` : '1px solid #e5e7eb',
-                    fontWeight: 700, cursor: 'pointer', fontSize: '13px',
-                  }}>{info.label}</button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Violation Text from catalog */}
-          {filteredViolTypes.length > 0 && (
-            <div>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>نص المخالفة (من اللائحة)</label>
-              <select value={selectedViolCode} onChange={(e) => {
-                setSelectedViolCode(e.target.value);
-                const vt = filteredViolTypes.find((t) => t.code === e.target.value);
-                if (vt) setDescription(vt.description);
-              }}
-                style={{ width: '100%', height: '40px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', background: '#fff', boxSizing: 'border-box' }}>
-                <option value="">اختر من القائمة...</option>
-                {filteredViolTypes.map((t) => (
-                  <option key={t.id} value={t.code}>{t.code} - {t.description}</option>
                 ))}
-              </select>
-            </div>
-          )}
-
-          {/* Repetition Info (single mode only) */}
-          {!batchMode && repInfo && (
-            <div style={{ background: repInfo.nextRepetition > 1 ? '#fff7ed' : '#eff6ff', borderRadius: '8px', padding: '12px 16px', border: `1px solid ${repInfo.nextRepetition > 1 ? '#fed7aa' : '#bfdbfe'}` }}>
-              {repInfo.nextRepetition > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: '#c2410c', fontWeight: 700, fontSize: '14px' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>warning</span> تنبيه تكرار! هذه المخالفة تكررت للمرة {repInfo.nextRepetition}
-                </div>
-              )}
-              <div style={{ display: 'flex', gap: '24px', fontSize: '14px' }}>
-                <div><span style={{ color: '#6b7280' }}>التكرار: </span><span style={{ fontWeight: 700, color: '#1e40af' }}>{repInfo.nextRepetition}</span></div>
-                <div><span style={{ color: '#6b7280' }}>الحسم التلقائي: </span><span style={{ fontWeight: 700, color: '#dc2626' }}>{repInfo.deduction} درجة</span></div>
+                {filteredStudents.length === 0 && <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af' }}>لا توجد نتائج</div>}
               </div>
-              {repInfo.procedures.length > 0 && (
-                <div style={{ marginTop: '8px' }}>
-                  <span style={{ fontSize: '13px', color: '#6b7280' }}>الإجراءات:</span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                    {repInfo.procedures.map((p, i) => (
-                      <span key={i} style={{ padding: '2px 8px', background: '#dbeafe', color: '#1e40af', fontSize: '12px', borderRadius: '4px' }}>{p}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            </>
           )}
-          {batchMode && selectedStudents.length > 1 && (
-            <div style={{ background: '#eff6ff', borderRadius: '8px', padding: '10px 16px', border: '1px solid #bfdbfe', fontSize: '13px', color: '#1e40af' }}>
-              <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>groups</span> تم اختيار <strong>{selectedStudents.length}</strong> طالب — سيتم حساب مستوى التكرار لكل طالب تلقائياً عند الحفظ
-            </div>
-          )}
-
-          {/* Description */}
-          <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '4px' }}>وصف المخالفة {!batchMode && '*'}</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
-              placeholder="وصف المخالفة..."
-              style={{ width: '100%', padding: '10px 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }} />
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '4px' }}>ملاحظات</label>
-            <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="ملاحظات إضافية (اختياري)"
-              style={{ width: '100%', height: '40px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', boxSizing: 'border-box' }} />
-          </div>
         </div>
+      )}
 
-        {/* Footer */}
-        <div style={{ padding: '16px 24px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '12px', color: '#9ca3af' }}>
-            {batchMode ? `${selectedStudents.length} طالب محدد` : (selectedStudent ? selectedStudent.name : 'لم يتم اختيار طالب')}
-          </span>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button onClick={onClose} style={{ padding: '8px 16px', color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer' }}>إلغاء</button>
-            <button onClick={handleSave} disabled={saving} style={{
-              padding: '8px 24px', background: '#dc2626', color: '#fff',
-              borderRadius: '8px', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: saving ? 0.7 : 1,
-            }}>
-              {saving ? 'جاري التسجيل...' : batchMode ? `تسجيل لـ ${selectedStudents.length} طالب` : 'تسجيل المخالفة'}
-            </button>
-          </div>
+      {/* Violation Type Tabs */}
+      <div>
+        <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>نوع المخالفة</label>
+        <div style={{ display: 'flex', gap: '0', borderRadius: '12px', overflow: 'hidden', border: '2px solid #e5e7eb' }}>
+          {[
+            { key: 'InPerson', label: 'حضورية', icon: 'apartment', color: '#4f46e5', bg: '#eef2ff' },
+            { key: 'Digital', label: 'رقمية', icon: 'laptop', color: '#0891b2', bg: '#ecfeff' },
+            { key: 'Educational', label: 'تجاه الهيئة', icon: 'school', color: '#e11d48', bg: '#fff1f2' },
+          ].map((t) => (
+            <button key={t.key} onClick={() => setViolationType(t.key)} style={{
+              flex: 1, padding: '10px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              background: violationType === t.key ? t.bg : '#fff',
+              color: violationType === t.key ? t.color : '#6b7280',
+              fontWeight: 700, fontSize: '13px',
+              borderBottom: violationType === t.key ? `3px solid ${t.color}` : '3px solid transparent',
+            }}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>{t.icon}</span> {t.label}</button>
+          ))}
         </div>
       </div>
-    </div>
+
+      {/* Degree */}
+      <div>
+        <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>درجة المخالفة *</label>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {[1, 2, 3, 4, 5].map((d) => {
+            const info = DEGREE_LABELS[d];
+            const isActive = degree === d;
+            return (
+              <button key={d} onClick={() => { setDegree(d); setSelectedViolCode(''); setDescription(''); }} style={{
+                flex: 1, padding: '10px 8px', borderRadius: '8px', fontFamily: 'inherit',
+                background: isActive ? info.bg : '#f9fafb',
+                color: isActive ? info.color : '#6b7280',
+                border: isActive ? `2px solid ${info.color}` : '1px solid #e5e7eb',
+                fontWeight: 700, cursor: 'pointer', fontSize: '13px',
+              }}>{info.label}</button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Violation Text from catalog */}
+      {filteredViolTypes.length > 0 && (
+        <div>
+          <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>نص المخالفة (من اللائحة)</label>
+          <select value={selectedViolCode} onChange={(e) => {
+            setSelectedViolCode(e.target.value);
+            const vt = filteredViolTypes.find((t) => t.code === e.target.value);
+            if (vt) setDescription(vt.description);
+          }}
+            style={{ width: '100%', height: '40px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', background: '#fff', boxSizing: 'border-box' }}>
+            <option value="">اختر من القائمة...</option>
+            {filteredViolTypes.map((t) => (
+              <option key={t.id} value={t.code}>{t.code} - {t.description}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Repetition Info (single mode only) */}
+      {!batchMode && repInfo && (
+        <div style={{ background: repInfo.nextRepetition > 1 ? '#fff7ed' : '#eff6ff', borderRadius: '8px', padding: '12px 16px', border: `1px solid ${repInfo.nextRepetition > 1 ? '#fed7aa' : '#bfdbfe'}` }}>
+          {repInfo.nextRepetition > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: '#c2410c', fontWeight: 700, fontSize: '14px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>warning</span> تنبيه تكرار! هذه المخالفة تكررت للمرة {repInfo.nextRepetition}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '24px', fontSize: '14px' }}>
+            <div><span style={{ color: '#6b7280' }}>التكرار: </span><span style={{ fontWeight: 700, color: '#1e40af' }}>{repInfo.nextRepetition}</span></div>
+            <div><span style={{ color: '#6b7280' }}>الحسم التلقائي: </span><span style={{ fontWeight: 700, color: '#dc2626' }}>{repInfo.deduction} درجة</span></div>
+          </div>
+          {repInfo.procedures.length > 0 && (
+            <div style={{ marginTop: '8px' }}>
+              <span style={{ fontSize: '13px', color: '#6b7280' }}>الإجراءات:</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                {repInfo.procedures.map((p, i) => (
+                  <span key={i} style={{ padding: '2px 8px', background: '#dbeafe', color: '#1e40af', fontSize: '12px', borderRadius: '4px' }}>{p}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {batchMode && batchStudents.length > 1 && (
+        <div style={{ background: '#eff6ff', borderRadius: '8px', padding: '10px 16px', border: '1px solid #bfdbfe', fontSize: '13px', color: '#1e40af' }}>
+          <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>groups</span> تم اختيار <strong>{batchStudents.length}</strong> طالب — سيتم حساب مستوى التكرار لكل طالب تلقائياً عند الحفظ
+        </div>
+      )}
+
+      {/* Description */}
+      <div>
+        <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '4px' }}>وصف المخالفة {!batchMode && '*'}</label>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+          placeholder="وصف المخالفة..."
+          style={{ width: '100%', padding: '10px 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }} />
+      </div>
+
+      {/* Notes */}
+      <div>
+        <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '4px' }}>ملاحظات</label>
+        <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="ملاحظات إضافية (اختياري)"
+          style={{ width: '100%', height: '40px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', boxSizing: 'border-box' }} />
+      </div>
+    </InputModal>
   );
 };
 
