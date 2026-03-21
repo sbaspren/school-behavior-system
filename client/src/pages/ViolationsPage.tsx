@@ -694,7 +694,7 @@ const ApprovedTab: React.FC<{
     const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
     const degLabel: Record<number, string> = { 1: 'الأولى', 2: 'الثانية', 3: 'الثالثة', 4: 'الرابعة', 5: 'الخامسة' };
     const rows: ListReportRow[] = sent.map((r, i) => ({
-      cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, `${r.grade} (${r.className})`, r.description, degLabel[r.degree] || String(r.degree), toIndic(r.hijriDate || ''), '<span style="color:green;font-weight:bold">تم</span>'],
+      cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, formatClass(r.grade, r.className, r.stage), r.description, degLabel[r.degree] || String(r.degree), toIndic(r.hijriDate || ''), '<span style="color:green;font-weight:bold">تم</span>'],
     }));
     printListReport({
       title: 'تقرير التواصل مع أولياء الأمور — المخالفات السلوكية',
@@ -1162,12 +1162,12 @@ const PositiveTab: React.FC<{ stageFilter: string; schoolSettings: Record<string
           sorted.forEach((r, i) => {
             const key = `${r.grade} / ${r.className}`;
             if (key !== lastKey) { printRows.push({ cells: [], isGroupHeader: true, groupLabel: key }); lastKey = key; }
-            printRows.push({ cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, r.grade, String(r.className), r.behaviorType, `<span style="font-weight:bold;color:#059669">${r.degree || '-'}</span>`, r.recordedBy] });
+            printRows.push({ cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, formatClass(r.grade, String(r.className), r.stage), r.behaviorType, `<span style="font-weight:bold;color:#059669">${r.degree || '-'}</span>`, r.recordedBy] });
           });
           printListReport({ title: titleText, dateText: hijri, statsBar: `عدد السجلات: ${toIndic(filtered.length)}`, headers: [
-            { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '25%' }, { label: 'الصف', width: '12%' },
-            { label: 'الفصل', width: '8%' }, { label: 'السلوك المتمايز', width: '25%' }, { label: 'الدرجة', width: '8%' },
-            { label: 'المعلم', width: '15%' },
+            { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '25%' }, { label: 'الصف', width: '10%' },
+            { label: 'السلوك المتمايز', width: '30%' }, { label: 'الدرجة', width: '10%' },
+            { label: 'المعلم', width: '18%' },
           ], rows: printRows }, schoolSettings as any);
         }} style={{ padding: '6px 12px', background: '#059669', color: '#fff', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
           <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة

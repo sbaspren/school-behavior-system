@@ -6,7 +6,7 @@ import InputModal from '../components/shared/InputModal';
 import StudentSelector from '../components/shared/StudentSelector';
 import { SETTINGS_STAGES } from '../utils/constants';
 import { printListReport, ListReportRow } from '../utils/printTemplates';
-import { toIndic } from '../utils/printUtils';
+import { toIndic, formatClass } from '../utils/printUtils';
 
 const THEME = '#10b981'; // emerald-500
 
@@ -150,7 +150,7 @@ const PositiveBehaviorPage: React.FC = () => {
       const key = r.grade + r.className;
       if (key !== lastKey && i > 0) rows.push({ cells: [], isSeparator: true });
       lastKey = key;
-      rows.push({ cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, r.grade, String(r.className), r.behaviorType, `<span style="font-weight:bold;color:#059669">${r.degree || '-'}</span>`, r.details || '-', r.recordedBy || '-'] });
+      rows.push({ cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, formatClass(r.grade, String(r.className), r.stage), r.behaviorType, `<span style="font-weight:bold;color:#059669">${r.degree || '-'}</span>`, r.details || '-', r.recordedBy || '-'] });
     });
     printListReport({
       title,
@@ -158,8 +158,8 @@ const PositiveBehaviorPage: React.FC = () => {
       statsBar: `${toIndic(sorted.length)} سجل | ${stageName(currentStage)}`,
       headers: [
         { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '22%' }, { label: 'الصف', width: '10%' },
-        { label: 'الفصل', width: '8%' }, { label: 'السلوك المتمايز', width: '22%' }, { label: 'الدرجة', width: '8%' },
-        { label: 'التفاصيل', width: '15%' }, { label: 'المعلم', width: '10%' },
+        { label: 'السلوك المتمايز', width: '25%' }, { label: 'الدرجة', width: '8%' },
+        { label: 'التفاصيل', width: '18%' }, { label: 'المعلم', width: '12%' },
       ],
       rows,
     }, schoolSettings as any);

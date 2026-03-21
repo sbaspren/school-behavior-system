@@ -12,7 +12,7 @@ import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { SETTINGS_STAGES } from '../utils/constants';
 import { printListReport, ListReportRow } from '../utils/printTemplates';
-import { toIndic } from '../utils/printUtils';
+import { toIndic, formatClass } from '../utils/printUtils';
 
 // ═══════════════════════════════════════════════════════════
 // Constants — مطابقة لـ JS_Attendance.html سطر 13-17
@@ -205,7 +205,7 @@ const LateTab: React.FC<{ records: LateRow[]; onRefresh: () => void; onAdd: () =
     const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
     const rows: ListReportRow[] = records.map((r, i) => {
       const tt = TARDINESS_TYPES[r.tardinessType] || { label: r.tardinessType };
-      return { cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, `${r.grade} / ${r.className}`, toIndic(r.hijriDate || ''), tt.label, r.period || '-'] };
+      return { cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, formatClass(r.grade, r.className, r.stage), toIndic(r.hijriDate || ''), tt.label, r.period || '-'] };
     });
     printListReport({
       title: 'سجل المتأخرين',
@@ -317,7 +317,7 @@ const PermissionTab: React.FC<{ records: PermRow[]; onRefresh: () => void; onAdd
   const handlePrint = () => {
     const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
     const rows: ListReportRow[] = records.map((r, i) => ({
-      cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, `${r.grade} / ${r.className}`, toIndic(r.hijriDate || ''), r.exitTime || '-', r.reason || '-', r.receiver || '-'],
+      cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, formatClass(r.grade, r.className, r.stage), toIndic(r.hijriDate || ''), r.exitTime || '-', r.reason || '-', r.receiver || '-'],
     }));
     printListReport({
       title: 'سجل المستأذنين',
@@ -430,9 +430,9 @@ const ArchiveTab: React.FC<{ stageId: string | null; schoolSettings: Record<stri
     const rows: ListReportRow[] = archiveRecords.map((r: any, i: number) => {
       if (isLate) {
         const tt = TARDINESS_TYPES[r.tardinessType] || { label: r.tardinessType || '' };
-        return { cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, `${r.grade} / ${r.className}`, toIndic(r.hijriDate || ''), tt.label, r.period || '-', r.recordedBy || ''] };
+        return { cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, formatClass(r.grade, r.className, r.stage), toIndic(r.hijriDate || ''), tt.label, r.period || '-', r.recordedBy || ''] };
       }
-      return { cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, `${r.grade} / ${r.className}`, toIndic(r.hijriDate || ''), r.exitTime || '-', r.reason || '-', r.receiver || '-'] };
+      return { cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, formatClass(r.grade, r.className, r.stage), toIndic(r.hijriDate || ''), r.exitTime || '-', r.reason || '-', r.receiver || '-'] };
     });
     printListReport({ title, dateText: hijri, statsBar: `إجمالي السجلات: ${toIndic(archiveRecords.length)}`, headers: hdrs, rows }, schoolSettings as any);
   };
