@@ -1092,7 +1092,7 @@ const PositiveTab: React.FC<{ stageFilter: string; schoolSettings: Record<string
   }, [stageFilter]);
 
   const filtered = useMemo(() => {
-    let list = records;
+    let list = records.filter((r) => r.behaviorType !== 'سلوك تعويضي');
     if (gradeFilter) list = list.filter((r) => r.grade === gradeFilter);
     if (classFilter) list = list.filter((r) => r.className === classFilter);
     if (search) {

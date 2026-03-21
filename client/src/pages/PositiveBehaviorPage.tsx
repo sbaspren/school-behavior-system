@@ -105,7 +105,7 @@ const PositiveBehaviorPage: React.FC = () => {
   }, [records, gradeFilter]);
 
   const filtered = useMemo(() => {
-    let list = records;
+    let list = records.filter(r => r.behaviorType !== 'سلوك تعويضي');
     if (search.trim()) list = list.filter(r => r.studentName.includes(search.trim()) || r.studentNumber.includes(search.trim()));
     if (gradeFilter) list = list.filter(r => r.grade === gradeFilter);
     if (classFilter) list = list.filter(r => r.className === classFilter);
