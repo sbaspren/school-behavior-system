@@ -202,7 +202,7 @@ const ViolationsPage: React.FC = () => {
         <PositiveTab stageFilter={stageFilter} schoolSettings={schoolSettings} />
       )}
       {activeTab === 'compensation' && (
-        <CompensationTab violations={filteredByStage} stageFilter={stageFilter} />
+        <CompensationTab violations={filteredByStage} stageFilter={stageFilter} schoolSettings={schoolSettings} />
       )}
       {activeTab === 'reports' && (
         <ReportsTab violations={filteredByStage} stageFilter={stageFilter} schoolSettings={schoolSettings} />
@@ -1303,7 +1303,8 @@ const COMPENSATION_BEHAVIORS = [
 const CompensationTab: React.FC<{
   violations: ViolationRow[];
   stageFilter: string;
-}> = ({ violations, stageFilter }) => {
+  schoolSettings: Record<string, string>;
+}> = ({ violations, stageFilter, schoolSettings }) => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'compensated'>('all');
   const [gradeFilter, setGradeFilter] = useState('');
@@ -1395,6 +1396,31 @@ const CompensationTab: React.FC<{
     finally { setSaving(false); }
   };
 
+  const handlePrint = () => {
+    if (filtered.length === 0) { showError('لا يوجد بيانات للطباعة'); return; }
+    const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
+    const rows: ListReportRow[] = filtered.map((v, i) => {
+      const deg = DEGREE_LABELS[v.degree] || DEGREE_LABELS[1];
+      const isComp = compensatedSet.has(v.id);
+      return { cells: [
+        toIndic(i + 1), `<strong>${v.studentName}</strong>`, formatClass(v.grade, v.className, v.stage),
+        v.description, deg.label, toIndic(v.deduction), toIndic(v.hijriDate || ''),
+        isComp ? '<span style="color:#059669;font-weight:bold">تم التعويض</span>' : '<span style="color:#ea580c">بانتظار</span>',
+      ] };
+    });
+    printListReport({
+      title: 'سجل درجات التعويض',
+      dateText: hijri,
+      statsBar: `مخالفات بحسم: ${toIndic(eligibleViolations.length)} | إجمالي النقاط: ${toIndic(totalPoints)} | تم التعويض: ${toIndic(compensatedCount)} | بانتظار: ${toIndic(pendingCount)}`,
+      headers: [
+        { label: 'م', width: '4%' }, { label: 'الطالب', width: '22%' }, { label: 'الصف', width: '8%' },
+        { label: 'المخالفة', width: '20%' }, { label: 'الدرجة', width: '8%' }, { label: 'الحسم', width: '7%' },
+        { label: 'التاريخ', width: '13%' }, { label: 'الحالة', width: '12%' },
+      ],
+      rows,
+    }, schoolSettings as any);
+  };
+
   if (loadingPos) return <div style={{ textAlign: 'center', padding: '40px' }}><div className="spinner" /></div>;
 
   return (
@@ -1431,6 +1457,9 @@ const CompensationTab: React.FC<{
             }}>{f.label}</button>
           ))}
         </div>
+        <button onClick={handlePrint} style={{ padding: '6px 16px', background: '#4f46e5', color: '#fff', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
+          <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة
+        </button>
       </div>
 
       <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px' }}>
