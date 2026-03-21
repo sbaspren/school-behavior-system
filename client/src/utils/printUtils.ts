@@ -128,17 +128,17 @@ export function buildLetterheadHtml(settings: {
 /** CSS مشترك لصفحات الطباعة A4 */
 export function getSharedPrintCSS(): string {
   return getLetterheadTableCSS() + `
-@page{size:A4 portrait;margin:10mm 12mm}
-body{margin:0;padding:0;font-family:'Traditional Arabic','Amiri',serif;font-size:16pt;line-height:1.2;direction:rtl;background:white;color:#000;box-sizing:border-box}
+@page{size:A4 portrait;margin:5mm}
+body{margin:0;padding:0;font-family:'Traditional Arabic','Amiri',serif;font-size:14pt;line-height:1.4;direction:rtl;background:white;color:#000;box-sizing:border-box}
 .main-table{width:100%;max-width:100%;margin:0 auto;border-collapse:collapse}
 .main-table thead{display:table-header-group}
 .main-table tfoot{display:table-footer-group}
 .header-cell{border:none;padding:0}
 .form-title{text-align:center;font-size:17pt;font-weight:bold;font-family:'Amiri',serif;color:#000;margin:5mm 0 3mm;line-height:1.4}
-.form-subtitle{text-align:center;font-size:14pt;color:#444;margin-bottom:2mm}
-.form-date{text-align:center;font-size:12pt;color:#666;margin-bottom:4mm}
-.col-header{border:1px solid #000;padding:4px 5px;text-align:center;vertical-align:middle;background:#f2f2f2;font-weight:bold;font-size:13pt}
-.data-cell{border:1px solid #000;padding:4px 5px;text-align:center;vertical-align:middle;font-size:13pt}
+.form-subtitle{text-align:center;font-size:13pt;color:#555;margin-bottom:6mm;font-family:'Amiri',serif}
+.form-date{text-align:center;font-size:13pt;color:#555;margin-bottom:4mm;font-family:'Amiri',serif}
+.col-header{border:1px solid #000;padding:7px 5px;text-align:center;vertical-align:middle;background:#f2f2f2;font-weight:bold;font-size:12pt}
+.data-cell{border:1px solid #000;padding:7px 5px;text-align:center;vertical-align:middle;font-size:13pt}
 .name-cell{border:1px solid #000;padding:4px 8px 4px 5px;text-align:right;font-weight:bold;white-space:nowrap;font-size:13pt}
 .detail-cell{border:1px solid #000;padding:4px 8px 4px 5px;text-align:right;font-size:12pt}
 .sep-row td{background:#eee;height:3px;padding:0!important;border-left:none;border-right:none;border-top:2px solid #333;border-bottom:none}
