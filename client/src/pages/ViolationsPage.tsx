@@ -16,7 +16,7 @@ import ActionIcon from '../components/shared/ActionIcon';
 import InputModal from '../components/shared/InputModal';
 import StudentSelector from '../components/shared/StudentSelector';
 import { printForm, printListReport, PrintFormData, ListReportRow, FormId as PrintFormId } from '../utils/printTemplates';
-import { toIndic } from '../utils/printUtils';
+import { toIndic, formatClass } from '../utils/printUtils';
 
 const DEGREE_LABELS: Record<number, { label: string; color: string; bg: string }> = {
   1: { label: 'الأولى', color: '#15803d', bg: '#dcfce7' },
@@ -631,7 +631,7 @@ const ApprovedTab: React.FC<{
       const deg = DEGREE_LABELS[r.degree] || DEGREE_LABELS[1];
       const classKey = `${r.grade} (${r.className})`;
       if (classKey !== prevClass) { rows.push({ cells: [], isGroupHeader: true, groupLabel: classKey }); prevClass = classKey; }
-      rows.push({ cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, `${r.grade} / ${r.className}`, r.description, deg.label, toIndic(r.deduction), toIndic(r.hijriDate || ''), r.isSent ? '<span style="color:green;font-weight:bold">تم</span>' : '<span style="color:#999">لا</span>'] });
+      rows.push({ cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, formatClass(r.grade, r.className, r.stage), r.description, deg.label, toIndic(r.deduction), toIndic(r.hijriDate || ''), r.isSent ? '<span style="color:green;font-weight:bold">تم</span>' : '<span style="color:#999">لا</span>'] });
     });
     printListReport({
       title: 'سجل المخالفات التراكمي',
