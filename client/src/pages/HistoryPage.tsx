@@ -2,7 +2,10 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { violationsApi } from '../api/violations';
 import { positiveBehaviorApi } from '../api/positiveBehavior';
 import { studentsApi } from '../api/students';
+import { settingsApi } from '../api/settings';
 import { SETTINGS_STAGES } from '../utils/constants';
+import { printListReport, ListReportRow } from '../utils/printTemplates';
+import { toIndic, escapeHtml } from '../utils/printUtils';
 
 // ═══════════════════════════════════════════════════════════════
 // صفحة سجل السلوك والمخالفات — مطابقة لـ JS_History.html
@@ -45,9 +48,6 @@ const sortGrade = (a: string, b: string) => {
   return (iA === -1 ? 99 : iA) - (iB === -1 ? 99 : iB);
 };
 
-const toIndic = (n: string | number) =>
-  String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
-
 const formatClassShort = (grade: string, cls: string, stage: string) => {
   let g = '';
   if (grade.includes('أول') || grade.includes('اول')) g = '1';
@@ -70,6 +70,7 @@ const HistoryPage: React.FC = () => {
   const [posRecords, setPosRecords] = useState<PosRecord[]>([]);
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [schoolSettings, setSchoolSettings] = useState<Record<string, string>>({});
 
   // Filters
   const [stageFilter, setStageFilter] = useState('__all__');
@@ -82,14 +83,16 @@ const HistoryPage: React.FC = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [vRes, pRes, sRes] = await Promise.all([
+      const [vRes, pRes, sRes, seRes] = await Promise.all([
         violationsApi.getAll(),
         positiveBehaviorApi.getAll(),
         studentsApi.getAll(),
+        settingsApi.getSettings(),
       ]);
       if (vRes.data?.data) setViolations(vRes.data.data);
       if (pRes.data?.data) setPosRecords(pRes.data.data);
       if (sRes.data?.data) setStudents(sRes.data.data);
+      if (seRes.data?.data) setSchoolSettings(seRes.data.data);
     } catch { /* empty */ }
     finally { setLoading(false); }
   }, []);
@@ -194,73 +197,29 @@ const HistoryPage: React.FC = () => {
     const title = `سجل السلوك والمواظبة - ${gradeFilter || 'الكل'} ${classFilter ? '/ ' + classFilter : ''}`;
     const hijriToday = toIndic(new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura'));
 
-    // Group by student for rowspan
-    let rows = '';
-    let i = 0;
-    let counter = 1;
-    const sorted = filteredViolations;
-
-    while (i < sorted.length) {
-      const rec = sorted[i];
-      const normName = rec.studentName.replace(/[أإآ]/g, 'ا').trim();
-      let rowspan = 1;
-      for (let j = i + 1; j < sorted.length; j++) {
-        const nn = sorted[j].studentName.replace(/[أإآ]/g, 'ا').trim();
-        if (nn === normName && sorted[j].grade === rec.grade && sorted[j].className === rec.className) rowspan++;
-        else break;
-      }
-
+    let lastStudent = '';
+    const rows: ListReportRow[] = [];
+    filteredViolations.forEach((rec, idx) => {
       const cls = formatClassShort(rec.grade, rec.className, rec.stage);
-      const deg = toIndic(rec.degree);
-      const dt = toIndic(rec.hijriDate || '');
-      const procs = toIndic(rec.procedures || '').replace(/\n/g, '<br>').replace(/ - /g, '<br>- ');
-
-      rows += `<tr>
-        <td rowspan="${rowspan}" style="font-weight:bold">${toIndic(counter)}</td>
-        <td rowspan="${rowspan}" style="text-align:right;font-weight:bold">${rec.studentName}</td>
-        <td rowspan="${rowspan}">${cls}</td>
-        <td style="text-align:right">${rec.description || ''}</td>
-        <td>${deg}</td>
-        <td style="white-space:nowrap">${dt}</td>
-        <td style="text-align:right;font-size:10pt;line-height:1.3">${procs}</td>
-      </tr>`;
-
-      for (let k = 1; k < rowspan; k++) {
-        const nr = sorted[i + k];
-        rows += `<tr>
-          <td style="text-align:right">${nr.description || ''}</td>
-          <td>${toIndic(nr.degree)}</td>
-          <td style="white-space:nowrap">${toIndic(nr.hijriDate || '')}</td>
-          <td style="text-align:right;font-size:10pt;line-height:1.3">${toIndic(nr.procedures || '').replace(/\n/g, '<br>')}</td>
-        </tr>`;
+      const studentKey = `${rec.studentName} — ${cls}`;
+      if (studentKey !== lastStudent) {
+        rows.push({ cells: [], isGroupHeader: true, groupLabel: studentKey });
+        lastStudent = studentKey;
       }
+      const procs = toIndic(rec.procedures || '').replace(/\n/g, '<br>').replace(/ - /g, '<br>- ');
+      rows.push({ cells: [toIndic(idx + 1), escapeHtml(rec.description || ''), toIndic(rec.degree), toIndic(rec.hijriDate || ''), procs] });
+    });
 
-      i += rowspan;
-      counter++;
-    }
-
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>سجل السلوك</title>
-      <style>@page{size:A4 portrait;margin:10mm}body{font-family:'Traditional Arabic',Tahoma,serif;margin:0;padding:15px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-      table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #000;padding:4px;font-size:12pt;text-align:center;word-wrap:break-word;vertical-align:middle}
-      th{background:#f0f0f0;font-weight:bold;font-size:13pt}thead{display:table-header-group}</style></head>
-      <body><table>
-        <colgroup><col style="width:5%"><col style="width:18%"><col style="width:7%"><col style="width:25%"><col style="width:5%"><col style="width:12%"><col style="width:28%"></colgroup>
-        <thead>
-          <tr><th colspan="7" style="border:none;padding-bottom:10px;background:none">
-            <div style="text-align:center;font-size:18pt;font-weight:bold;margin:5px 0">${title}</div>
-            <div style="text-align:center;font-size:12pt">تاريخ الطباعة: ${hijriToday}</div>
-          </th></tr>
-          <tr><th>م</th><th>اسم الطالب</th><th>الصف</th><th>المخالفة السلوكية</th><th>د</th><th>التاريخ</th><th>الإجراءات المتخذة</th></tr>
-        </thead>
-        <tbody>${rows}</tbody>
-        <tfoot><tr><td colspan="7" style="border:none;text-align:left;padding-top:30px">
-          <div style="display:inline-block;text-align:center;font-size:14pt;font-weight:bold">وكيل شؤون الطلاب<br><br>....................................</div>
-        </td></tr></tfoot>
-      </table></body></html>`);
-    win.document.close();
-    setTimeout(() => { win.focus(); win.print(); }, 400);
+    printListReport({
+      title,
+      dateText: `تاريخ الطباعة: ${hijriToday}`,
+      statsBar: `إجمالي المخالفات: ${toIndic(filteredViolations.length)}`,
+      headers: [
+        { label: 'م', width: '5%' }, { label: 'المخالفة السلوكية', width: '30%' },
+        { label: 'د', width: '5%' }, { label: 'التاريخ', width: '15%' }, { label: 'الإجراءات المتخذة', width: '35%' },
+      ],
+      rows,
+    }, schoolSettings as any);
   };
 
   // ═══ Detail Modal ═══

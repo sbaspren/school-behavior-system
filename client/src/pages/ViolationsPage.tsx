@@ -15,6 +15,8 @@ import EmptyState from '../components/shared/EmptyState';
 import ActionIcon from '../components/shared/ActionIcon';
 import InputModal from '../components/shared/InputModal';
 import StudentSelector from '../components/shared/StudentSelector';
+import { printForm, printListReport, PrintFormData, ListReportRow, FormId as PrintFormId } from '../utils/printTemplates';
+import { toIndic } from '../utils/printUtils';
 
 const DEGREE_LABELS: Record<number, { label: string; color: string; bg: string }> = {
   1: { label: 'الأولى', color: '#15803d', bg: '#dcfce7' },
@@ -89,6 +91,7 @@ const ViolationsPage: React.FC = () => {
   const [violations, setViolations] = useState<ViolationRow[]>([]);
   const [stages, setStages] = useState<StageConfigData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [schoolSettings, setSchoolSettings] = useState<Record<string, string>>({});
   const [stageFilter, setStageFilter] = useState('__all__');
   const [activeTab, setActiveTab] = useState<TabType>('today');
   const [modalOpen, setModalOpen] = useState(false);
@@ -101,12 +104,14 @@ const ViolationsPage: React.FC = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [vRes, sRes] = await Promise.all([
+      const [vRes, sRes, seRes] = await Promise.all([
         violationsApi.getAll(),
         settingsApi.getStructure(),
+        settingsApi.getSettings(),
       ]);
       if (vRes.data?.data) setViolations(vRes.data.data);
       if (sRes.data?.data?.stages) setStages(Array.isArray(sRes.data.data.stages) ? sRes.data.data.stages : []);
+      if (seRes.data?.data) setSchoolSettings(seRes.data.data);
     } catch { /* empty */ }
     finally { setLoading(false); }
   }, []);
@@ -188,19 +193,19 @@ const ViolationsPage: React.FC = () => {
 
       {/* Tab Content */}
       {activeTab === 'today' && (
-        <TodayTab violations={todayViolations} allViolations={filteredByStage} onRefresh={loadData} stageFilter={stageFilter} onAdd={() => setModalOpen(true)} />
+        <TodayTab violations={todayViolations} allViolations={filteredByStage} onRefresh={loadData} stageFilter={stageFilter} onAdd={() => setModalOpen(true)} schoolSettings={schoolSettings} />
       )}
       {activeTab === 'approved' && (
-        <ApprovedTab violations={filteredByStage} onRefresh={loadData} />
+        <ApprovedTab violations={filteredByStage} onRefresh={loadData} schoolSettings={schoolSettings} />
       )}
       {activeTab === 'positive' && (
-        <PositiveTab stageFilter={stageFilter} />
+        <PositiveTab stageFilter={stageFilter} schoolSettings={schoolSettings} />
       )}
       {activeTab === 'compensation' && (
         <CompensationTab violations={filteredByStage} stageFilter={stageFilter} />
       )}
       {activeTab === 'reports' && (
-        <ReportsTab violations={filteredByStage} stageFilter={stageFilter} />
+        <ReportsTab violations={filteredByStage} stageFilter={stageFilter} schoolSettings={schoolSettings} />
       )}
 
       {/* Add Modal */}
@@ -224,7 +229,8 @@ const TodayTab: React.FC<{
   onRefresh: () => void;
   stageFilter: string;
   onAdd: () => void;
-}> = ({ violations, allViolations, onRefresh, stageFilter, onAdd }) => {
+  schoolSettings: Record<string, string>;
+}> = ({ violations, allViolations, onRefresh, stageFilter, onAdd, schoolSettings }) => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState('');
   const [degreeFilter, setDegreeFilter] = useState(0);
@@ -333,51 +339,36 @@ const TodayTab: React.FC<{
 
   type FormType = 'تعهد' | 'إشعار' | 'محضر' | 'إحالة' | 'ضبط واقعة' | 'تعويض' | 'توثيق تواصل';
 
+  const FORM_TYPE_MAP: Record<FormType, PrintFormId> = {
+    'تعهد': 'tahood_slooki', 'إشعار': 'ishar_wali_amr', 'محضر': 'mahdar_dab_wakea',
+    'إحالة': 'ehalat_talib', 'ضبط واقعة': 'mahdar_dab_wakea', 'تعويض': 'tawid_darajat',
+    'توثيق تواصل': 'tawtheeq_tawasol',
+  };
+
   const handlePrint = (v: ViolationRow, formType: FormType) => {
-    const degreeInfo = DEGREE_LABELS[v.degree] || DEGREE_LABELS[1];
-    const pw = window.open('', '_blank');
-    if (!pw) return;
-
-    const FORM_TITLES: Record<FormType, string> = {
-      'تعهد': 'نموذج تعهد طالب',
-      'إشعار': 'إشعار ولي أمر',
-      'محضر': 'محضر مخالفة سلوكية',
-      'إحالة': 'نموذج إحالة طالب',
-      'ضبط واقعة': 'محضر ضبط واقعة',
-      'تعويض': 'نموذج فرص تعويض الدرجات',
-      'توثيق تواصل': 'توثيق تواصل مع ولي الأمر',
+    const formId = FORM_TYPE_MAP[formType];
+    const today = new Date();
+    const data: PrintFormData = {
+      studentName: v.studentName,
+      grade: `${v.grade} / ${v.className}`,
+      class: v.className,
+      violationDay: today.toLocaleDateString('ar-SA', { weekday: 'long' }),
+      violationDate: v.hijriDate || today.toLocaleDateString('ar-SA-u-ca-islamic-umalqura'),
+      violationDegree: v.degree,
+      violationText: v.description,
+      procedures: v.procedures ? v.procedures.split('\n').filter(l => l.trim()) : [],
     };
-
-    const FORM_BODY: Record<FormType, string> = {
-      'تعهد': '<p style="margin-top:30px">أتعهد أنا الطالب المذكور أعلاه بعدم تكرار هذه المخالفة والالتزام بأنظمة المدرسة.</p>',
-      'إشعار': '<p style="margin-top:30px">المكرم ولي أمر الطالب المذكور أعلاه، نود إبلاغكم بالمخالفة المسجلة ونأمل التواصل مع المدرسة.</p>',
-      'محضر': '<p style="margin-top:30px">تم استدعاء الطالب والتحقيق معه بشأن المخالفة المذكورة أعلاه، وأقر بصحة ما نُسب إليه.</p>',
-      'إحالة': '<p style="margin-top:30px">بناءً على تكرار المخالفات السلوكية، يُحال الطالب المذكور أعلاه إلى الجهة المختصة لاتخاذ الإجراءات اللازمة.</p><div style="margin-top:20px"><label style="font-weight:700">الجهة المحال إليها:</label><div style="border-bottom:1px solid #999;margin-top:10px;height:25px"></div></div>',
-      'ضبط واقعة': '<div style="margin-top:30px"><label style="font-weight:700">تفاصيل الواقعة:</label><div style="border:1px solid #ccc;border-radius:8px;min-height:80px;padding:10px;margin-top:8px">' + (v.notes || v.description) + '</div></div><div style="margin-top:16px"><label style="font-weight:700">الشهود:</label><div style="border-bottom:1px solid #999;margin-top:10px;height:25px"></div></div>',
-      'تعويض': '<div style="margin-top:30px"><p>يُمنح الطالب المذكور أعلاه فرصة لتعويض الدرجات المحسومة وفق الآليات التالية:</p><table style="margin-top:12px"><tr><th>آلية التعويض</th><th>الدرجات المستردة</th><th>ملاحظات</th></tr><tr><td style="height:30px"></td><td></td><td></td></tr><tr><td style="height:30px"></td><td></td><td></td></tr></table></div>',
-      'توثيق تواصل': '<div style="margin-top:30px"><table><tr><th style="width:30%">طريقة التواصل</th><td>☐ هاتف  ☐ حضوري  ☐ واتساب  ☐ أخرى</td></tr><tr><th>نتيجة التواصل</th><td style="height:40px"></td></tr><tr><th>التوصيات</th><td style="height:40px"></td></tr></table></div>',
-    };
-
-    pw.document.write(`<html dir="rtl"><head><title>${FORM_TITLES[formType]}</title>
-      <style>body{font-family:Tahoma,'IBM Plex Sans Arabic',Arial;padding:40px;direction:rtl}h2{text-align:center;margin-bottom:30px}table{width:100%;border-collapse:collapse;margin:20px 0}td,th{border:1px solid #333;padding:10px;text-align:right}th{background:#f0f0f0}.signature{margin-top:60px;display:flex;justify-content:space-between}.signature div{text-align:center;width:30%}.signature div span{display:block;margin-top:40px;border-top:1px solid #333;padding-top:5px}@media print{body{padding:20px}}</style></head><body>
-      <h2>${FORM_TITLES[formType]}</h2>
-      <table>
-        <tr><th>اسم الطالب</th><td>${v.studentName}</td><th>رقم الطالب</th><td>${v.studentNumber}</td></tr>
-        <tr><th>الصف</th><td>${v.grade}</td><th>الفصل</th><td>${v.className}</td></tr>
-        <tr><th>المخالفة</th><td colspan="3">${v.description}</td></tr>
-        <tr><th>الدرجة</th><td>${degreeInfo.label}</td><th>الحسم</th><td>${v.deduction} درجة</td></tr>
-        <tr><th>الإجراءات</th><td colspan="3">${v.procedures}</td></tr>
-        <tr><th>التاريخ</th><td>${v.hijriDate}</td><th>الملاحظات</th><td>${v.notes || '-'}</td></tr>
-      </table>
-      ${FORM_BODY[formType]}
-      <div class="signature">
-        <div>الطالب<span>التوقيع</span></div>
-        <div>ولي الأمر<span>التوقيع</span></div>
-        <div>وكيل شؤون الطلاب<span>التوقيع</span></div>
-      </div>
-      </body></html>`);
-    pw.document.close();
-    pw.print();
+    // تعويض درجات
+    if (formType === 'تعويض') {
+      data.violationInfo = { name: v.description, degree: String(v.degree), date: v.hijriDate, points: String(v.deduction) };
+    }
+    // توثيق تواصل
+    if (formType === 'توثيق تواصل') {
+      data.contactType = 'مخالفة سلوكية';
+      data.contactReason = v.description;
+      data.contactResult = v.isSent ? 'تم التواصل' : 'لم يتم الإرسال';
+    }
+    printForm(formId, data, schoolSettings as any);
   };
 
   const handleExport = async () => {
@@ -396,24 +387,27 @@ const TodayTab: React.FC<{
   // طباعة مخالفات اليوم (printTodayViolations)
   const handlePrintToday = () => {
     if (filtered.length === 0) return;
-    const toIndic = (n: string | number) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
     const today = new Date();
     const hijri = today.toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
-    const miladi = today.toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' });
     const dayName = today.toLocaleDateString('ar-SA', { weekday: 'long' });
     const sorted = [...filtered].sort((a, b) => `${a.grade}${a.className}`.localeCompare(`${b.grade}${b.className}`) || a.studentName.localeCompare(b.studentName, 'ar'));
     let lastKey = '';
-    const rows = sorted.map((v, i) => {
-      const key = `${v.grade}${v.className}`;
-      const sep = key !== lastKey && i > 0 ? `<tr style="background:#f0f0f0;font-weight:700"><td colspan="7">${v.grade} / ${v.className}</td></tr>` : (i === 0 ? `<tr style="background:#f0f0f0;font-weight:700"><td colspan="7">${v.grade} / ${v.className}</td></tr>` : '');
-      lastKey = key;
-      return `${sep}<tr><td>${toIndic(i + 1)}</td><td style="font-weight:bold">${v.studentName}</td><td>${v.description}</td><td>${toIndic(v.degree)}</td><td>${v.procedures || '-'}</td><td style="color:${v.isSent ? 'green' : '#999'};font-weight:bold">${v.isSent ? 'تم' : '-'}</td></tr>`;
-    }).join('');
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write(`<html dir="rtl"><head><title>مخالفات اليوم</title><style>body{font-family:Tahoma,'IBM Plex Sans Arabic',Arial;padding:30px;direction:rtl}table{width:100%;border-collapse:collapse}td,th{border:1px solid #333;padding:8px;text-align:right}th{background:#4f46e5;color:white}h2{text-align:center}@media print{body{padding:15px}}</style></head><body><h2>سجل المخالفات السلوكية ليوم ${dayName}</h2><p style="text-align:center">${hijri} الموافق ${miladi} م</p><table><thead><tr><th style="width:5%">م</th><th style="width:28%">اسم الطالب</th><th style="width:25%">المخالفة</th><th style="width:5%">د</th><th style="width:20%">الإجراءات</th><th style="width:7%">التواصل</th></tr></thead><tbody>${rows}</tbody></table><p style="text-align:center;margin-top:10px">${toIndic(filtered.length)} مخالفة</p></body></html>`);
-    win.document.close();
-    setTimeout(() => { win.focus(); win.print(); }, 300);
+    const rows: ListReportRow[] = [];
+    sorted.forEach((v, i) => {
+      const key = `${v.grade} / ${v.className}`;
+      if (key !== lastKey) { rows.push({ cells: [], isGroupHeader: true, groupLabel: key }); lastKey = key; }
+      rows.push({ cells: [toIndic(i + 1), `<strong>${v.studentName}</strong>`, v.description, toIndic(v.degree), v.procedures || '-', v.isSent ? '<span style="color:green;font-weight:bold">تم</span>' : '<span style="color:#999">لا</span>'] });
+    });
+    printListReport({
+      title: `سجل المخالفات السلوكية ليوم ${dayName}`,
+      dateText: hijri,
+      statsBar: `إجمالي المخالفات: ${toIndic(filtered.length)}`,
+      headers: [
+        { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '28%' }, { label: 'المخالفة', width: '25%' },
+        { label: 'د', width: '5%' }, { label: 'الإجراءات', width: '20%' }, { label: 'التواصل', width: '7%' },
+      ],
+      rows,
+    }, schoolSettings as any);
   };
 
   return (
@@ -558,7 +552,7 @@ const TodayTab: React.FC<{
 
       {/* Parent Meeting Modal (دعوة ولي أمر) */}
       {dawatModal && (
-        <DawatModal violation={dawatModal} onClose={() => setDawatModal(null)} />
+        <DawatModal violation={dawatModal} onClose={() => setDawatModal(null)} schoolSettings={schoolSettings} />
       )}
 
       {/* Message Editor Modal */}
@@ -590,7 +584,8 @@ const TodayTab: React.FC<{
 const ApprovedTab: React.FC<{
   violations: ViolationRow[];
   onRefresh: () => void;
-}> = ({ violations, onRefresh }) => {
+  schoolSettings: Record<string, string>;
+}> = ({ violations, onRefresh, schoolSettings }) => {
   const [search, setSearch] = useState('');
   const [degreeFilter, setDegreeFilter] = useState(0);
   const [gradeFilter, setGradeFilter] = useState('');
@@ -628,22 +623,27 @@ const ApprovedTab: React.FC<{
   const classes = useMemo(() => Array.from(new Set(violations.filter((v) => !gradeFilter || v.grade === gradeFilter).map((v) => v.className))).sort(), [violations, gradeFilter]);
 
   const handlePrintArchive = () => {
-    const pw = window.open('', '_blank');
-    if (!pw) return;
+    const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
+    const dateRange = dateFrom || dateTo ? `الفترة: ${dateFrom || '...'} إلى ${dateTo || '...'}` : '';
     let prevClass = '';
-    const rows = allFilteredRecords.map((r, i) => {
+    const rows: ListReportRow[] = [];
+    allFilteredRecords.forEach((r, i) => {
       const deg = DEGREE_LABELS[r.degree] || DEGREE_LABELS[1];
       const classKey = `${r.grade} (${r.className})`;
-      let separator = '';
-      if (classKey !== prevClass) { prevClass = classKey; separator = `<tr style="background:#f0f0f0;font-weight:700"><td colspan="8">${classKey}</td></tr>`; }
-      return `${separator}<tr><td>${i + 1}</td><td>${r.studentName}</td><td>${r.studentNumber}</td><td>${r.description}</td><td>${deg.label}</td><td>${r.deduction}</td><td>${r.hijriDate}</td><td>${r.isSent ? 'نعم' : 'لا'}</td></tr>`;
-    }).join('');
-    const dateRange = dateFrom || dateTo ? `<p style="text-align:center">الفترة: ${dateFrom || '...'} إلى ${dateTo || '...'}</p>` : '';
-    pw.document.write(`<html dir="rtl"><head><title>سجل المخالفات التراكمي</title>
-      <style>body{font-family:Tahoma,'IBM Plex Sans Arabic',Arial;padding:30px;direction:rtl}table{width:100%;border-collapse:collapse}td,th{border:1px solid #333;padding:8px;text-align:right}th{background:#e5e7eb}h2{text-align:center}@media print{body{padding:15px}}</style></head>
-      <body><h2>سجل المخالفات التراكمي</h2>${dateRange}<p style="text-align:center">عدد السجلات: ${allFilteredRecords.length} | عدد الطلاب: ${studentGroups.length}</p>
-      <table><thead><tr><th>#</th><th>الطالب</th><th>الرقم</th><th>المخالفة</th><th>الدرجة</th><th>الحسم</th><th>التاريخ</th><th>إرسال</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
-    pw.document.close(); pw.print();
+      if (classKey !== prevClass) { rows.push({ cells: [], isGroupHeader: true, groupLabel: classKey }); prevClass = classKey; }
+      rows.push({ cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, r.studentNumber, r.description, deg.label, toIndic(r.deduction), toIndic(r.hijriDate || ''), r.isSent ? '<span style="color:green;font-weight:bold">تم</span>' : '<span style="color:#999">لا</span>'] });
+    });
+    printListReport({
+      title: 'سجل المخالفات التراكمي',
+      dateText: hijri,
+      statsBar: `عدد السجلات: ${toIndic(allFilteredRecords.length)} | عدد الطلاب: ${toIndic(studentGroups.length)}${dateRange ? ' | ' + dateRange : ''}`,
+      headers: [
+        { label: '#', width: '5%' }, { label: 'الطالب', width: '20%' }, { label: 'الرقم', width: '10%' },
+        { label: 'المخالفة', width: '20%' }, { label: 'الدرجة', width: '8%' }, { label: 'الحسم', width: '7%' },
+        { label: 'التاريخ', width: '12%' }, { label: 'إرسال', width: '8%' },
+      ],
+      rows,
+    }, schoolSettings as any);
   };
 
   // إرسال كل غير المرسلين (sendApprovedViolations)
@@ -691,15 +691,22 @@ const ApprovedTab: React.FC<{
   const handlePrintContactReport = () => {
     const sent = allFilteredRecords.filter((v) => v.isSent);
     if (sent.length === 0) { showError('لا يوجد سجلات تم إرسالها'); return; }
-    const toIndic = (n: string | number) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
     const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
     const degLabel: Record<number, string> = { 1: 'الأولى', 2: 'الثانية', 3: 'الثالثة', 4: 'الرابعة', 5: 'الخامسة' };
-    const rows = sent.map((r, i) => `<tr><td>${toIndic(i + 1)}</td><td style="font-weight:bold">${r.studentName}</td><td>${r.grade} (${r.className})</td><td>${r.description}</td><td>${degLabel[r.degree] || r.degree}</td><td>${toIndic(r.hijriDate || '')}</td><td style="color:green;font-weight:bold">تم</td></tr>`).join('');
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write(`<html dir="rtl"><head><title>تقرير التواصل</title><style>body{font-family:Tahoma,'IBM Plex Sans Arabic',Arial;padding:30px;direction:rtl}table{width:100%;border-collapse:collapse}td,th{border:1px solid #333;padding:8px;text-align:right}th{background:#e5e7eb}h2{text-align:center}@media print{body{padding:15px}}</style></head><body><h2>تقرير التواصل مع أولياء الأمور</h2><p style="text-align:center">المخالفات السلوكية — ${hijri} | عدد السجلات: ${toIndic(sent.length)}</p><table><thead><tr><th>م</th><th>اسم الطالب</th><th>الصف</th><th>المخالفة</th><th>الدرجة</th><th>التاريخ</th><th>التواصل</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
-    win.document.close();
-    setTimeout(() => { win.focus(); win.print(); }, 300);
+    const rows: ListReportRow[] = sent.map((r, i) => ({
+      cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, `${r.grade} (${r.className})`, r.description, degLabel[r.degree] || String(r.degree), toIndic(r.hijriDate || ''), '<span style="color:green;font-weight:bold">تم</span>'],
+    }));
+    printListReport({
+      title: 'تقرير التواصل مع أولياء الأمور — المخالفات السلوكية',
+      dateText: hijri,
+      statsBar: `عدد السجلات: ${toIndic(sent.length)}`,
+      headers: [
+        { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '22%' }, { label: 'الصف', width: '13%' },
+        { label: 'المخالفة', width: '22%' }, { label: 'الدرجة', width: '10%' }, { label: 'التاريخ', width: '13%' },
+        { label: 'التواصل', width: '8%' },
+      ],
+      rows,
+    }, schoolSettings as any);
   };
 
   // Bulk toggle
@@ -915,6 +922,7 @@ const ApprovedTab: React.FC<{
           violations={violations.filter((v) => v.studentId === detailStudent.studentId)}
           onClose={() => setDetailStudent(null)}
           onRefresh={onRefresh}
+          schoolSettings={schoolSettings}
         />
       )}
     </>
@@ -930,7 +938,8 @@ const StudentDetailModal: React.FC<{
   violations: ViolationRow[];
   onClose: () => void;
   onRefresh: () => void;
-}> = ({ studentName, violations, onClose, onRefresh }) => {
+  schoolSettings: Record<string, string>;
+}> = ({ studentName, violations, onClose, onRefresh, schoolSettings }) => {
   const totalDeduction = violations.reduce((s, v) => s + v.deduction, 0);
   const behaviorScore = Math.max(0, 100 - totalDeduction);
 
@@ -947,23 +956,22 @@ const StudentDetailModal: React.FC<{
   };
 
   const handlePrintAll = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    const rows = violations.map((v) => {
+    const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
+    const rows: ListReportRow[] = violations.map((v, i) => {
       const deg = DEGREE_LABELS[v.degree] || DEGREE_LABELS[1];
-      return `<tr><td>${v.hijriDate}</td><td>${v.description}</td><td>${deg.label}</td><td>${v.deduction}</td><td>${v.procedures}</td><td>${v.isSent ? 'نعم' : 'لا'}</td></tr>`;
-    }).join('');
-
-    printWindow.document.write(`
-      <html dir="rtl"><head><title>سجل مخالفات - ${studentName}</title>
-      <style>body{font-family:Tahoma,'IBM Plex Sans Arabic',Arial;padding:30px;direction:rtl}table{width:100%;border-collapse:collapse}td,th{border:1px solid #333;padding:8px;text-align:right}th{background:#f0f0f0}h2{text-align:center}@media print{body{padding:15px}}</style></head>
-      <body><h2>سجل المخالفات السلوكية</h2>
-      <p><strong>الطالب:</strong> ${studentName} | <strong>درجة السلوك:</strong> ${behaviorScore} | <strong>إجمالي الحسم:</strong> ${totalDeduction}</p>
-      <table><thead><tr><th>التاريخ</th><th>المخالفة</th><th>الدرجة</th><th>الحسم</th><th>الإجراءات</th><th>إرسال</th></tr></thead>
-      <tbody>${rows}</tbody></table></body></html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+      return { cells: [toIndic(i + 1), toIndic(v.hijriDate || ''), v.description, deg.label, toIndic(v.deduction), v.procedures || '-', v.isSent ? '<span style="color:green;font-weight:bold">تم</span>' : '<span style="color:#999">لا</span>'] };
+    });
+    printListReport({
+      title: `سجل المخالفات السلوكية — ${studentName}`,
+      dateText: hijri,
+      statsBar: `درجة السلوك: ${toIndic(behaviorScore)} | إجمالي الحسم: ${toIndic(totalDeduction)} | عدد المخالفات: ${toIndic(violations.length)}`,
+      headers: [
+        { label: 'م', width: '5%' }, { label: 'التاريخ', width: '12%' }, { label: 'المخالفة', width: '25%' },
+        { label: 'الدرجة', width: '10%' }, { label: 'الحسم', width: '8%' }, { label: 'الإجراءات', width: '25%' },
+        { label: 'إرسال', width: '8%' },
+      ],
+      rows,
+    }, schoolSettings as any);
   };
 
   return (
@@ -1065,7 +1073,7 @@ const BADGE_LEVELS = [
 
 const getBadge = (count: number) => BADGE_LEVELS.find((b) => count >= b.min) || BADGE_LEVELS[BADGE_LEVELS.length - 1];
 
-const PositiveTab: React.FC<{ stageFilter: string }> = ({ stageFilter }) => {
+const PositiveTab: React.FC<{ stageFilter: string; schoolSettings: Record<string, string> }> = ({ stageFilter, schoolSettings }) => {
   const [records, setRecords] = useState<PosRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -1146,16 +1154,21 @@ const PositiveTab: React.FC<{ stageFilter: string }> = ({ stageFilter }) => {
         </div>
         <button onClick={() => {
           if (filtered.length === 0) return;
-          const toIndic = (n: string | number) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
           const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
           const sorted = [...filtered].sort((a, b) => a.grade.localeCompare(b.grade, 'ar') || String(a.className).localeCompare(String(b.className), 'ar') || a.studentName.localeCompare(b.studentName, 'ar'));
-          const rows = sorted.map((r, i) => `<tr><td>${toIndic(i+1)}</td><td style="font-weight:bold">${r.studentName}</td><td>${r.grade}</td><td>${r.className}</td><td>${r.behaviorType}</td><td style="font-weight:bold;color:#059669">${r.degree || '-'}</td><td>${r.recordedBy}</td></tr>`).join('');
           const titleText = `سجل السلوك المتمايز${gradeFilter ? ' - ' + gradeFilter : ''}${classFilter ? ' / ' + classFilter : ''}`;
-          const win = window.open('', '_blank');
-          if (!win) return;
-          win.document.write(`<html dir="rtl"><head><title>${titleText}</title><style>body{font-family:Tahoma,'IBM Plex Sans Arabic',Arial;padding:30px;direction:rtl}table{width:100%;border-collapse:collapse}td,th{border:1px solid #333;padding:8px;text-align:right}th{background:#e5e7eb}h2{text-align:center}@media print{body{padding:15px}}</style></head><body><h2>${titleText}</h2><p style="text-align:center">${hijri} | عدد السجلات: ${toIndic(filtered.length)}</p><table><thead><tr><th style="width:5%">م</th><th style="width:25%">اسم الطالب</th><th style="width:12%">الصف</th><th style="width:8%">الفصل</th><th style="width:25%">السلوك المتمايز</th><th style="width:8%">الدرجة</th><th style="width:15%">المعلم</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
-          win.document.close();
-          setTimeout(() => win.print(), 300);
+          let lastKey = '';
+          const printRows: ListReportRow[] = [];
+          sorted.forEach((r, i) => {
+            const key = `${r.grade} / ${r.className}`;
+            if (key !== lastKey) { printRows.push({ cells: [], isGroupHeader: true, groupLabel: key }); lastKey = key; }
+            printRows.push({ cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, r.grade, String(r.className), r.behaviorType, `<span style="font-weight:bold;color:#059669">${r.degree || '-'}</span>`, r.recordedBy] });
+          });
+          printListReport({ title: titleText, dateText: hijri, statsBar: `عدد السجلات: ${toIndic(filtered.length)}`, headers: [
+            { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '25%' }, { label: 'الصف', width: '12%' },
+            { label: 'الفصل', width: '8%' }, { label: 'السلوك المتمايز', width: '25%' }, { label: 'الدرجة', width: '8%' },
+            { label: 'المعلم', width: '15%' },
+          ], rows: printRows }, schoolSettings as any);
         }} style={{ padding: '6px 12px', background: '#059669', color: '#fff', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
           <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة
         </button>
@@ -1521,7 +1534,8 @@ const CompensationTab: React.FC<{
 const ReportsTab: React.FC<{
   violations: ViolationRow[];
   stageFilter: string;
-}> = ({ violations, stageFilter }) => {
+  schoolSettings: Record<string, string>;
+}> = ({ violations, stageFilter, schoolSettings }) => {
   const [repGrade, setRepGrade] = useState('');
   const [repClass, setRepClass] = useState('');
   const [repDateFrom, setRepDateFrom] = useState('');
@@ -1585,27 +1599,29 @@ const ReportsTab: React.FC<{
   const maxByClass = Math.max(...byClass.map((c) => c.count), 1);
 
   const handlePrintReport = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    const degreeRows = byDegree.map((d) => `<tr><td>${d.label}</td><td>${d.count}</td><td>${d.deduction}</td></tr>`).join('');
-    const classRows = byClass.slice(0, 15).map((c) => `<tr><td>${c.name}</td><td>${c.count}</td></tr>`).join('');
-    const studentRows = topStudents.map((s, i) => `<tr><td>${i + 1}</td><td>${s.name}</td><td>${s.grade} (${s.cls})</td><td>${s.count}</td><td>${s.deduction}</td><td>${s.score}</td></tr>`).join('');
-
-    printWindow.document.write(`
-      <html dir="rtl"><head><title>تقرير المخالفات</title>
-      <style>body{font-family:Tahoma,'IBM Plex Sans Arabic',Arial;padding:30px;direction:rtl}table{width:100%;border-collapse:collapse;margin:20px 0}td,th{border:1px solid #333;padding:8px;text-align:right}th{background:#f0f0f0}h2,h3{text-align:center}@media print{body{padding:15px}}</style></head>
-      <body><h2>تقرير المخالفات السلوكية</h2>
-      <p style="text-align:center">إجمالي المخالفات: <strong>${filteredViols.length}</strong> | إجمالي الحسم: <strong>${totalDeduction}</strong></p>
-      <h3>التوزيع حسب الدرجة</h3>
-      <table><thead><tr><th>الدرجة</th><th>العدد</th><th>الحسم</th></tr></thead><tbody>${degreeRows}</tbody></table>
-      <h3>التوزيع حسب الفصل</h3>
-      <table><thead><tr><th>الفصل</th><th>العدد</th></tr></thead><tbody>${classRows}</tbody></table>
-      <h3>أكثر الطلاب مخالفات</h3>
-      <table><thead><tr><th>#</th><th>الطالب</th><th>الصف</th><th>المخالفات</th><th>الحسم</th><th>السلوك</th></tr></thead><tbody>${studentRows}</tbody></table>
-      </body></html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+    const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
+    // قسم 1: التوزيع حسب الدرجة
+    const rows: ListReportRow[] = [];
+    rows.push({ cells: [], isGroupHeader: true, groupLabel: 'التوزيع حسب الدرجة' });
+    byDegree.forEach(d => rows.push({ cells: [d.label, toIndic(d.count), toIndic(d.deduction), '', '', ''] }));
+    // قسم 2: التوزيع حسب الفصل
+    rows.push({ cells: [], isSeparator: true });
+    rows.push({ cells: [], isGroupHeader: true, groupLabel: 'التوزيع حسب الفصل' });
+    byClass.slice(0, 15).forEach(c => rows.push({ cells: [c.name, toIndic(c.count), '', '', '', ''] }));
+    // قسم 3: أكثر الطلاب مخالفات
+    rows.push({ cells: [], isSeparator: true });
+    rows.push({ cells: [], isGroupHeader: true, groupLabel: 'أكثر الطلاب مخالفات' });
+    topStudents.forEach((s, i) => rows.push({ cells: [toIndic(i + 1), `<strong>${s.name}</strong>`, `${s.grade} (${s.cls})`, toIndic(s.count), toIndic(s.deduction), toIndic(s.score)] }));
+    printListReport({
+      title: 'تقرير المخالفات السلوكية',
+      dateText: hijri,
+      statsBar: `إجمالي المخالفات: ${toIndic(filteredViols.length)} | إجمالي الحسم: ${toIndic(totalDeduction)}`,
+      headers: [
+        { label: 'البيان', width: '25%' }, { label: 'العدد', width: '12%' }, { label: 'الحسم/الصف', width: '15%' },
+        { label: 'المخالفات', width: '12%' }, { label: 'الحسم', width: '12%' }, { label: 'السلوك', width: '12%' },
+      ],
+      rows,
+    }, schoolSettings as any);
   };
 
   return (
@@ -1728,7 +1744,7 @@ const MEETING_TIMES = ['٧:٣٠ صباحاً', '٨:٠٠ صباحاً', '٨:٣٠ 
 const MEETING_WITH = ['إدارة المدرسة', 'وكيل المدرسة', 'الموجه الطلابي'];
 const DAY_NAMES_DAWAT = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
 
-const DawatModal: React.FC<{ violation: ViolationRow; onClose: () => void }> = ({ violation, onClose }) => {
+const DawatModal: React.FC<{ violation: ViolationRow; onClose: () => void; schoolSettings: Record<string, string> }> = ({ violation, onClose, schoolSettings }) => {
   // Default to next working day
   const getNextWorkday = () => {
     const d = new Date(); d.setDate(d.getDate() + 1);
@@ -1752,35 +1768,18 @@ const DawatModal: React.FC<{ violation: ViolationRow; onClose: () => void }> = (
 
   const handlePrint = () => {
     const hijri = getHijriDate(date);
-    const degreeInfo = DEGREE_LABELS[violation.degree] || DEGREE_LABELS[1];
-    const pw = window.open('', '_blank');
-    if (!pw) return;
-    pw.document.write(`<html dir="rtl"><head><title>دعوة ولي أمر</title>
-      <style>body{font-family:Tahoma,'IBM Plex Sans Arabic',Arial;padding:40px;direction:rtl}h2{text-align:center;margin-bottom:30px}table{width:100%;border-collapse:collapse;margin:20px 0}td,th{border:1px solid #333;padding:10px;text-align:right}th{background:#f0f0f0}.signature{margin-top:60px;display:flex;justify-content:space-between}.signature div{text-align:center;width:30%}.signature div span{display:block;margin-top:40px;border-top:1px solid #333;padding-top:5px}@media print{body{padding:20px}}</style></head><body>
-      <h2>دعوة ولي أمر طالب</h2>
-      <p style="text-align:center;font-size:16px">المكرم ولي أمر الطالب / <strong>${violation.studentName}</strong></p>
-      <p style="text-align:center">السلام عليكم ورحمة الله وبركاته</p>
-      <p>يسرنا دعوتكم لزيارة المدرسة وذلك للأسباب التالية:</p>
-      <table>
-        <tr><th>اسم الطالب</th><td>${violation.studentName}</td><th>رقم الطالب</th><td>${violation.studentNumber}</td></tr>
-        <tr><th>الصف</th><td>${violation.grade}</td><th>الفصل</th><td>${violation.className}</td></tr>
-        <tr><th>المخالفة</th><td colspan="3">${violation.description}</td></tr>
-        <tr><th>الدرجة</th><td>${degreeInfo.label}</td><th>الحسم</th><td>${violation.deduction} درجة</td></tr>
-      </table>
-      <table>
-        <tr><th>يوم الزيارة</th><td>${day}</td><th>التاريخ</th><td>${hijri}</td></tr>
-        <tr><th>الساعة</th><td>${time}</td><th>لمقابلة</th><td>${meetingWith}</td></tr>
-        <tr><th>الهدف من الزيارة</th><td colspan="3">${reason}</td></tr>
-      </table>
-      <p style="margin-top:20px">نأمل الحضور في الموعد المحدد، ولكم جزيل الشكر والتقدير.</p>
-      <div class="signature">
-        <div>ولي الأمر<span>التوقيع</span></div>
-        <div>وكيل شؤون الطلاب<span>التوقيع</span></div>
-        <div>مدير المدرسة<span>التوقيع</span></div>
-      </div>
-      </body></html>`);
-    pw.document.close();
-    pw.print();
+    const data: PrintFormData = {
+      studentName: violation.studentName,
+      grade: `${violation.grade} / ${violation.className}`,
+      violationText: violation.description,
+      violationDegree: violation.degree,
+      visitDay: day,
+      visitDate: hijri,
+      visitTime: time,
+      visitMeeting: meetingWith,
+      visitReason: reason,
+    };
+    printForm('dawat_wali_amr', data, schoolSettings as any);
     onClose();
   };
 

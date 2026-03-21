@@ -11,6 +11,8 @@ import { studentsApi } from '../api/students';
 import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { SETTINGS_STAGES } from '../utils/constants';
+import { printListReport, ListReportRow } from '../utils/printTemplates';
+import { toIndic } from '../utils/printUtils';
 
 // ═══════════════════════════════════════════════════════════
 // Constants — مطابقة لـ JS_Attendance.html سطر 13-17
@@ -60,6 +62,7 @@ const AttendancePage: React.FC = () => {
   const [lateModalOpen, setLateModalOpen] = useState(false);
   const [permModalOpen, setPermModalOpen] = useState(false);
   const [students, setStudents] = useState<StudentOption[]>([]);
+  const [schoolSettings, setSchoolSettings] = useState<Record<string, string>>({});
 
   const enabledStages = useMemo(() =>
     stages.filter((s) => s.isEnabled && s.grades.some((g) => g.isEnabled && g.classCount > 0)), [stages]);
@@ -67,14 +70,15 @@ const AttendancePage: React.FC = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [lRes, pRes, sRes, stRes] = await Promise.all([
+      const [lRes, pRes, sRes, stRes, seRes] = await Promise.all([
         tardinessApi.getAll(), permissionsApi.getAll(),
-        settingsApi.getStructure(), studentsApi.getAll(),
+        settingsApi.getStructure(), studentsApi.getAll(), settingsApi.getSettings(),
       ]);
       if (lRes.data?.data) setLateRecords(lRes.data.data);
       if (pRes.data?.data) setPermRecords(pRes.data.data);
       if (sRes.data?.data?.stages) setStages(Array.isArray(sRes.data.data.stages) ? sRes.data.data.stages : []);
       if (stRes.data?.data) setStudents(stRes.data.data);
+      if (seRes.data?.data) setSchoolSettings(seRes.data.data);
     } catch { /* empty */ }
     finally { setLoading(false); }
   }, []);
@@ -148,13 +152,13 @@ const AttendancePage: React.FC = () => {
 
       {/* ═══ Tab content ═══ */}
       {activeTab === 'late' && (
-        <LateTab records={todayLate} onRefresh={loadData} onAdd={() => setLateModalOpen(true)} />
+        <LateTab records={todayLate} onRefresh={loadData} onAdd={() => setLateModalOpen(true)} schoolSettings={schoolSettings} />
       )}
       {activeTab === 'permission' && (
-        <PermissionTab records={todayPerm} onRefresh={loadData} onAdd={() => setPermModalOpen(true)} />
+        <PermissionTab records={todayPerm} onRefresh={loadData} onAdd={() => setPermModalOpen(true)} schoolSettings={schoolSettings} />
       )}
       {activeTab === 'archive' && (
-        <ArchiveTab stageId={stageId} />
+        <ArchiveTab stageId={stageId} schoolSettings={schoolSettings} />
       )}
 
       {/* Modals */}
@@ -167,7 +171,7 @@ const AttendancePage: React.FC = () => {
 // ═══════════════════════════════════════════════════════════
 // Late Tab — مطابق لـ renderLateTab() سطر 139
 // ═══════════════════════════════════════════════════════════
-const LateTab: React.FC<{ records: LateRow[]; onRefresh: () => void; onAdd: () => void }> = ({ records, onRefresh, onAdd }) => {
+const LateTab: React.FC<{ records: LateRow[]; onRefresh: () => void; onAdd: () => void; schoolSettings: Record<string, string> }> = ({ records, onRefresh, onAdd, schoolSettings }) => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [sendingId, setSendingId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<LateRow | null>(null);
@@ -198,13 +202,21 @@ const LateTab: React.FC<{ records: LateRow[]; onRefresh: () => void; onAdd: () =
   };
 
   const handlePrint = () => {
-    const pw = window.open('', '_blank'); if (!pw) return;
-    const rows = records.map((r, i) => {
+    const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
+    const rows: ListReportRow[] = records.map((r, i) => {
       const tt = TARDINESS_TYPES[r.tardinessType] || { label: r.tardinessType };
-      return `<tr><td>${i + 1}</td><td>${r.studentName}</td><td>${r.grade} / ${r.className}</td><td>${r.hijriDate || ''}</td><td>${tt.label}</td><td>${r.period || '-'}</td></tr>`;
-    }).join('');
-    pw.document.write(`<html dir="rtl"><head><title>سجل المتأخرين</title><style>body{font-family:Tahoma,Arial;padding:30px;direction:rtl}table{width:100%;border-collapse:collapse}td,th{border:1px solid #333;padding:8px;text-align:right}th{background:#fee2e2;color:#dc2626}h2{text-align:center;color:#dc2626}@media print{body{padding:10px}}</style></head><body><h2>سجل المتأخرين</h2><p style="text-align:center">العدد: ${records.length}</p><table><thead><tr><th>م</th><th>الطالب</th><th>الصف</th><th>التاريخ</th><th>النوع</th><th>الحصة</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
-    pw.document.close(); setTimeout(() => pw.print(), 300);
+      return { cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, `${r.grade} / ${r.className}`, toIndic(r.hijriDate || ''), tt.label, r.period || '-'] };
+    });
+    printListReport({
+      title: 'سجل المتأخرين',
+      dateText: hijri,
+      statsBar: `العدد: ${toIndic(records.length)}`,
+      headers: [
+        { label: 'م', width: '5%' }, { label: 'الطالب', width: '28%' }, { label: 'الصف', width: '20%' },
+        { label: 'التاريخ', width: '18%' }, { label: 'النوع', width: '15%' }, { label: 'الحصة', width: '10%' },
+      ],
+      rows,
+    }, schoolSettings as any);
   };
 
   return (
@@ -272,7 +284,7 @@ const LateTab: React.FC<{ records: LateRow[]; onRefresh: () => void; onAdd: () =
 // ═══════════════════════════════════════════════════════════
 // Permission Tab — مطابق لـ renderPermissionTab() سطر 287
 // ═══════════════════════════════════════════════════════════
-const PermissionTab: React.FC<{ records: PermRow[]; onRefresh: () => void; onAdd: () => void }> = ({ records, onRefresh, onAdd }) => {
+const PermissionTab: React.FC<{ records: PermRow[]; onRefresh: () => void; onAdd: () => void; schoolSettings: Record<string, string> }> = ({ records, onRefresh, onAdd, schoolSettings }) => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [sendingId, setSendingId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<PermRow | null>(null);
@@ -303,12 +315,21 @@ const PermissionTab: React.FC<{ records: PermRow[]; onRefresh: () => void; onAdd
   };
 
   const handlePrint = () => {
-    const pw = window.open('', '_blank'); if (!pw) return;
-    const rows = records.map((r, i) =>
-      `<tr><td>${i + 1}</td><td>${r.studentName}</td><td>${r.grade} / ${r.className}</td><td>${r.hijriDate || ''}</td><td>${r.exitTime || '-'}</td><td>${r.reason || '-'}</td><td>${r.receiver || '-'}</td></tr>`
-    ).join('');
-    pw.document.write(`<html dir="rtl"><head><title>سجل المستأذنين</title><style>body{font-family:Tahoma,Arial;padding:30px;direction:rtl}table{width:100%;border-collapse:collapse}td,th{border:1px solid #333;padding:8px;text-align:right}th{background:#ede9fe;color:#7c3aed}h2{text-align:center;color:#7c3aed}@media print{body{padding:10px}}</style></head><body><h2>سجل المستأذنين</h2><p style="text-align:center">العدد: ${records.length}</p><table><thead><tr><th>م</th><th>الطالب</th><th>الصف</th><th>التاريخ</th><th>وقت الخروج</th><th>السبب</th><th>المستلم</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
-    pw.document.close(); setTimeout(() => pw.print(), 300);
+    const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
+    const rows: ListReportRow[] = records.map((r, i) => ({
+      cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, `${r.grade} / ${r.className}`, toIndic(r.hijriDate || ''), r.exitTime || '-', r.reason || '-', r.receiver || '-'],
+    }));
+    printListReport({
+      title: 'سجل المستأذنين',
+      dateText: hijri,
+      statsBar: `العدد: ${toIndic(records.length)}`,
+      headers: [
+        { label: 'م', width: '5%' }, { label: 'الطالب', width: '22%' }, { label: 'الصف', width: '15%' },
+        { label: 'التاريخ', width: '15%' }, { label: 'وقت الخروج', width: '12%' }, { label: 'السبب', width: '18%' },
+        { label: 'المستلم', width: '13%' },
+      ],
+      rows,
+    }, schoolSettings as any);
   };
 
   return (
@@ -374,7 +395,7 @@ const PermissionTab: React.FC<{ records: PermRow[]; onRefresh: () => void; onAdd
 // ═══════════════════════════════════════════════════════════
 // Archive Tab — مطابق لـ renderArchiveTab() سطر 438
 // ═══════════════════════════════════════════════════════════
-const ArchiveTab: React.FC<{ stageId: string | null }> = ({ stageId }) => {
+const ArchiveTab: React.FC<{ stageId: string | null; schoolSettings: Record<string, string> }> = ({ stageId, schoolSettings }) => {
   const [archiveType, setArchiveType] = useState<'late' | 'permission'>('late');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -400,22 +421,20 @@ const ArchiveTab: React.FC<{ stageId: string | null }> = ({ stageId }) => {
   };
 
   const handlePrint = () => {
-    const pw = window.open('', '_blank'); if (!pw) return;
+    const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
     const isLate = archiveType === 'late';
-    const headers = isLate
-      ? '<th>م</th><th>الطالب</th><th>الصف</th><th>التاريخ</th><th>النوع</th><th>الحصة</th><th>المسجل</th>'
-      : '<th>م</th><th>الطالب</th><th>الصف</th><th>التاريخ</th><th>وقت الخروج</th><th>السبب</th><th>المستلم</th>';
-    const rows = archiveRecords.map((r: any, i: number) => {
+    const title = isLate ? 'أرشيف التأخر' : 'أرشيف الاستئذان';
+    const hdrs = isLate
+      ? [{ label: 'م', width: '5%' }, { label: 'الطالب', width: '22%' }, { label: 'الصف', width: '15%' }, { label: 'التاريخ', width: '15%' }, { label: 'النوع', width: '15%' }, { label: 'الحصة', width: '10%' }, { label: 'المسجل', width: '15%' }]
+      : [{ label: 'م', width: '5%' }, { label: 'الطالب', width: '22%' }, { label: 'الصف', width: '15%' }, { label: 'التاريخ', width: '15%' }, { label: 'وقت الخروج', width: '12%' }, { label: 'السبب', width: '18%' }, { label: 'المستلم', width: '13%' }];
+    const rows: ListReportRow[] = archiveRecords.map((r: any, i: number) => {
       if (isLate) {
         const tt = TARDINESS_TYPES[r.tardinessType] || { label: r.tardinessType || '' };
-        return `<tr><td>${i + 1}</td><td>${r.studentName}</td><td>${r.grade} / ${r.className}</td><td>${r.hijriDate || ''}</td><td>${tt.label}</td><td>${r.period || '-'}</td><td>${r.recordedBy || ''}</td></tr>`;
+        return { cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, `${r.grade} / ${r.className}`, toIndic(r.hijriDate || ''), tt.label, r.period || '-', r.recordedBy || ''] };
       }
-      return `<tr><td>${i + 1}</td><td>${r.studentName}</td><td>${r.grade} / ${r.className}</td><td>${r.hijriDate || ''}</td><td>${r.exitTime || '-'}</td><td>${r.reason || '-'}</td><td>${r.receiver || '-'}</td></tr>`;
-    }).join('');
-    const color = isLate ? '#dc2626' : '#7c3aed';
-    const title = isLate ? 'أرشيف التأخر' : 'أرشيف الاستئذان';
-    pw.document.write(`<html dir="rtl"><head><title>${title}</title><style>body{font-family:Tahoma,Arial;padding:30px;direction:rtl}table{width:100%;border-collapse:collapse}td,th{border:1px solid #333;padding:8px;text-align:right}th{background:#f3f4f6}h2{text-align:center;color:${color}}@media print{body{padding:10px}}</style></head><body><h2>${title}</h2><p style="text-align:center">إجمالي السجلات: ${archiveRecords.length}</p><table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></body></html>`);
-    pw.document.close(); setTimeout(() => pw.print(), 300);
+      return { cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, `${r.grade} / ${r.className}`, toIndic(r.hijriDate || ''), r.exitTime || '-', r.reason || '-', r.receiver || '-'] };
+    });
+    printListReport({ title, dateText: hijri, statsBar: `إجمالي السجلات: ${toIndic(archiveRecords.length)}`, headers: hdrs, rows }, schoolSettings as any);
   };
 
   return (

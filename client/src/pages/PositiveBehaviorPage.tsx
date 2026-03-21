@@ -5,6 +5,8 @@ import { showSuccess, showError } from '../components/shared/Toast';
 import InputModal from '../components/shared/InputModal';
 import StudentSelector from '../components/shared/StudentSelector';
 import { SETTINGS_STAGES } from '../utils/constants';
+import { printListReport, ListReportRow } from '../utils/printTemplates';
+import { toIndic } from '../utils/printUtils';
 
 const THEME = '#10b981'; // emerald-500
 
@@ -61,6 +63,7 @@ const PositiveBehaviorPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [detailStudent, setDetailStudent] = useState<{ name: string; grade: string; cls: string; behaviors: BehaviorRow[] } | null>(null);
   const [stats, setStats] = useState<DailyStats>({ totalRecords: 0, todayCount: 0, uniqueStudents: 0, totalDegrees: 0 });
+  const [schoolSettings, setSchoolSettings] = useState<Record<string, string>>({});
 
   const enabledStages = useMemo(() =>
     stages.filter(s => s.isEnabled && s.grades.some(g => g.isEnabled && g.classCount > 0)),
@@ -76,6 +79,7 @@ const PositiveBehaviorPage: React.FC = () => {
         if (enabled.length > 0) setCurrentStage(enabled[0].stage);
       }
     });
+    settingsApi.getSettings().then(res => { if (res.data?.data) setSchoolSettings(res.data.data); });
   }, []);
 
   const loadData = useCallback(async () => {
@@ -131,26 +135,34 @@ const PositiveBehaviorPage: React.FC = () => {
 
   const handlePrint = () => {
     if (filtered.length === 0) { showError('لا توجد بيانات للطباعة'); return; }
-    const w = window.open('', '_blank');
-    if (!w) return;
+    const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
     const sorted = [...filtered].sort((a, b) => {
       if (a.grade !== b.grade) return a.grade.localeCompare(b.grade, 'ar');
       if (a.className !== b.className) return String(a.className).localeCompare(String(b.className), 'ar');
       return a.studentName.localeCompare(b.studentName, 'ar');
     });
-    let rows = '', lastKey = '';
-    sorted.forEach((r, i) => {
-      const key = r.grade + r.className;
-      if (key !== lastKey && i > 0) rows += '<tr style="height:8px;background:#e5e7eb"><td colspan="8"></td></tr>';
-      lastKey = key;
-      rows += `<tr><td>${i + 1}</td><td>${r.studentName}</td><td>${r.grade}</td><td>${r.className}</td><td>${r.behaviorType}</td><td style="font-weight:bold;color:#059669">${r.degree || '-'}</td><td>${r.details || '-'}</td><td>${r.recordedBy || '-'}</td></tr>`;
-    });
     let title = 'سجل السلوك المتمايز';
     if (gradeFilter) title += ' - ' + gradeFilter;
     if (classFilter) title += ' / ' + classFilter;
-    w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Tahoma,'IBM Plex Sans Arabic',Arial,sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:right;font-size:13px}th{background:#10b981;color:#fff}</style></head><body><h2 style="text-align:center">${title}</h2><p style="text-align:center;color:#666">${stageName(currentStage)}</p><table><thead><tr><th style="width:5%">م</th><th style="width:22%">اسم الطالب</th><th style="width:10%">الصف</th><th style="width:8%">الفصل</th><th style="width:22%">السلوك المتمايز</th><th style="width:8%">الدرجة</th><th style="width:15%">التفاصيل</th><th style="width:10%">المعلم</th></tr></thead><tbody>${rows}</tbody></table><p style="text-align:center;margin-top:16px">${sorted.length} سجل</p></body></html>`);
-    w.document.close();
-    setTimeout(() => w.print(), 300);
+    let lastKey = '';
+    const rows: ListReportRow[] = [];
+    sorted.forEach((r, i) => {
+      const key = r.grade + r.className;
+      if (key !== lastKey && i > 0) rows.push({ cells: [], isSeparator: true });
+      lastKey = key;
+      rows.push({ cells: [toIndic(i + 1), `<strong>${r.studentName}</strong>`, r.grade, String(r.className), r.behaviorType, `<span style="font-weight:bold;color:#059669">${r.degree || '-'}</span>`, r.details || '-', r.recordedBy || '-'] });
+    });
+    printListReport({
+      title,
+      dateText: hijri,
+      statsBar: `${toIndic(sorted.length)} سجل | ${stageName(currentStage)}`,
+      headers: [
+        { label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '22%' }, { label: 'الصف', width: '10%' },
+        { label: 'الفصل', width: '8%' }, { label: 'السلوك المتمايز', width: '22%' }, { label: 'الدرجة', width: '8%' },
+        { label: 'التفاصيل', width: '15%' }, { label: 'المعلم', width: '10%' },
+      ],
+      rows,
+    }, schoolSettings as any);
   };
 
   const handleExport = async () => {
