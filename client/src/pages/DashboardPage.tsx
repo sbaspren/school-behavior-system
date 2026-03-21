@@ -300,11 +300,12 @@ const DashboardPage: React.FC = () => {
   let miladiStr = '';
   try { miladiStr = now.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { /* empty */ }
 
-  const curStageStats = stageFilter ? (data.stageStats[stageFilter] || {} as StageStatsItem) : null;
+  const curStageStats = stageFilter ? (data.stageStats?.[stageFilter] || {} as StageStatsItem) : null;
+  const defaultNotSent = { absence: 0, tardiness: 0, violations: 0 };
   const notSent = stageFilter
-    ? (data.pending.notSentByStage[stageFilter] || { absence: 0, tardiness: 0, violations: 0 })
-    : data.pending.notSent;
-  const totalNotSent = notSent.absence + notSent.tardiness + notSent.violations;
+    ? (data.pending?.notSentByStage?.[stageFilter] || defaultNotSent)
+    : (data.pending?.notSent || defaultNotSent);
+  const totalNotSent = (notSent.absence || 0) + (notSent.tardiness || 0) + (notSent.violations || 0);
 
   return (
     <div style={{ maxWidth: '100%' }}>
@@ -373,12 +374,12 @@ const DashboardPage: React.FC = () => {
       {/* ═══════ Row 3: Stats Cards ═══════ */}
       <div className="dash-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 20 }}>
         {STAT_CARDS.map(sc => {
-          const todayAny = data.today as unknown as Record<string, number>;
+          const todayAny = (data.today || {}) as unknown as Record<string, number>;
           const val = curStageStats
             ? (curStageStats[sc.key as keyof StageStatsItem] ?? todayAny[sc.key] ?? 0)
             : (todayAny[sc.key] ?? 0);
           // المرحلة الأخرى
-          const allStageKeys = Object.keys(data.stageStats);
+          const allStageKeys = Object.keys(data.stageStats || {});
           const otherStage = stageFilter ? allStageKeys.find(s => s !== stageFilter) : '';
           const othStats = otherStage ? (data.stageStats[otherStage] || {} as StageStatsItem) : null;
           const othVal = othStats ? (othStats[sc.key as keyof StageStatsItem] ?? 0) : 0;
@@ -451,17 +452,17 @@ const DashboardPage: React.FC = () => {
             <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ef4444' }}>notifications_active</span> يحتاج انتباهك
           </div>
           <div className="dash-attention-inner">
-            <AttentionCard icon="gavel" title="مخالفات بدون إجراء" count={data.pending.violationsNoAction.length} color="#ef4444"
-              items={data.pending.violationsNoAction.slice(0, 3).map(v => ({ text: v.name, tag: `${v.grade} ${v.cls}` }))} />
-            <AttentionCard icon="edit_note" title="ملاحظات معلقة" count={data.pending.notesPending.length} color="#f97316"
-              items={data.pending.notesPending.slice(0, 3).map(n => ({ text: `${n.name} — ${n.type}`, tag: n.cls || '' }))} />
+            <AttentionCard icon="gavel" title="مخالفات بدون إجراء" count={data.pending?.violationsNoAction?.length ?? 0} color="#ef4444"
+              items={(data.pending?.violationsNoAction || []).slice(0, 3).map(v => ({ text: v.name, tag: `${v.grade} ${v.cls}` }))} />
+            <AttentionCard icon="edit_note" title="ملاحظات معلقة" count={data.pending?.notesPending?.length ?? 0} color="#f97316"
+              items={(data.pending?.notesPending || []).slice(0, 3).map(n => ({ text: `${n.name} — ${n.type}`, tag: n.cls || '' }))} />
             <AttentionCard icon="sms_failed" title="لم يُبلّغ ولي الأمر" count={totalNotSent} color="#3b82f6"
               items={[
                 ...(notSent.absence > 0 ? [{ text: `${notSent.absence} غياب`, tag: 'اليوم' }] : []),
                 ...(notSent.tardiness > 0 ? [{ text: `${notSent.tardiness} تأخر`, tag: 'اليوم' }] : []),
                 ...(notSent.violations > 0 ? [{ text: `${notSent.violations} مخالفة`, tag: 'اليوم' }] : []),
               ]} />
-            <AttentionCard icon="pending_actions" title="أعذار بانتظار" count={data.today.pendingExcuses} color="#8b5cf6" items={[]} />
+            <AttentionCard icon="pending_actions" title="أعذار بانتظار" count={data.today?.pendingExcuses ?? 0} color="#8b5cf6" items={[]} />
           </div>
         </div>
 
@@ -471,7 +472,7 @@ const DashboardPage: React.FC = () => {
             <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#6366f1' }}>swap_horiz</span> تحويلات المعلمين
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {data.recentActivity.length === 0 ? (
+            {(data.recentActivity?.length ?? 0) === 0 ? (
               <div style={{ textAlign: 'center', padding: 16, color: '#9da3b8', fontSize: 11 }}>لا توجد تحويلات اليوم</div>
             ) : data.recentActivity.map((it, i) => {
               const typeColors: Record<string, { bg: string; fg: string }> = {
@@ -524,7 +525,7 @@ const DashboardPage: React.FC = () => {
         {/* Violations by degree */}
         <div style={cardStyle}>
           <h3 style={cardTitleStyle}>المخالفات حسب الدرجة</h3>
-          {data.violations.byDegree.length === 0 ? (
+          {(data.violations?.byDegree?.length ?? 0) === 0 ? (
             <p style={{ color: '#9ca3af', textAlign: 'center', padding: 20 }}>لا توجد مخالفات</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -626,7 +627,7 @@ const DashboardPage: React.FC = () => {
           {/* Attendance percentage */}
           {(() => {
             const totalStudents = data.students?.total || 0;
-            const todayAbsence = curStageStats ? (curStageStats.absence ?? 0) : data.today.absence;
+            const todayAbsence = curStageStats ? (curStageStats.absence ?? 0) : (data.today?.absence ?? 0);
             const attendPct = totalStudents > 0 ? Math.round(((totalStudents - todayAbsence) / totalStudents) * 100) : 100;
             const pctColor = attendPct >= 95 ? '#22c55e' : attendPct >= 90 ? '#f59e0b' : '#ef4444';
             return (
@@ -644,7 +645,7 @@ const DashboardPage: React.FC = () => {
         {/* Top violators */}
         <div style={cardStyle}>
           <h3 style={cardTitleStyle}>أكثر الطلاب مخالفات</h3>
-          {data.topViolators.length === 0 ? (
+          {(data.topViolators?.length ?? 0) === 0 ? (
             <p style={{ color: '#9ca3af', textAlign: 'center', padding: 20 }}>لا توجد بيانات</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -674,7 +675,7 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* Needs printing */}
-        {data.needsPrinting.filter(x => !dismissedPrints.has(`${x.studentId}_${x.type}`)).length > 0 && (
+        {(data.needsPrinting || []).filter(x => !dismissedPrints.has(`${x.studentId}_${x.type}`)).length > 0 && (
           <div style={cardStyle}>
             <h3 style={{ ...cardTitleStyle, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }} onClick={() => setPrintSectionHidden(h => !h)}>
               <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ef4444' }}>print</span>
