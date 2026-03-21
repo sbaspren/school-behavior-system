@@ -319,7 +319,7 @@ const AcademicPage: React.FC = () => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <div style={{ borderRadius: '8px', padding: '8px 16px', textAlign: 'center', border: '1px solid', backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }}>
+          <div style={{ borderRadius: '8px', padding: '8px 16px', textAlign: 'center', border: '1px solid', backgroundColor: '#f0fdfa', borderColor: '#99f6e4' }}>
             <div className="text-2xl font-bold text-teal-600">{headerStats.students}</div>
             <div className="text-xs text-gray-500">طالب</div>
           </div>
@@ -433,11 +433,11 @@ const AcademicPage: React.FC = () => {
             <>
               {/* Quick cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '20px' }}>
-                <QuickCard value={ds.totalStudents} label="اجمالي الطلاب" color="#0d9488" bg="#ccfbf1" />
-                <QuickCard value={ds.avgAll + '%'} label="المعدل العام" color="#2563eb" bg="#dbeafe" />
-                <QuickCard value={ds.maxAvg + '%'} label="اعلى معدل" color="#16a34a" bg="#dcfce7" />
-                <QuickCard value={ds.minAvg + '%'} label="اقل معدل" color="#dc2626" bg="#fee2e2" />
-                <QuickCard value={ds.absence.studentsWithAbsence} label="طلاب لديهم غياب" color="#d97706" bg="#fef3c7" />
+                <QuickCard value={ds.totalStudents} label="اجمالي الطلاب" color="#0d9488" />
+                <QuickCard value={ds.avgAll + '%'} label="المعدل العام" color="#2563eb" />
+                <QuickCard value={ds.maxAvg + '%'} label="اعلى معدل" color="#16a34a" />
+                <QuickCard value={ds.minAvg + '%'} label="اقل معدل" color="#dc2626" />
+                <QuickCard value={ds.absence.studentsWithAbsence} label="طلاب لديهم غياب" color="#d97706" />
               </div>
 
               {/* Categories */}
@@ -725,7 +725,7 @@ const AcademicPage: React.FC = () => {
                   datasets: [{
                     data: Object.values(ds.gradeDist).length > 0 ? Object.values(ds.gradeDist) : [1],
                     backgroundColor: Object.values(ds.gradeDist).length > 0
-                      ? ['#10b981', '#3b82f6', '#f59e0b', '#f97316', '#ef4444', '#8b5cf6', '#6366f1']
+                      ? ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#6b7280']
                       : ['#e5e7eb'],
                     borderWidth: 2,
                   }],
@@ -804,9 +804,9 @@ const AcademicPage: React.FC = () => {
               data={{
                 labels: ds.classSummary.length > 0 ? ds.classSummary.map(c => c.label) : ['لا توجد بيانات'],
                 datasets: [
-                  { label: 'المتوسط', data: ds.classSummary.length > 0 ? ds.classSummary.map(c => c.avg) : [0], backgroundColor: '#3b82f6', borderRadius: 4 },
-                  { label: 'الأعلى', data: ds.classSummary.length > 0 ? ds.classSummary.map(c => c.max) : [0], backgroundColor: '#10b981', borderRadius: 4 },
-                  { label: 'الأدنى', data: ds.classSummary.length > 0 ? ds.classSummary.map(c => c.min) : [0], backgroundColor: '#f97316', borderRadius: 4 },
+                  { label: 'المعدل', data: ds.classSummary.length > 0 ? ds.classSummary.map(c => c.avg) : [0], backgroundColor: '#3b82f6', borderRadius: 4 },
+                  { label: 'أعلى', data: ds.classSummary.length > 0 ? ds.classSummary.map(c => c.max) : [0], backgroundColor: '#10b981', borderRadius: 4 },
+                  { label: 'أقل', data: ds.classSummary.length > 0 ? ds.classSummary.map(c => c.min) : [0], backgroundColor: '#ef4444', borderRadius: 4 },
                 ],
               }}
               options={{
@@ -839,8 +839,8 @@ const AcademicPage: React.FC = () => {
 
 // ── Sub-components ──
 
-const QuickCard: React.FC<{ value: string | number; label: string; color: string; bg?: string }> = ({ value, label, color, bg }) => (
-  <div style={{ borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: `1px solid ${color}`, padding: '16px', textAlign: 'center', backgroundColor: bg || '#ffffff', transition: 'all 0.2s' }}>
+const QuickCard: React.FC<{ value: string | number; label: string; color: string; bg?: string }> = ({ value, label, color }) => (
+  <div className="hover:shadow-md" style={{ borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: '1px solid #e5e7eb', padding: '16px', textAlign: 'center', backgroundColor: '#ffffff', transition: 'all 0.2s' }}>
     <div style={{ fontSize: '1.875rem', fontWeight: 700, color }}>{value}</div>
     <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>{label}</div>
   </div>
@@ -850,7 +850,8 @@ const CatCard: React.FC<{ count: number; total: number; color: string; bg: strin
   const pct = Math.round(count / total * 100);
   return (
     <div onClick={onClick}
-      style={{ textAlign: 'center', padding: '12px', border: `1px solid ${color}`, borderRadius: '12px', cursor: 'pointer', backgroundColor: bg, transition: 'all 0.2s' }}>
+      className="hover:shadow-md"
+      style={{ textAlign: 'center', padding: '12px', border: `1px solid ${bg}`, borderRadius: '12px', cursor: 'pointer', backgroundColor: bg, transition: 'all 0.2s' }}>
       <div style={{ fontSize: '1.5rem', fontWeight: 700, color }}>{count}</div>
       <div style={{ fontSize: '0.75rem', color: '#4b5563', marginTop: '4px' }}>{label}</div>
       <div style={{ width: '100%', background: '#e5e7eb', borderRadius: '9999px', height: '6px', marginTop: '8px' }}>
@@ -935,13 +936,13 @@ const StudentReportView: React.FC<{ report: StudentReport; onBack: () => void }>
                   datasets: [{
                     label: 'الدرجة',
                     data: analysis.academicGrades.map(g => g.total),
-                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(13, 148, 136, 0.15)',
+                    borderColor: '#0d9488',
                     borderWidth: 2,
                     pointBackgroundColor: analysis.academicGrades.map(g =>
                       g.total >= 90 ? '#10b981' : g.total >= 70 ? '#3b82f6' : g.total >= 50 ? '#f59e0b' : '#ef4444'
                     ),
-                    pointRadius: 5,
+                    pointRadius: 4,
                   }],
                 }}
                 options={{
@@ -1006,19 +1007,19 @@ const StudentReportView: React.FC<{ report: StudentReport; onBack: () => void }>
             data={{
               labels: analysis.examVsWork.map(e => e.name),
               datasets: [
-                { label: 'اختبار نهائي', data: analysis.examVsWork.map(e => e.finalExam), backgroundColor: '#3b82f6', borderRadius: 4 },
-                { label: 'اعمال السنة', data: analysis.examVsWork.map(e => e.classWork), backgroundColor: '#10b981', borderRadius: 4 },
+                { label: 'اختبار نهائي', data: analysis.examVsWork.map(e => e.finalExam), backgroundColor: '#3b82f6' },
+                { label: 'اعمال السنة', data: analysis.examVsWork.map(e => e.classWork), backgroundColor: '#10b981' },
               ],
             }}
             options={{
               responsive: true,
               plugins: {
-                legend: { position: 'bottom', rtl: true, labels: { font: { family: 'Cairo' }, padding: 12 } },
+                legend: { position: 'top', rtl: true, labels: { font: { family: 'Cairo' }, padding: 12 } },
                 tooltip: { rtl: true, bodyFont: { family: 'Cairo' }, titleFont: { family: 'Cairo' } },
               },
               scales: {
                 x: { ticks: { font: { family: 'Cairo', size: 10 } } },
-                y: { beginAtZero: true, max: 100 },
+                y: { beginAtZero: true },
               },
             }}
           />
