@@ -623,7 +623,7 @@ const ReportsTab: React.FC<{ records: PermissionRow[]; schoolSettings: Record<st
     const rows: ListReportRow[] = topStudents.map((s, i) => ({ cells: [
       toIndic(i + 1),
       `<span style="font-weight:bold">${escapeHtml(s.name)}</span>`,
-      escapeHtml(`${s.grade} (${s.cls})`),
+      toIndic(escapeHtml(`${s.grade} (${s.cls})`)),
       `<span style="font-weight:bold;color:#7c3aed">${toIndic(s.count)}</span>`,
     ] }));
     printListReport({
