@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { dashboardApi } from '../api/dashboard';
 import { settingsApi, StageConfigData } from '../api/settings';
 import { SETTINGS_STAGES } from '../utils/constants';
-import DashboardCharts from '../components/DashboardCharts';
 
 // ═══════ Types ═══════
 interface TodayStats {
@@ -103,14 +102,6 @@ const EVENTS_DATA: CalendarEvent[] = [
   { d: 25, m: 6, label: 'بداية إجازة نهاية العام', type: 'holiday', holiday: true },
 ];
 
-const DEGREE_COLORS: Record<number, { label: string; color: string; bg: string }> = {
-  1: { label: 'الأولى', color: '#15803d', bg: '#dcfce7' },
-  2: { label: 'الثانية', color: '#ca8a04', bg: '#fef9c3' },
-  3: { label: 'الثالثة', color: '#ea580c', bg: '#ffedd5' },
-  4: { label: 'الرابعة', color: '#dc2626', bg: '#fee2e2' },
-  5: { label: 'الخامسة', color: '#7c2d12', bg: '#fecaca' },
-};
-
 // ═══════ جدول حصص المعلمين ═══════
 // المفتاح: "يوم_حصة" — 0=أحد..4=خميس — الحصة 1..7
 // القيمة: مصفوفة [اسم المعلم, الفصل, المادة, "م"|"ث"]
@@ -183,18 +174,6 @@ function getNextEvent(): { ev: CalendarEvent; days: number } | null {
     if (diff >= 0 && diff < bestDiff) { bestDiff = diff; best = { ev: e, days: diff }; }
   }
   return best;
-}
-
-function getUpcomingEvents(count: number): { ev: CalendarEvent; days: number }[] {
-  const now = new Date();
-  const all: { ev: CalendarEvent; days: number }[] = [];
-  for (const e of EVENTS_DATA) {
-    let ed = new Date(now.getFullYear(), e.m - 1, e.d);
-    if (ed < now) ed = new Date(now.getFullYear() + 1, e.m - 1, e.d);
-    all.push({ ev: e, days: Math.ceil((ed.getTime() - now.getTime()) / 86400000) });
-  }
-  all.sort((a, b) => a.days - b.days);
-  return all.slice(0, count);
 }
 
 function getScheduleForPeriod(dayIdx: number, periodNum: number, stageAbbr?: string): string[][] {
@@ -314,23 +293,21 @@ const DashboardPage: React.FC = () => {
         .dash-stats-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
         .dash-stat-card{transition:transform .15s ease,box-shadow .15s ease}
         .dash-stat-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.08)}
-        .dash-main-row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-        .dash-period-row{display:grid;grid-template-columns:1fr 300px;gap:20px}
+        .dash-row4{display:grid;grid-template-columns:55% 45%;gap:20px}
         .dash-row5{display:grid;grid-template-columns:240px 1fr 1fr;gap:20px}
         .dash-attention-inner{display:grid;grid-template-columns:1fr 1fr;gap:12px}
         .dash-attention-inner>div{transition:transform .15s ease,box-shadow .15s ease}
         .dash-attention-inner>div:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.08)}
         @media(max-width:1100px){
           .dash-stats-grid{grid-template-columns:repeat(3,1fr)}
-          .dash-main-row{grid-template-columns:1fr}
-          .dash-period-row{grid-template-columns:1fr}
+          .dash-row4{grid-template-columns:1fr}
           .dash-row5{grid-template-columns:1fr 1fr}
         }
         @media(max-width:700px){
           .dash-stats-grid{grid-template-columns:repeat(2,1fr)}
           .dash-attention-inner{grid-template-columns:1fr}
           .dash-row5{grid-template-columns:1fr}
-          .dash-period-row{grid-template-columns:1fr}
+          .dash-row4{grid-template-columns:1fr}
         }
       `}</style>
       {/* ═══════ Row 1: Greeting + Date ═══════ */}
@@ -375,78 +352,63 @@ const DashboardPage: React.FC = () => {
       <div className="dash-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 20 }}>
         {STAT_CARDS.map(sc => {
           const todayAny = (data.today || {}) as unknown as Record<string, number>;
-          const val = curStageStats
-            ? (curStageStats[sc.key as keyof StageStatsItem] ?? todayAny[sc.key] ?? 0)
-            : (todayAny[sc.key] ?? 0);
-          // المرحلة الأخرى
           const allStageKeys = Object.keys(data.stageStats || {});
-          const otherStage = stageFilter ? allStageKeys.find(s => s !== stageFilter) : '';
-          const othStats = otherStage ? (data.stageStats[otherStage] || {} as StageStatsItem) : null;
-          const othVal = othStats ? (othStats[sc.key as keyof StageStatsItem] ?? 0) : 0;
-          const othAbbr = otherStage ? (STAGE_ABBR[otherStage] || otherStage) : '';
+          const hasStageBreakdown = sc.key !== 'pendingExcuses' && allStageKeys.length > 0;
+          // حساب القيم لكل مرحلة
+          const stageValues: { abbr: string; val: number }[] = [];
+          let total = 0;
+          if (hasStageBreakdown) {
+            for (const sk of allStageKeys) {
+              const ss = data.stageStats[sk] || {} as StageStatsItem;
+              const v = ss[sc.key as keyof StageStatsItem] ?? 0;
+              stageValues.push({ abbr: STAGE_ABBR[sk] || sk, val: v });
+              total += v;
+            }
+          } else {
+            total = todayAny[sc.key] ?? 0;
+          }
+          // عند الفلترة بمرحلة محددة
+          const displayTotal = stageFilter && hasStageBreakdown
+            ? ((data.stageStats[stageFilter] || {} as StageStatsItem)[sc.key as keyof StageStatsItem] ?? 0)
+            : total;
           return (
             <div key={sc.key} className="dash-stat-card" style={{
               background: '#fff', borderRadius: 16, padding: '12px 10px',
               border: '1px solid #f0f2f7', boxShadow: '0 1px 4px rgba(0,0,0,.04)',
               position: 'relative', overflow: 'hidden', cursor: 'default',
-              transition: 'transform .15s ease, box-shadow .15s ease',
             }}>
               <div style={{ position: 'absolute', top: 0, right: 0, width: 3, height: '100%', background: sc.color }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                 <div style={{ width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: sc.bg, flexShrink: 0 }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 15, color: sc.color }}>{sc.icon}</span>
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>{sc.label}</span>
               </div>
-              <div style={{ textAlign: 'center', padding: '4px 0' }}>
-                <span style={{ fontSize: 28, fontWeight: 900, color: '#1a1d2e' }}>{val}</span>
-              </div>
-              {stageFilter && othVal > 0 && (
-                <div style={{ borderTop: '1.5px solid #f1f5f9', paddingTop: 4, textAlign: 'center', fontSize: 9, color: '#9da3b8' }}>
-                  {othAbbr}: {othVal}
+              {/* مت / ثا */}
+              {hasStageBreakdown && !stageFilter && stageValues.length > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 4 }}>
+                  {stageValues.map((sv, i) => (
+                    <span key={i} style={{ fontSize: 10, fontWeight: 700, color: '#9da3b8' }}>
+                      {sv.abbr} <span style={{ fontWeight: 800, color: '#475569' }}>{sv.val}</span>
+                    </span>
+                  ))}
                 </div>
               )}
+              {/* خط فاصل + المجموع */}
+              {hasStageBreakdown && !stageFilter && (
+                <div style={{ borderTop: '1.5px solid #f1f5f9', marginTop: 2, paddingTop: 4 }} />
+              )}
+              <div style={{ textAlign: 'center', padding: hasStageBreakdown && !stageFilter ? '0' : '4px 0' }}>
+                <span style={{ fontSize: 26, fontWeight: 900, color: '#1a1d2e' }}>{displayTotal}</span>
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* ═══════ Row 3.5: Period Card + Upcoming Events ═══════ */}
-      <div className="dash-period-row" style={{ marginBottom: 20 }}>
+      {/* ═══════ Row 4: الحصة الحالية (55%) + يحتاج انتباهك (45%) ═══════ */}
+      <div className="dash-row4" style={{ marginBottom: 20 }}>
         <PeriodCard stageFilter={stageFilter} />
-        {/* المناسبات القادمة */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: 16, border: '1px solid #f0f2f7', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1d2e', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f59e0b' }}>event_upcoming</span> المناسبات القادمة
-          </div>
-          <div style={{ flex: 1 }}>
-            {getUpcomingEvents(5).map((item, i) => {
-              const ec = item.ev.holiday ? '#ef4444' : item.ev.type === 'national' ? '#10b981' : '#6366f1';
-              return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid #f8fafc' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: ec, flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#475569', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.ev.label}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: item.days <= 7 ? '#f59e0b' : '#9da3b8', flexShrink: 0 }}>
-                    {item.days === 0 ? 'اليوم' : `${item.days} يوم`}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* ═══════ Row 3b: Charts ═══════ */}
-      <DashboardCharts
-        today={data.today}
-        stageStats={data.stageStats}
-        semesterTotals={data.semesterTotals}
-        violationsByDegree={data.violations?.byDegree}
-      />
-
-      {/* ═══════ Row 4: Attention Cards + Recent ═══════ */}
-      <div className="dash-main-row" style={{ marginBottom: 20 }}>
-        {/* Attention cards */}
         <div>
           <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1d2e', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ef4444' }}>notifications_active</span> يحتاج انتباهك
@@ -465,13 +427,18 @@ const DashboardPage: React.FC = () => {
             <AttentionCard icon="pending_actions" title="أعذار بانتظار" count={data.today?.pendingExcuses ?? 0} color="#8b5cf6" items={[]} />
           </div>
         </div>
+      </div>
 
-        {/* Recent Activity (referrals) */}
+      {/* ═══════ Row 5: تقويم (صغير) + تحويلات المعلمين (متوسط) + متابعة الغياب (كبير) ═══════ */}
+      <div className="dash-row5" style={{ marginBottom: 20 }}>
+        <CalendarCard />
+
+        {/* تحويلات المعلمين */}
         <div style={{ background: '#fff', borderRadius: 16, padding: 16, border: '1px solid #f0f2f7', display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1d2e', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#6366f1' }}>swap_horiz</span> تحويلات المعلمين
           </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ flex: 1, overflowY: 'auto', maxHeight: 280 }}>
             {(data.recentActivity?.length ?? 0) === 0 ? (
               <div style={{ textAlign: 'center', padding: 16, color: '#9da3b8', fontSize: 11 }}>لا توجد تحويلات اليوم</div>
             ) : data.recentActivity.map((it, i) => {
@@ -516,54 +483,21 @@ const DashboardPage: React.FC = () => {
             })}
           </div>
         </div>
-      </div>
 
-      {/* ═══════ Row 5: Calendar + Violations by Degree + Absence Grid ═══════ */}
-      <div className="dash-row5" style={{ marginBottom: 20 }}>
-        <CalendarCard />
-
-        {/* Violations by degree */}
-        <div style={cardStyle}>
-          <h3 style={cardTitleStyle}>المخالفات حسب الدرجة</h3>
-          {(data.violations?.byDegree?.length ?? 0) === 0 ? (
-            <p style={{ color: '#9ca3af', textAlign: 'center', padding: 20 }}>لا توجد مخالفات</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {data.violations.byDegree.map(d => {
-                const dc = DEGREE_COLORS[d.degree] || { label: `${d.degree}`, color: '#374151', bg: '#f3f4f6' };
-                const maxCount = Math.max(...data.violations.byDegree.map(x => x.count), 1);
-                return (
-                  <div key={d.degree} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ minWidth: 60, padding: '4px 8px', borderRadius: 100, fontSize: 12, fontWeight: 700, textAlign: 'center', background: dc.bg, color: dc.color }}>{dc.label}</span>
-                    <div style={{ flex: 1, background: '#f3f4f6', borderRadius: 6, height: 24, overflow: 'hidden' }}>
-                      <div style={{ width: `${(d.count / maxCount) * 100}%`, height: '100%', background: dc.color, borderRadius: 6, minWidth: d.count > 0 ? 24 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700 }}>{d.count}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Absence by class — مصفوفة صفوف × فصول مثل الأصلي */}
+        {/* متابعة إدخال الغياب */}
         <div style={cardStyle}>
           <h3 style={{ ...cardTitleStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f97316' }}>fact_check</span> متابعة إدخال الغياب
           </h3>
           {(() => {
             const absData = data.absenceByClass || [];
-            // بناء lookup من بيانات API
             const lookup: Record<string, number> = {};
             absData.forEach(a => { lookup[`${a.stage}|${a.grade}|${a.className}`] = a.count; });
-
-            // استخراج الصفوف والفصول من بيانات المراحل المفعّلة
             const SECTION_NAMES = ['أ', 'ب', 'ج', 'د'];
             const targetStages = stageFilter ? enabledStages.filter(s => s.stage === stageFilter) : enabledStages;
             if (targetStages.length === 0) {
               return <div style={{ textAlign: 'center', padding: 16, color: '#9da3b8', fontSize: 12 }}>لا توجد مراحل مفعّلة</div>;
             }
-
-            // بناء مصفوفة الصفوف
             const rows: { stageId: string; stageName: string; gradeName: string; sections: { name: string; count: number | null }[] }[] = [];
             for (const st of targetStages) {
               const stgName = STAGE_ABBR[st.stage] || st.stage;
@@ -578,14 +512,10 @@ const DashboardPage: React.FC = () => {
                 rows.push({ stageId: st.stage, stageName: stgName, gradeName: g.gradeName, sections: secs });
               }
             }
-
             if (rows.length === 0) {
               return <div style={{ textAlign: 'center', padding: 16, color: '#9da3b8', fontSize: 12 }}>لا توجد بيانات</div>;
             }
-
-            // أقصى عدد فصول
             const maxSections = Math.max(...rows.map(r => r.sections.length));
-
             return (
               <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 3px' }}>
                 <thead>
@@ -603,7 +533,6 @@ const DashboardPage: React.FC = () => {
                         <span style={{ fontSize: 8, fontWeight: 800, color: '#9da3b8', marginLeft: 2 }}>{r.stageName}</span> {r.gradeName}
                       </td>
                       {r.sections.map((s, si) => {
-                        // null = لم يُدخل (رمادي)، 0 = تم الإدخال ولا غياب (أخضر)، >0 = غياب (أحمر)
                         const bg = s.count === null ? '#f8fafc' : s.count === 0 ? '#f0fdf4' : '#fef2f2';
                         const clr = s.count === null ? '#d1d5db' : s.count === 0 ? '#22c55e' : '#dc2626';
                         return (
@@ -614,7 +543,6 @@ const DashboardPage: React.FC = () => {
                           </td>
                         );
                       })}
-                      {/* خلايا فارغة للمحاذاة */}
                       {Array.from({ length: maxSections - r.sections.length }).map((_, i) => (
                         <td key={`e${i}`} />
                       ))}
@@ -624,7 +552,6 @@ const DashboardPage: React.FC = () => {
               </table>
             );
           })()}
-          {/* Attendance percentage */}
           {(() => {
             const totalStudents = data.students?.total || 0;
             const todayAbsence = curStageStats ? (curStageStats.absence ?? 0) : (data.today?.absence ?? 0);
@@ -640,80 +567,35 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ═══════ Row 6: Top Violators + Needs Printing ═══════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-        {/* Top violators */}
-        <div style={cardStyle}>
-          <h3 style={cardTitleStyle}>أكثر الطلاب مخالفات</h3>
-          {(data.topViolators?.length ?? 0) === 0 ? (
-            <p style={{ color: '#9ca3af', textAlign: 'center', padding: 20 }}>لا توجد بيانات</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {data.topViolators.map((s, i) => (
-                <div key={s.studentId} style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '10px 0', borderBottom: i < data.topViolators.length - 1 ? '1px solid #f3f4f6' : 'none',
-                }}>
-                  <span style={{
-                    width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, fontWeight: 800,
-                    background: i === 0 ? '#fee2e2' : i === 1 ? '#fef9c3' : '#f3f4f6',
-                    color: i === 0 ? '#dc2626' : i === 1 ? '#ca8a04' : '#6b7280',
-                  }}>{i + 1}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{s.studentName}</div>
-                    <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.studentNumber} · {s.grade} {s.className}</div>
-                  </div>
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: '#dc2626' }}>{s.count}</div>
-                    <div style={{ fontSize: 11, color: '#9ca3af' }}>-{s.totalDeduction} درجة</div>
-                  </div>
-                </div>
+      {/* ═══════ Row 6: يحتاج توثيق (يظهر دائماً) ═══════ */}
+      <div style={cardStyle}>
+        <h3 style={{ ...cardTitleStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ef4444' }}>print</span>
+          يحتاج توثيق
+          <span style={{ fontSize: 11, fontWeight: 800, color: 'white', background: '#ef4444', padding: '1px 8px', borderRadius: 100 }}>
+            {(data.needsPrinting || []).filter(x => !dismissedPrints.has(`${x.studentId}_${x.type}`)).length}
+          </span>
+        </h3>
+        {(data.needsPrinting || []).filter(x => !dismissedPrints.has(`${x.studentId}_${x.type}`)).length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 16, color: '#9da3b8', fontSize: 11 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 24, color: '#d1d5db', display: 'block', marginBottom: 2 }}>check_circle</span>لا يوجد ما يحتاج توثيق
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, maxHeight: 180, overflowY: 'auto' }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#dc2626', marginBottom: 6 }}>مخالفات بدون نماذج</div>
+              {data.needsPrinting.filter(x => x.type === 'مخالفة' && !dismissedPrints.has(`${x.studentId}_${x.type}`)).map((it, i) => (
+                <PrintItem key={i} item={it} onDismiss={() => setDismissedPrints(prev => new Set([...prev, `${it.studentId}_${it.type}`]))} />
               ))}
             </div>
-          )}
-        </div>
-
-        {/* Needs printing */}
-        {(data.needsPrinting || []).filter(x => !dismissedPrints.has(`${x.studentId}_${x.type}`)).length > 0 && (
-          <div style={cardStyle}>
-            <h3 style={{ ...cardTitleStyle, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }} onClick={() => setPrintSectionHidden(h => !h)}>
-              <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ef4444' }}>print</span>
-              يحتاج توثيق
-              <span style={{ fontSize: 11, fontWeight: 800, color: 'white', background: '#ef4444', padding: '1px 8px', borderRadius: 100 }}>
-                {data.needsPrinting.filter(x => !dismissedPrints.has(`${x.studentId}_${x.type}`)).length}
-              </span>
-              <span style={{ marginRight: 'auto', fontSize: 12, color: '#9ca3af', fontWeight: 600 }}>{printSectionHidden ? '▼ إظهار' : '▲ إخفاء'}</span>
-            </h3>
-            {!printSectionHidden && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, maxHeight: 220, overflowY: 'auto' }}>
-                {/* Violations */}
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#dc2626', marginBottom: 6 }}>مخالفات بدون نماذج</div>
-                  {data.needsPrinting.filter(x => x.type === 'مخالفة' && !dismissedPrints.has(`${x.studentId}_${x.type}`)).map((it, i) => (
-                    <PrintItem key={i} item={it} onDismiss={() => setDismissedPrints(prev => new Set([...prev, `${it.studentId}_${it.type}`]))} />
-                  ))}
-                </div>
-                {/* Absences */}
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', marginBottom: 6 }}>غياب متكرر</div>
-                  {data.needsPrinting.filter(x => x.type === 'غياب' && !dismissedPrints.has(`${x.studentId}_${x.type}`)).map((it, i) => (
-                    <PrintItem key={i} item={it} onDismiss={() => setDismissedPrints(prev => new Set([...prev, `${it.studentId}_${it.type}`]))} />
-                  ))}
-                </div>
-              </div>
-            )}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', marginBottom: 6 }}>غياب متكرر</div>
+              {data.needsPrinting.filter(x => x.type === 'غياب' && !dismissedPrints.has(`${x.studentId}_${x.type}`)).map((it, i) => (
+                <PrintItem key={i} item={it} onDismiss={() => setDismissedPrints(prev => new Set([...prev, `${it.studentId}_${it.type}`]))} />
+              ))}
+            </div>
           </div>
         )}
-      </div>
-
-      {/* ═══════ Row 7: Semester Totals ═══════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-        <MiniStat label="إجمالي الطلاب" value={data.students?.total || 0} color="#4f46e5" />
-        <MiniStat label="إجمالي المخالفات (الفصل)" value={data.semesterTotals.violations} color="#dc2626" />
-        <MiniStat label="إجمالي الغياب (الفصل)" value={data.semesterTotals.absence} color="#f97316" />
-        <MiniStat label="إجمالي الاستئذان (الفصل)" value={data.semesterTotals.permissions} color="#8b5cf6" />
-        <MiniStat label="إجمالي التأخر (الفصل)" value={data.semesterTotals.tardiness} color="#ef4444" />
       </div>
     </div>
   );
