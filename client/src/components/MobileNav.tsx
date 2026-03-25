@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 
 interface Props {
   role?: string;
+  whatsAppMode?: string;
 }
 
 interface NavItem {
@@ -32,7 +33,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
 /* The 4 primary bottom-bar items (the 5th slot is the "More" button) */
 const PRIMARY_PATHS = ['/', '/violations', '/absence', '/tardiness'];
 
-const MobileNav: React.FC<Props> = ({ role }) => {
+const MobileNav: React.FC<Props> = ({ role, whatsAppMode }) => {
   const [moreOpen, setMoreOpen] = useState(false);
   const location = useLocation();
 
@@ -42,9 +43,11 @@ const MobileNav: React.FC<Props> = ({ role }) => {
   }, [location.pathname]);
 
   /* Role-based filtering — same logic as Sidebar.tsx */
-  const visibleItems = ALL_NAV_ITEMS.filter(
-    item => !item.roles || (role && item.roles.includes(role)),
-  );
+  const visibleItems = ALL_NAV_ITEMS.filter(item => {
+    if (item.roles && (!role || !item.roles.includes(role))) return false;
+    if (item.path === '/whatsapp' && role === 'Deputy' && whatsAppMode === 'Unified') return false;
+    return true;
+  });
 
   const primaryItems = visibleItems.filter(item => PRIMARY_PATHS.includes(item.path));
   const moreItems = visibleItems.filter(item => !PRIMARY_PATHS.includes(item.path));

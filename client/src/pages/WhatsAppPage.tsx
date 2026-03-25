@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import MI from '../components/shared/MI';
+import LoadingSpinner from '../components/shared/LoadingSpinner';
 import toast from 'react-hot-toast';
 import { whatsappApi } from '../api/whatsapp';
 
@@ -16,6 +17,8 @@ interface StatusResult {
   effectiveStage: string;
   whatsappMode: string;
   connectedPhones?: { phoneNumber: string; isConnected: boolean }[];
+  canUseAdminWhatsApp?: boolean;
+  adminHasWhatsApp?: boolean;
   error?: string;
 }
 
@@ -33,6 +36,13 @@ const STAGES = [
   { id: 'ثانوي',   label: 'المرحلة الثانوية',   color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
 ];
 
+function getVisibleStages(role?: string, scopes?: string[]) {
+  if (role === 'Deputy' && scopes && scopes.length > 0) {
+    return STAGES.filter(s => scopes.some(scope => scope === s.id || scope.includes(s.id)));
+  }
+  return STAGES;
+}
+
 function getStageInfo(stageId: string, waMode: string) {
   if (waMode === 'Unified') return { label: 'جميع المراحل', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' };
   return STAGES.find(s => s.id === stageId) || STAGES[1];
@@ -48,8 +58,20 @@ type MainView =
 
 // ===== Main Component =====
 const WhatsAppPage: React.FC = () => {
+  // User scope for stage filtering
+  const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
+  const userRole = storedUser?.role;
+  const userScopeValue = storedUser?.scopeValue || '';
+  const userScopes = userScopeValue ? userScopeValue.split(',').filter(Boolean) : [];
+  const visibleStages = getVisibleStages(userRole, userScopes);
+
   // المرحلة الحالية — مطابق لـ currentStage في الأصلي
-  const [currentStage, setCurrentStage] = useState('متوسط');
+  const [currentStage, setCurrentStage] = useState(() => {
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const scopes = user?.scopeValue?.split(',').filter(Boolean) || [];
+    const vs = getVisibleStages(user?.role, scopes);
+    return vs.length > 0 ? vs[0].id : 'متوسط';
+  });
 
   // حالة الصفحة: 'loading' | 'main' | 'settings'
   const [pageView, setPageView] = useState<'loading' | 'main' | 'settings'>('loading');
@@ -480,7 +502,7 @@ const WhatsAppPage: React.FC = () => {
               padding: '8px 12px', border: '2px solid #e5e7eb', borderRadius: '10px',
               fontSize: '13px', fontWeight: 600, cursor: 'pointer', background: '#fff',
             }}>
-              {STAGES.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
+              {visibleStages.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
             </select>
           )}
           <button onClick={handlePing} style={{ ...btnStyle('#f3f4f6', '#374151'), padding: '8px 12px', fontSize: '12px' }}>إيقاظ</button>
@@ -539,7 +561,7 @@ const WhatsAppPage: React.FC = () => {
           <div style={{ width: '50%', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
 
             {/* Loading */}
-            {(pageView === 'loading' || mainView === 'loading') && <Spinner text="جاري التحميل..." />}
+            {(pageView === 'loading' || mainView === 'loading') && <LoadingSpinner text="جاري التحميل..." />}
 
             {/* ★ Security Setup — مطابق showSecuritySetupForm سطر 170-211 */}
             {mainView === 'security-setup' && (
@@ -623,6 +645,44 @@ const WhatsAppPage: React.FC = () => {
                 <button onClick={handleShowRecovery} style={{ background: 'none', border: 'none', color: '#25d366', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>
                   نسيت رمز الأمان؟
                 </button>
+
+                {/* Admin approved — deputy can send via admin's number */}
+                {status?.canUseAdminWhatsApp && status?.adminHasWhatsApp && (
+                  <div style={{
+                    background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12,
+                    padding: 16, marginTop: 16, display: 'flex', alignItems: 'center', gap: 12,
+                    textAlign: 'right',
+                  }}>
+                    <span className="material-symbols-outlined" style={{ color: '#16a34a', fontSize: 24 }}>check_circle</span>
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 700, color: '#15803d', fontSize: 14 }}>
+                        الأدمن فعّل لك الإرسال من رقمه
+                      </p>
+                      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
+                        يمكنك إرسال الرسائل حتى بدون ربط رقمك الخاص
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Not connected + not approved — must link */}
+                {userRole === 'Deputy' && !status?.canUseAdminWhatsApp && (
+                  <div style={{
+                    background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12,
+                    padding: 16, marginTop: 16, display: 'flex', alignItems: 'center', gap: 12,
+                    textAlign: 'right',
+                  }}>
+                    <span className="material-symbols-outlined" style={{ color: '#b45309', fontSize: 24 }}>warning</span>
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 700, color: '#92400e', fontSize: 14 }}>
+                        يجب ربط الواتساب أولاً
+                      </p>
+                      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
+                        اربط رقمك بمسح الباركود لتتمكن من إرسال الرسائل
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -668,7 +728,7 @@ const WhatsAppPage: React.FC = () => {
                     </div>
                   </>
                 ) : (
-                  <Spinner text="يتم الآن تكوين الاتصال..." sub="يرجى الانتظار لحظات" />
+                  <LoadingSpinner text="يتم الآن تكوين الاتصال... يرجى الانتظار لحظات" />
                 )}
                 <button onClick={() => { stopQRPolling(); setMainView(status?.connected ? 'connected' : 'disconnected'); }} style={{ ...btnStyle('#f3f4f6', '#374151'), marginTop: '8px' }}>إلغاء</button>
               </div>
@@ -845,14 +905,6 @@ const IconCircle: React.FC<{ emoji: React.ReactNode; bg: string; size?: number; 
     margin: '0 auto 16px', fontSize: `${size * 0.44}px`,
     border: border ? `2px solid ${border}` : undefined,
   }}>{emoji}</div>
-);
-
-const Spinner: React.FC<{ text: string; sub?: string }> = ({ text, sub }) => (
-  <div style={{ textAlign: 'center', padding: '32px 0' }}>
-    <div style={{ width: '48px', height: '48px', border: '4px solid #dcfce7', borderTop: '4px solid #25d366', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
-    <p style={{ color: '#6b7280', margin: 0 }}>{text}</p>
-    {sub && <p style={{ color: '#9ca3af', fontSize: '12px', margin: '4px 0 0' }}>{sub}</p>}
-  </div>
 );
 
 const StatCard: React.FC<{ label: string; value: number; color: string; bg: string }> = ({ label, value, color, bg }) => (

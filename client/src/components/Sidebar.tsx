@@ -5,6 +5,7 @@ interface Props {
   open: boolean;
   role?: string;
   schoolName?: string;
+  whatsAppMode?: string;
 }
 
 interface NavItem {
@@ -66,12 +67,16 @@ const NAV_ITEMS: NavGroup[] = [
   ]},
 ];
 
-const Sidebar: React.FC<Props> = ({ open, role, schoolName }) => {
+const Sidebar: React.FC<Props> = ({ open, role, schoolName, whatsAppMode }) => {
   if (!open) return null;
 
   const visibleGroups = NAV_ITEMS.map(group => ({
     ...group,
-    items: group.items.filter(item => !item.roles || (role && item.roles.includes(role))),
+    items: group.items.filter(item => {
+      if (item.roles && (!role || !item.roles.includes(role))) return false;
+      if (item.path === '/whatsapp' && role === 'Deputy' && whatsAppMode === 'Unified') return false;
+      return true;
+    }),
   })).filter(group => group.items.length > 0);
 
   return (

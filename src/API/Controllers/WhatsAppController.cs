@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,11 +17,13 @@ public class WhatsAppController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IWhatsAppServerService _waServer;
+    private readonly IHijriDateService _hijri;
 
-    public WhatsAppController(AppDbContext db, IWhatsAppServerService waServer)
+    public WhatsAppController(AppDbContext db, IWhatsAppServerService waServer, IHijriDateService hijri)
     {
         _db = db;
         _waServer = waServer;
+        _hijri = hijri;
     }
 
     // ===== Settings =====
@@ -81,6 +84,10 @@ public class WhatsAppController : ControllerBase
         var needSetup    = string.IsNullOrEmpty(settings?.SecurityCode);
         var whatsAppMode = schoolSettings?.WhatsAppMode.ToString() ?? "PerStage";
 
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var currentUser = await _db.Users.FindAsync(userId);
+        var adminHasPhone = await _db.Users.AnyAsync(u => u.Role == UserRole.Admin && u.IsActive && u.HasWhatsApp && u.WhatsAppPhone != "");
+
         // ★ 2. النمط الموحد: effectiveStage = "" — مطابق GAS سطر 994
         var effectiveStage = whatsAppMode == "Unified" ? "" : (stage ?? "");
 
@@ -90,6 +97,8 @@ public class WhatsAppController : ControllerBase
                 connected = false, phone = (string?)null, needSetup,
                 whatsappMode = whatsAppMode, stage = stage ?? "", effectiveStage,
                 sessions = Array.Empty<object>(),
+                canUseAdminWhatsApp = currentUser?.CanUseAdminWhatsApp ?? false,
+                adminHasWhatsApp = adminHasPhone,
                 error = "رابط سيرفر الواتساب غير مُعيّن — عيّنه في إعدادات الواتساب"
             }));
 
@@ -139,6 +148,8 @@ public class WhatsAppController : ControllerBase
                 stage        = stage ?? "",
                 effectiveStage,
                 whatsappMode = whatsAppMode,
+                canUseAdminWhatsApp = currentUser?.CanUseAdminWhatsApp ?? false,
+                adminHasWhatsApp = adminHasPhone,
                 connectedPhones = serverStatus.ConnectedPhones.Select(p => new { p.PhoneNumber, p.IsConnected }),
             }));
         }
@@ -156,6 +167,8 @@ public class WhatsAppController : ControllerBase
             stage        = stage ?? "",
             effectiveStage,
             whatsappMode = whatsAppMode,
+            canUseAdminWhatsApp = currentUser?.CanUseAdminWhatsApp ?? false,
+            adminHasWhatsApp = adminHasPhone,
             connectedPhones = serverStatus.ConnectedPhones.Select(p => new { p.PhoneNumber, p.IsConnected }),
         }));
     }
@@ -273,7 +286,7 @@ public class WhatsAppController : ControllerBase
             if (session != null)
             {
                 session.MessageCount++;
-                session.LastUsed = DateTime.Now;
+                session.LastUsed = DateTime.UtcNow;
                 await _db.SaveChangesAsync();
             }
         }
@@ -329,19 +342,38 @@ public class WhatsAppController : ControllerBase
             }
         }
 
+        // Fallback: if deputy can use admin's phone
+        if (string.IsNullOrEmpty(senderPhone))
+        {
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var currentUser = await _db.Users.FindAsync(currentUserId);
+
+            if (currentUser?.CanUseAdminWhatsApp == true)
+            {
+                var adminUser = await _db.Users
+                    .Where(u => u.Role == UserRole.Admin && u.IsActive && u.HasWhatsApp && u.WhatsAppPhone != "")
+                    .FirstOrDefaultAsync();
+
+                if (adminUser != null)
+                {
+                    senderPhone = adminUser.WhatsAppPhone;
+                    senderUserType = "مدير (نيابة)";
+                }
+                else
+                {
+                    return Ok(ApiResponse<object>.Fail("المدير فعّل لك الإرسال من رقمه لكن لم يربط رقمه بعد"));
+                }
+            }
+        }
+
+        // Final check — no phone available at all
         if (string.IsNullOrEmpty(senderPhone))
             return Ok(ApiResponse<object>.Fail(
                 $"لا يوجد رقم واتساب مخصص لمرحلة {request.Stage}. يرجى تعيين رقم واتساب من إعدادات الهيئة الإدارية."));
 
         // ★ 2. تسجيل الرسالة أولاً بحالة "جاري الإرسال" — مطابق GAS سطر 1163 (logCommunication)
-        var now = DateTime.Now;
-        var hijriDate = "";
-        try
-        {
-            var hijriCal = new System.Globalization.UmAlQuraCalendar();
-            hijriDate = $"{hijriCal.GetYear(now)}/{hijriCal.GetMonth(now):D2}/{hijriCal.GetDayOfMonth(now):D2}";
-        }
-        catch { /* fallback */ }
+        var now = DateTime.UtcNow;
+        var hijriDate = _hijri.GetHijriDate();
 
         var log = new CommunicationLog
         {
@@ -376,7 +408,7 @@ public class WhatsAppController : ControllerBase
             if (senderSession != null)
             {
                 senderSession.MessageCount++;
-                senderSession.LastUsed = DateTime.Now;
+                senderSession.LastUsed = DateTime.UtcNow;
             }
         }
         else
@@ -447,7 +479,7 @@ public class WhatsAppController : ControllerBase
             // تحديث الرقم الموجود وجعله رئيسياً
             foreach (var s in stageSessions) s.IsPrimary = false;
             existing.ConnectionStatus = "متصل";
-            existing.LastUsed         = DateTime.Now;
+            existing.LastUsed         = DateTime.UtcNow;
             existing.IsPrimary        = true;
             await _db.SaveChangesAsync();
             return Ok(ApiResponse<object>.Ok(new
@@ -468,8 +500,8 @@ public class WhatsAppController : ControllerBase
             Stage            = effectiveStage,
             UserType         = request.UserType ?? "",
             ConnectionStatus = "متصل",
-            LinkedAt         = DateTime.Now,
-            LastUsed         = DateTime.Now,
+            LinkedAt         = DateTime.UtcNow,
+            LastUsed         = DateTime.UtcNow,
             IsPrimary        = true,
         };
 
@@ -666,7 +698,7 @@ public class WhatsAppController : ControllerBase
             return NotFound(ApiResponse.Fail("الجلسة غير موجودة"));
 
         session.ConnectionStatus = request.Status ?? "غير متصل";
-        session.LastUsed = DateTime.Now;
+        session.LastUsed = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return Ok(ApiResponse.Ok("تم تحديث الحالة"));
     }
@@ -807,7 +839,7 @@ public class WhatsAppController : ControllerBase
         {
             existing.ConnectionStatus = "متصل";
             existing.IsPrimary        = true;
-            existing.LastUsed         = DateTime.Now;
+            existing.LastUsed         = DateTime.UtcNow;
         }
         else
         {
@@ -817,8 +849,8 @@ public class WhatsAppController : ControllerBase
                 Stage            = effectiveStage,
                 UserType         = request.UserType ?? "وكيل",
                 ConnectionStatus = "متصل",
-                LinkedAt         = DateTime.Now,
-                LastUsed         = DateTime.Now,
+                LinkedAt         = DateTime.UtcNow,
+                LastUsed         = DateTime.UtcNow,
                 IsPrimary        = true,
             });
         }

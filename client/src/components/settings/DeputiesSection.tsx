@@ -4,6 +4,7 @@ import { settingsApi, StageConfigData } from '../../api/settings';
 import { whatsappApi } from '../../api/whatsapp';
 import { showSuccess, showError } from '../shared/Toast';
 import { SETTINGS_STAGES } from '../../utils/constants';
+import LoadingSpinner from '../shared/LoadingSpinner';
 
 /* ─── Helpers ────────────────────────────────── */
 const stageName = (id: string) => SETTINGS_STAGES.find(s => s.id === id)?.name || id;
@@ -258,7 +259,7 @@ const DeputiesSection: React.FC = () => {
   };
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}><div className="spinner" /></div>;
+    return <LoadingSpinner />;
   }
 
   return (
@@ -387,7 +388,12 @@ const DeputiesSection: React.FC = () => {
               {!isUnified && d.whatsAppPhone && (
                 <StatusBadge status={wStatus === 'connected' ? 'connected' : 'disconnected'} />
               )}
-              {!isUnified && !d.whatsAppPhone && (
+              {!isUnified && !d.whatsAppPhone && d.canUseAdminWhatsApp && (
+                <span style={{ padding: '4px 10px', fontSize: 12, borderRadius: 9999, fontWeight: 700, background: '#f0fdf4', color: '#16a34a', flexShrink: 0 }}>
+                  يرسل من رقم المدير
+                </span>
+              )}
+              {!isUnified && !d.whatsAppPhone && !d.canUseAdminWhatsApp && (
                 <span style={{ padding: '4px 10px', fontSize: 12, borderRadius: 9999, fontWeight: 700, background: '#f3f4f6', color: '#9ca3af', flexShrink: 0 }}>
                   بدون واتساب
                 </span>
@@ -592,7 +598,7 @@ const AdminCard: React.FC<AdminCardProps> = ({
                         cursor: takenByDeputy && !selected ? 'not-allowed' : 'pointer',
                       }}
                     >
-                      {selected && <span style={{ marginLeft: 4 }}>✓</span>}
+                      {selected && <span className="material-symbols-outlined" style={{ fontSize: 14, marginLeft: 4 }}>check</span>}
                       {stageName(sid)}
                     </button>
                   );
@@ -653,7 +659,7 @@ const QRModal: React.FC<QRModalProps> = ({ qrLoading, qrData, qrConnected, onClo
     <div style={{ background: '#fff', borderRadius: 16, padding: 24, maxWidth: 400, width: '90%', textAlign: 'center' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1f2937' }}>ربط واتساب</h3>
-        <button onClick={onClose} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18 }}>✕</button>
+        <button onClick={onClose} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18 }}><span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span></button>
       </div>
 
       {qrLoading && (
@@ -721,6 +727,7 @@ const DeputyModal: React.FC<DeputyModalProps> = ({ deputy, enabledStages, takenS
     deputy?.scopeValue ? resolveStages(deputy.scopeValue) : []
   );
   const [whatsAppPhone, setWhatsAppPhone] = useState(deputy?.whatsAppPhone || '');
+  const [canUseAdminWA, setCanUseAdminWA] = useState(deputy?.canUseAdminWhatsApp || false);
   const [saving, setSaving] = useState(false);
 
   const toggleStage = (sid: string) => {
@@ -743,6 +750,7 @@ const DeputyModal: React.FC<DeputyModalProps> = ({ deputy, enabledStages, takenS
       scopeValue: selectedStages.join(','),
       hasWhatsApp: !isUnified && !!whatsAppPhone.trim(),
       whatsAppPhone: !isUnified ? (whatsAppPhone.trim() || '') : '',
+      canUseAdminWhatsApp: !isUnified ? canUseAdminWA : false,
     };
 
     try {
@@ -778,7 +786,7 @@ const DeputyModal: React.FC<DeputyModalProps> = ({ deputy, enabledStages, takenS
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#1e40af' }}>
             {isEdit ? 'تعديل وكيل' : 'إضافة وكيل شؤون طلاب'}
           </h3>
-          <button onClick={onClose} style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18 }}>✕</button>
+          <button onClick={onClose} style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18 }}><span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span></button>
         </div>
 
         {/* Body */}
@@ -833,7 +841,7 @@ const DeputyModal: React.FC<DeputyModalProps> = ({ deputy, enabledStages, takenS
                         position: 'relative',
                       }}
                     >
-                      {selected && <span style={{ marginLeft: 4 }}>✓</span>}
+                      {selected && <span className="material-symbols-outlined" style={{ fontSize: 14, marginLeft: 4 }}>check</span>}
                       {stageName(sid)}
                       {taken && (
                         <span style={{ position: 'absolute', top: -6, right: -6, fontSize: 10, background: '#fef3c7', color: '#92400e', padding: '1px 5px', borderRadius: 99, fontWeight: 600 }}>
@@ -865,6 +873,23 @@ const DeputyModal: React.FC<DeputyModalProps> = ({ deputy, enabledStages, takenS
               <p style={{ fontSize: 11, color: '#9ca3af', margin: '6px 0 0' }}>
                 يقوم الوكيل بربط هذا الرقم عبر QR من واجهته الخاصة
               </p>
+              {/* السماح بالإرسال من رقم المدير */}
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 10, marginTop: 10,
+                padding: '10px 14px', background: canUseAdminWA ? '#f0fdf4' : '#f9fafb',
+                borderRadius: 10, border: `1px solid ${canUseAdminWA ? '#bbf7d0' : '#e5e7eb'}`,
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}>
+                <input type="checkbox" checked={canUseAdminWA} onChange={e => setCanUseAdminWA(e.target.checked)} />
+                <div>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>
+                    السماح بالإرسال من رقم المدير
+                  </span>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: '#9ca3af' }}>
+                    إذا لم يربط الوكيل رقمه، يمكنه الإرسال عبر رقم المدير
+                  </p>
+                </div>
+              </label>
             </div>
           )}
         </div>

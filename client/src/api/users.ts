@@ -11,6 +11,7 @@ export interface UserData {
   scopeValue?: string;
   hasWhatsApp?: boolean;
   whatsAppPhone?: string;
+  canUseAdminWhatsApp?: boolean;
 }
 
 export const usersApi = {

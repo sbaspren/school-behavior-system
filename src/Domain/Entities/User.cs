@@ -20,6 +20,7 @@ public class User : ITenantEntity
     public string LinkUrl { get; set; } = "";
     public bool HasWhatsApp { get; set; }
     public string WhatsAppPhone { get; set; } = "";
+    public bool CanUseAdminWhatsApp { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

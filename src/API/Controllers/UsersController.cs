@@ -30,7 +30,7 @@ public class UsersController : ControllerBase
         {
             u.Id, u.Name, role = u.Role.ToString(), u.Mobile, u.Email,
             u.Permissions, u.ScopeType, u.ScopeValue, u.IsActive,
-            u.TokenLink, u.LinkUrl, u.HasWhatsApp, u.WhatsAppPhone,
+            u.TokenLink, u.LinkUrl, u.HasWhatsApp, u.WhatsAppPhone, u.CanUseAdminWhatsApp,
             u.CreatedAt, u.UpdatedAt
         }).ToListAsync();
 
@@ -69,6 +69,7 @@ public class UsersController : ControllerBase
             ScopeValue = request.ScopeValue ?? "",
             HasWhatsApp = request.HasWhatsApp ?? false,
             WhatsAppPhone = request.WhatsAppPhone ?? "",
+            CanUseAdminWhatsApp = request.CanUseAdminWhatsApp ?? false,
             IsActive = true,
             TokenLink = tokenLink,
             CreatedAt = DateTime.UtcNow,
@@ -97,6 +98,12 @@ public class UsersController : ControllerBase
         if (request.ScopeValue != null) user.ScopeValue = request.ScopeValue;
         if (request.HasWhatsApp != null) user.HasWhatsApp = request.HasWhatsApp.Value;
         if (request.WhatsAppPhone != null) user.WhatsAppPhone = request.WhatsAppPhone;
+        if (request.CanUseAdminWhatsApp.HasValue)
+        {
+            var callerRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            if (callerRole == "Admin")
+                user.CanUseAdminWhatsApp = request.CanUseAdminWhatsApp.Value;
+        }
         if (!string.IsNullOrEmpty(request.Password))
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
@@ -264,4 +271,5 @@ public class AddUserRequest
     public string? ScopeValue { get; set; }
     public bool? HasWhatsApp { get; set; }
     public string? WhatsAppPhone { get; set; }
+    public bool? CanUseAdminWhatsApp { get; set; }
 }
