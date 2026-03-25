@@ -151,6 +151,7 @@ public class WhatsAppController : ControllerBase
                 canUseAdminWhatsApp = currentUser?.CanUseAdminWhatsApp ?? false,
                 adminHasWhatsApp = adminHasPhone,
                 connectedPhones = serverStatus.ConnectedPhones.Select(p => new { p.PhoneNumber, p.IsConnected }),
+                scenario = await DetectScenario(),
             }));
         }
 
@@ -170,6 +171,7 @@ public class WhatsAppController : ControllerBase
             canUseAdminWhatsApp = currentUser?.CanUseAdminWhatsApp ?? false,
             adminHasWhatsApp = adminHasPhone,
             connectedPhones = serverStatus.ConnectedPhones.Select(p => new { p.PhoneNumber, p.IsConnected }),
+            scenario = await DetectScenario(),
         }));
     }
 
@@ -1017,6 +1019,87 @@ public class WhatsAppController : ControllerBase
         }
 
         return Ok(ApiResponse<object>.Fail(result.Error ?? "فشل الحصول على رمز الاقتران"));
+    }
+
+    // ===== Scenario Detection =====
+    // ★ كشف السيناريو النشط تلقائياً:
+    // 1 = مدير فقط (بدون وكلاء)
+    // 2 = مدير + وكلاء، رقم موحد (الوكلاء يستخدمون رقم المدرسة)
+    // 3 = مدير + وكلاء، مختلط (الوكيل يختار رقمه أو رقم المدرسة)
+    // 4 = بدون رقم رئيسي، كل وكيل مستقل
+
+    private async Task<int> DetectScenario()
+    {
+        var deputies = await _db.Users
+            .Where(u => u.Role == UserRole.Deputy && u.IsActive)
+            .ToListAsync();
+
+        // لا يوجد وكلاء → سيناريو 1
+        if (deputies.Count == 0)
+            return 1;
+
+        // هل يوجد رقم رئيسي مربوط؟
+        var adminHasNumber = await _db.WhatsAppSessions.AnyAsync(s => s.IsPrimary);
+
+        // هل أي وكيل عنده رقمه الخاص؟
+        var anyDeputyHasOwnNumber = deputies.Any(d => d.HasWhatsApp && !string.IsNullOrEmpty(d.WhatsAppPhone));
+
+        // لا رقم رئيسي → سيناريو 4
+        if (!adminHasNumber)
+            return 4;
+
+        // رقم رئيسي + وكيل عنده رقمه → سيناريو 3
+        if (anyDeputyHasOwnNumber)
+            return 3;
+
+        // رقم رئيسي + لا وكيل عنده رقم → سيناريو 2
+        return 2;
+    }
+
+    [HttpGet("scenario")]
+    public async Task<ActionResult<ApiResponse<object>>> GetScenario()
+    {
+        var scenario = await DetectScenario();
+        var deputies = await _db.Users
+            .Where(u => u.Role == UserRole.Deputy && u.IsActive)
+            .Select(u => new { u.Id, u.Name, u.ScopeValue, u.HasWhatsApp, u.WhatsAppPhone, u.CanUseAdminWhatsApp })
+            .ToListAsync();
+
+        return Ok(ApiResponse<object>.Ok(new { scenario, deputies }));
+    }
+
+    // ===== Stage Teachers — معلمين المرحلة =====
+
+    [HttpGet("stage-teachers")]
+    public async Task<ActionResult<ApiResponse<object>>> GetStageTeachers()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var currentUser = await _db.Users.FindAsync(userId);
+        if (currentUser == null) return Unauthorized();
+
+        var teachers = await _db.Teachers.Where(t => t.IsActive).ToListAsync();
+
+        // فلترة بحسب المرحلة — غير المدير يشوف معلمين مرحلته فقط
+        if (currentUser.Role != UserRole.Admin && !string.IsNullOrEmpty(currentUser.ScopeValue))
+        {
+            var allowedStages = currentUser.ScopeValue.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            teachers = teachers
+                .Where(t => !string.IsNullOrEmpty(t.AssignedClasses) &&
+                            allowedStages.Any(stage => t.AssignedClasses.Contains(stage)))
+                .ToList();
+        }
+
+        var result = teachers.Select(t => new
+        {
+            id = t.Id,
+            name = t.Name,
+            mobile = t.Mobile,
+            subjects = t.Subjects,
+            assignedClasses = t.AssignedClasses,
+            hasLink = !string.IsNullOrEmpty(t.TokenLink),
+        });
+
+        return Ok(ApiResponse<object>.Ok(result));
     }
 
     [HttpPost("security/change-code")]

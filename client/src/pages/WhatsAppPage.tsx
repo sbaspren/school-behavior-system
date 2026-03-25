@@ -19,6 +19,7 @@ interface StatusResult {
   connectedPhones?: { phoneNumber: string; isConnected: boolean }[];
   canUseAdminWhatsApp?: boolean;
   adminHasWhatsApp?: boolean;
+  scenario?: number; // 1-4
   error?: string;
 }
 
@@ -43,8 +44,8 @@ function getVisibleStages(role?: string, scopes?: string[]) {
   return STAGES;
 }
 
-function getStageInfo(stageId: string, waMode: string) {
-  if (waMode === 'Unified') return { label: 'جميع المراحل', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' };
+function getStageInfo(stageId: string, _waMode: string) {
+  if (stageId === 'all') return { label: 'جميع المراحل', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' };
   return STAGES.find(s => s.id === stageId) || STAGES[1];
 }
 
@@ -107,6 +108,10 @@ const WhatsAppPage: React.FC = () => {
   const [inspectResult, setInspectResult] = useState<string | null>(null);
   const [inspecting, setInspecting] = useState(false);
 
+  // Scenario
+  const [scenario, setScenario] = useState(1);
+  const [deputyChoice, setDeputyChoice] = useState<'school' | 'own' | null>(null);
+
   // General
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -121,6 +126,7 @@ const WhatsAppPage: React.FC = () => {
       if (!data) { setMainView('error'); setPageView('main'); return; }
 
       setStatus(data);
+      if (data.scenario) setScenario(data.scenario);
 
       // ★ مطابق handleStatusResponse — يقرر أي واجهة يعرض
       if (data.needSetup) {
@@ -484,10 +490,13 @@ const WhatsAppPage: React.FC = () => {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {/* شارة النمط الموحد */}
-          {(status?.whatsappMode === 'Unified' || waMode === 'Unified') && (
-            <span style={{ padding: '4px 12px', background: '#f5f3ff', color: '#7c3aed', borderRadius: '100px', fontSize: '11px', fontWeight: 700 }}>رقم موحد</span>
-          )}
+          {/* شارة السيناريو */}
+          <span style={{ padding: '4px 12px', background: '#f5f3ff', color: '#7c3aed', borderRadius: '100px', fontSize: '11px', fontWeight: 700 }}>
+            {scenario === 1 && 'مدير فقط'}
+            {scenario === 2 && 'رقم موحد'}
+            {scenario === 3 && 'مختلط'}
+            {scenario === 4 && 'مستقل'}
+          </span>
           {/* شارة المرحلة */}
           <div style={{
             background: stageInfo.bg, color: stageInfo.color, padding: '8px 16px', borderRadius: '12px',
@@ -496,15 +505,14 @@ const WhatsAppPage: React.FC = () => {
           }}>
             <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>apartment</span> {stageInfo.label}
           </div>
-          {/* اختيار المرحلة */}
-          {status?.whatsappMode !== 'Unified' && waMode !== 'Unified' && (
-            <select value={currentStage} onChange={e => setCurrentStage(e.target.value)} style={{
-              padding: '8px 12px', border: '2px solid #e5e7eb', borderRadius: '10px',
-              fontSize: '13px', fontWeight: 600, cursor: 'pointer', background: '#fff',
-            }}>
-              {visibleStages.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
-            </select>
-          )}
+          {/* اختيار المرحلة — دائماً ظاهر كفلتر للطلاب */}
+          <select value={currentStage} onChange={e => setCurrentStage(e.target.value)} style={{
+            padding: '8px 12px', border: '2px solid #e5e7eb', borderRadius: '10px',
+            fontSize: '13px', fontWeight: 600, cursor: 'pointer', background: '#fff',
+          }}>
+            {userRole === 'Admin' && <option value="all">الكل</option>}
+            {visibleStages.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
+          </select>
           <button onClick={handlePing} style={{ ...btnStyle('#f3f4f6', '#374151'), padding: '8px 12px', fontSize: '12px' }}>إيقاظ</button>
           <button onClick={() => loadStatus()} style={{ ...btnStyle('#f3f4f6', '#374151'), padding: '8px 12px', fontSize: '12px' }}>تحديث</button>
           <button onClick={() => setPageView('settings')} style={{ ...btnStyle('#f3f4f6', '#374151'), padding: '8px 12px', fontSize: '12px' }}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>settings</span></button>
@@ -518,10 +526,10 @@ const WhatsAppPage: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fff' }}>
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>info</span>
             <span style={{ fontSize: '13px' }}>
-              {(status?.whatsappMode === 'Unified' || waMode === 'Unified')
-                ? 'رقم واحد رئيسي لجميع المراحل'
-                : <>الرقم الرئيسي يُستخدم لجميع مراسلات <strong>{stageInfo.label}</strong></>
-              }
+              {scenario === 1 && 'رقم واحد رئيسي — أنت المدير الوحيد'}
+              {scenario === 2 && (userRole === 'Admin' ? 'رقم واحد رئيسي — الوكلاء يرسلون من رقم المدرسة' : `متصل برقم المدرسة الرئيسي — ${stageInfo.label}`)}
+              {scenario === 3 && (userRole === 'Admin' ? 'رقم رئيسي + الوكلاء يختارون رقمهم' : `${stageInfo.label} — اختر رقم المدرسة أو رقمك`)}
+              {scenario === 4 && (userRole === 'Admin' ? 'كل وكيل يربط رقمه بشكل مستقل' : `${stageInfo.label} — اربط رقمك الخاص`)}
             </span>
           </div>
         </div>
@@ -620,69 +628,133 @@ const WhatsAppPage: React.FC = () => {
               </div>
             )}
 
-            {/* ★ Disconnected State — مطابق showDisconnectedState سطر 289-327 */}
+            {/* ★ Disconnected State — يتكيف بحسب السيناريو والدور */}
             {mainView === 'disconnected' && (
               <div style={{ textAlign: 'center', width: '100%' }}>
-                <IconCircle emoji={<span className="material-symbols-outlined" style={{ fontSize: '35px' }}>link</span>} bg="#ffedd5" size={80} />
-                <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>لا يوجد رقم رئيسي</h3>
-                <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>لم يتم ربط رقم رئيسي لـ {stageInfo.label}</p>
-                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '12px', marginBottom: '16px' }}>
-                  <p style={{ fontSize: '13px', color: '#dc2626', margin: 0 }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>warning</span> لن يعمل أي تواصل (روابط، إشعارات، رسائل) إلا بعد ربط رقم رئيسي
-                  </p>
-                </div>
-                <div style={{ background: '#f9fafb', borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
-                  <div style={{ marginBottom: '12px' }}>
-                    <label style={labelStyle}>رمز الأمان</label>
-                    <input type="password" value={securityCode} onChange={e => setSecurityCode(e.target.value)}
-                      placeholder="••••••" style={{ ...inputStyle, textAlign: 'center', fontSize: '18px', letterSpacing: '4px' }}
-                      onKeyDown={e => { if (e.key === 'Enter') handleVerifyAndOpenQR(); }} />
-                  </div>
-                  <button onClick={handleVerifyAndOpenQR} disabled={actionLoading} style={{
-                    ...btnStyle('#25d366', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1,
-                  }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> ربط الرقم الرئيسي</button>
-                </div>
-                <button onClick={handleShowRecovery} style={{ background: 'none', border: 'none', color: '#25d366', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>
-                  نسيت رمز الأمان؟
-                </button>
 
-                {/* Admin approved — deputy can send via admin's number */}
-                {status?.canUseAdminWhatsApp && status?.adminHasWhatsApp && (
-                  <div style={{
-                    background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12,
-                    padding: 16, marginTop: 16, display: 'flex', alignItems: 'center', gap: 12,
-                    textAlign: 'right',
-                  }}>
-                    <span className="material-symbols-outlined" style={{ color: '#16a34a', fontSize: 24 }}>check_circle</span>
-                    <div>
-                      <p style={{ margin: 0, fontWeight: 700, color: '#15803d', fontSize: 14 }}>
-                        الأدمن فعّل لك الإرسال من رقمه
-                      </p>
-                      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
-                        يمكنك إرسال الرسائل حتى بدون ربط رقمك الخاص
-                      </p>
+                {/* ═══ سيناريو 1 + 4 للأدمن، أو سيناريو 3+4 للوكيل (ربط رقم خاص) ═══ */}
+                {((userRole === 'Admin' && (scenario === 1 || scenario === 4)) ||
+                  (userRole === 'Deputy' && scenario === 4) ||
+                  (userRole === 'Deputy' && scenario === 3 && deputyChoice === 'own')) && (
+                  <>
+                    <IconCircle emoji={<span className="material-symbols-outlined" style={{ fontSize: '35px' }}>link</span>} bg="#ffedd5" size={80} />
+                    <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>
+                      {userRole === 'Admin' && scenario === 1 && 'ربط رقم الواتساب'}
+                      {userRole === 'Admin' && scenario === 4 && 'ربط رقمك (اختياري)'}
+                      {userRole === 'Deputy' && 'ربط رقمك الخاص'}
+                    </h3>
+                    <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>
+                      {scenario === 1 && 'رقم واحد لجميع مراسلات المدرسة'}
+                      {scenario === 4 && userRole === 'Admin' && 'يمكنك ربط رقمك للإرسال، أو ترك المهمة للوكلاء'}
+                      {scenario === 4 && userRole === 'Deputy' && `اربط رقمك لمراسلات ${stageInfo.label}`}
+                      {scenario === 3 && deputyChoice === 'own' && `اربط رقمك الخاص لمراسلات ${stageInfo.label}`}
+                    </p>
+                    <div style={{ background: '#f9fafb', borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={labelStyle}>رمز الأمان</label>
+                        <input type="password" value={securityCode} onChange={e => setSecurityCode(e.target.value)}
+                          placeholder="••••••" style={{ ...inputStyle, textAlign: 'center', fontSize: '18px', letterSpacing: '4px' }}
+                          onKeyDown={e => { if (e.key === 'Enter') handleVerifyAndOpenQR(); }} />
+                      </div>
+                      <button onClick={handleVerifyAndOpenQR} disabled={actionLoading} style={{
+                        ...btnStyle('#25d366', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1,
+                      }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> ربط الرقم</button>
                     </div>
-                  </div>
+                    <button onClick={handleShowRecovery} style={{ background: 'none', border: 'none', color: '#25d366', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>
+                      نسيت رمز الأمان؟
+                    </button>
+                    {scenario === 3 && deputyChoice === 'own' && (
+                      <button onClick={() => setDeputyChoice(null)} style={{ display: 'block', margin: '12px auto 0', background: 'none', border: 'none', color: '#6b7280', fontSize: '13px', cursor: 'pointer' }}>
+                        ← رجوع للخيارات
+                      </button>
+                    )}
+                  </>
                 )}
 
-                {/* Not connected + not approved — must link */}
-                {userRole === 'Deputy' && !status?.canUseAdminWhatsApp && (
-                  <div style={{
-                    background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12,
-                    padding: 16, marginTop: 16, display: 'flex', alignItems: 'center', gap: 12,
-                    textAlign: 'right',
-                  }}>
-                    <span className="material-symbols-outlined" style={{ color: '#b45309', fontSize: 24 }}>warning</span>
-                    <div>
-                      <p style={{ margin: 0, fontWeight: 700, color: '#92400e', fontSize: 14 }}>
-                        يجب ربط الواتساب أولاً
-                      </p>
-                      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
-                        اربط رقمك بمسح الباركود لتتمكن من إرسال الرسائل
-                      </p>
+                {/* ═══ سيناريو 2: الوكيل يستخدم رقم المدرسة (لا يربط) ═══ */}
+                {userRole === 'Deputy' && scenario === 2 && (
+                  <>
+                    <IconCircle emoji={<span className="material-symbols-outlined" style={{ fontSize: '35px' }}>check_circle</span>} bg="#dcfce7" size={80} />
+                    <h3 style={{ fontSize: '20px', fontWeight: 700, color: '#16a34a', marginBottom: '8px' }}>
+                      متصل برقم المدرسة
+                    </h3>
+                    <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>
+                      يمكنك إرسال الرسائل لأولياء أمور {stageInfo.label} من رقم المدرسة الرئيسي
+                    </p>
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: 16, display: 'flex', alignItems: 'center', gap: 12, textAlign: 'right' }}>
+                      <span className="material-symbols-outlined" style={{ color: '#16a34a', fontSize: 24 }}>phone_forwarded</span>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 700, color: '#15803d', fontSize: 14 }}>الإرسال من رقم المدرسة</p>
+                        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>الرسائل تُرسل تلقائياً من الرقم الرئيسي المربوط من المدير</p>
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
+
+                {/* ═══ سيناريو 3: الوكيل يختار (رقم المدرسة أو رقمه) ═══ */}
+                {userRole === 'Deputy' && scenario === 3 && !deputyChoice && (
+                  <>
+                    <IconCircle emoji={<span className="material-symbols-outlined" style={{ fontSize: '35px' }}>swap_horiz</span>} bg="#ede9fe" size={80} />
+                    <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>اختر طريقة الإرسال</h3>
+                    <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>لمراسلات {stageInfo.label}</p>
+                    <div style={{ display: 'grid', gap: '12px', maxWidth: '300px', margin: '0 auto' }}>
+                      <button onClick={() => setDeputyChoice('school')} style={{
+                        ...btnStyle('#25d366', '#fff'), width: '100%', padding: '16px',
+                        display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center',
+                      }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>apartment</span>
+                        استخدام رقم المدرسة
+                      </button>
+                      <button onClick={() => setDeputyChoice('own')} style={{
+                        ...btnStyle('#2563eb', '#fff'), width: '100%', padding: '16px',
+                        display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center',
+                      }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>smartphone</span>
+                        ربط رقمي الخاص
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* ═══ سيناريو 3: الوكيل اختار رقم المدرسة ═══ */}
+                {userRole === 'Deputy' && scenario === 3 && deputyChoice === 'school' && (
+                  <>
+                    <IconCircle emoji={<span className="material-symbols-outlined" style={{ fontSize: '35px' }}>check_circle</span>} bg="#dcfce7" size={80} />
+                    <h3 style={{ fontSize: '20px', fontWeight: 700, color: '#16a34a', marginBottom: '8px' }}>
+                      متصل برقم المدرسة
+                    </h3>
+                    <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>
+                      الرسائل تُرسل من الرقم الرئيسي للمدرسة
+                    </p>
+                    <button onClick={() => setDeputyChoice(null)} style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: '13px', cursor: 'pointer' }}>
+                      ← تغيير الاختيار
+                    </button>
+                  </>
+                )}
+
+                {/* ═══ سيناريو 2+3 للأدمن (رقم رئيسي مربوط مسبقاً) ═══ */}
+                {userRole === 'Admin' && (scenario === 2 || scenario === 3) && (
+                  <>
+                    <IconCircle emoji={<span className="material-symbols-outlined" style={{ fontSize: '35px' }}>link</span>} bg="#ffedd5" size={80} />
+                    <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>لا يوجد رقم رئيسي</h3>
+                    <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>اربط الرقم الرئيسي للمدرسة</p>
+                    <div style={{ background: '#f9fafb', borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={labelStyle}>رمز الأمان</label>
+                        <input type="password" value={securityCode} onChange={e => setSecurityCode(e.target.value)}
+                          placeholder="••••••" style={{ ...inputStyle, textAlign: 'center', fontSize: '18px', letterSpacing: '4px' }}
+                          onKeyDown={e => { if (e.key === 'Enter') handleVerifyAndOpenQR(); }} />
+                      </div>
+                      <button onClick={handleVerifyAndOpenQR} disabled={actionLoading} style={{
+                        ...btnStyle('#25d366', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1,
+                      }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> ربط الرقم الرئيسي</button>
+                    </div>
+                    <button onClick={handleShowRecovery} style={{ background: 'none', border: 'none', color: '#25d366', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>
+                      نسيت رمز الأمان؟
+                    </button>
+                  </>
+                )}
+
               </div>
             )}
 

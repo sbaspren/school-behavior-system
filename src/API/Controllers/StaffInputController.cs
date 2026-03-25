@@ -1,7 +1,7 @@
-using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SchoolBehaviorSystem.Application.DTOs.Responses;
+using SchoolBehaviorSystem.Application.Interfaces;
 using SchoolBehaviorSystem.Domain.Entities;
 using SchoolBehaviorSystem.Domain.Enums;
 using SchoolBehaviorSystem.Infrastructure.Data;
@@ -13,7 +13,8 @@ namespace SchoolBehaviorSystem.API.Controllers;
 public class StaffInputController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public StaffInputController(AppDbContext db) => _db = db;
+    private readonly IHijriDateService _hijri;
+    public StaffInputController(AppDbContext db, IHijriDateService hijri) { _db = db; _hijri = hijri; }
 
     // ── 1. Verify staff token ──
     [HttpGet("public/verify")]
@@ -40,6 +41,15 @@ public class StaffInputController : ControllerBase
             .Include(sc => sc.Grades)
             .Where(sc => sc.IsEnabled)
             .ToListAsync();
+
+        // ★ فلترة بحسب المرحلة المسندة للمستخدم
+        if (!string.IsNullOrEmpty(user.ScopeValue) && user.ScopeType != "all")
+        {
+            var allowed = user.ScopeValue.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            stageConfigs = stageConfigs
+                .Where(sc => allowed.Any(a => sc.Stage.ToArabic().Contains(a) || a.Contains(sc.Stage.ToArabic())))
+                .ToList();
+        }
 
         var gradeMap = new Dictionary<string, List<string>>();
         var enabledStages = new List<string>();
@@ -90,6 +100,15 @@ public class StaffInputController : ControllerBase
             .Include(sc => sc.Grades)
             .Where(sc => sc.IsEnabled)
             .ToListAsync();
+
+        // ★ فلترة بحسب المرحلة المسندة للمستخدم
+        if (!string.IsNullOrEmpty(user.ScopeValue) && user.ScopeType != "all")
+        {
+            var allowed = user.ScopeValue.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            stageConfigs = stageConfigs
+                .Where(sc => allowed.Any(a => sc.Stage.ToArabic().Contains(a) || a.Contains(sc.Stage.ToArabic())))
+                .ToList();
+        }
 
         var result = new Dictionary<string, object>();
 
@@ -152,7 +171,7 @@ public class StaffInputController : ControllerBase
         if (request.StudentIds == null || request.StudentIds.Count == 0)
             return BadRequest(ApiResponse<object>.Fail("لم يتم اختيار طلاب"));
 
-        var hijriDate = GetHijriDate();
+        var hijriDate = _hijri.GetHijriDate();
         var students = await _db.Students
             .Where(s => request.StudentIds.Contains(s.Id))
             .ToListAsync();
@@ -170,7 +189,7 @@ public class StaffInputController : ControllerBase
                 Class = student.Class,
                 Stage = student.Stage,
                 Mobile = student.Mobile,
-                ExitTime = DateTime.Now.ToString("HH:mm"),
+                ExitTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh")).ToString("HH:mm"),
                 Reason = request.Reason ?? "",
                 Receiver = request.Guardian ?? "",
                 Supervisor = user.Name,
@@ -212,7 +231,7 @@ public class StaffInputController : ControllerBase
         if (request.StudentIds == null || request.StudentIds.Count == 0)
             return BadRequest(ApiResponse<object>.Fail("لم يتم اختيار طلاب"));
 
-        var hijriDate = GetHijriDate();
+        var hijriDate = _hijri.GetHijriDate();
         var students = await _db.Students
             .Where(s => request.StudentIds.Contains(s.Id))
             .ToListAsync();
@@ -271,7 +290,17 @@ public class StaffInputController : ControllerBase
         var today = DateTime.UtcNow.Date;
         var query = _db.PermissionRecords.Where(r => r.RecordedAt >= today);
 
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
+        // ★ فلترة بحسب المرحلة المسندة للحارس
+        if (!string.IsNullOrEmpty(user.ScopeValue) && user.ScopeType != "all")
+        {
+            var allowed = user.ScopeValue.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            var allowedEnums = allowed
+                .Select(a => Enum.TryParse<Stage>(a, true, out var s) ? s : (Stage?)null)
+                .Where(s => s.HasValue).Select(s => s!.Value).ToList();
+            if (allowedEnums.Count > 0)
+                query = query.Where(r => allowedEnums.Contains(r.Stage));
+        }
+        else if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
             query = query.Where(r => r.Stage == stageEnum);
 
         var records = await query
@@ -311,7 +340,7 @@ public class StaffInputController : ControllerBase
         if (record == null)
             return NotFound(ApiResponse<object>.Fail("السجل غير موجود"));
 
-        record.ConfirmationTime = DateTime.Now.ToString("HH:mm");
+        record.ConfirmationTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh")).ToString("HH:mm");
         await _db.SaveChangesAsync();
 
         return Ok(ApiResponse<object>.Ok(new
@@ -380,17 +409,6 @@ public class StaffInputController : ControllerBase
         _ => Array.Empty<string>()
     };
 
-    private static string GetHijriDate()
-    {
-        try
-        {
-            var cal = new UmAlQuraCalendar();
-            var now = DateTime.Now;
-            return $"{cal.GetYear(now)}/{cal.GetMonth(now):D2}/{cal.GetDayOfMonth(now):D2}";
-        }
-        catch { return ""; }
-    }
-
     // ★ تسجيل نشاط الموظف — مطابق لـ logStaffActivity_ سطر 535-558
     private async Task LogStaffActivity(string staffName, string type, string className, int count, string stage)
     {
@@ -398,8 +416,8 @@ public class StaffInputController : ControllerBase
         {
             _db.AuditLogs.Add(new AuditLog
             {
-                Date = DateTime.Now.ToString("yyyy/MM/dd"),
-                Time = DateTime.Now.ToString("HH:mm"),
+                Date = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh")).ToString("yyyy/MM/dd"),
+                Time = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh")).ToString("HH:mm"),
                 UserName = staffName,
                 ActionType = type,
                 Details = "الفصل: " + className,

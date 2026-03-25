@@ -45,7 +45,7 @@ const MobileNav: React.FC<Props> = ({ role, whatsAppMode }) => {
   /* Role-based filtering — same logic as Sidebar.tsx */
   const visibleItems = ALL_NAV_ITEMS.filter(item => {
     if (item.roles && (!role || !item.roles.includes(role))) return false;
-    if (item.path === '/whatsapp' && role === 'Deputy' && whatsAppMode === 'Unified') return false;
+    // ★ الوكيل يشوف صفحة الواتساب في كل الأنماط
     return true;
   });
 

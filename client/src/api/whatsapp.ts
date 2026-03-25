@@ -104,6 +104,10 @@ export const whatsappApi = {
   },
   getUserTypes: () => api.get('/whatsapp/user-types'),
 
+  // Scenario + Stage Teachers
+  getScenario: () => api.get('/whatsapp/scenario'),
+  getStageTeachers: () => api.get('/whatsapp/stage-teachers'),
+
   // Security
   getSecurityStatus: () => api.get('/whatsapp/security/status'),
   setupSecurityCode: (code: string, recoveryPhone1: string, recoveryPhone2?: string) =>

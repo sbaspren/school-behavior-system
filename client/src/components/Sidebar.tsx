@@ -74,7 +74,7 @@ const Sidebar: React.FC<Props> = ({ open, role, schoolName, whatsAppMode }) => {
     ...group,
     items: group.items.filter(item => {
       if (item.roles && (!role || !item.roles.includes(role))) return false;
-      if (item.path === '/whatsapp' && role === 'Deputy' && whatsAppMode === 'Unified') return false;
+      // ★ الوكيل يشوف صفحة الواتساب في كل الأنماط — الصفحة تتكيف بحسب السيناريو
       return true;
     }),
   })).filter(group => group.items.length > 0);
