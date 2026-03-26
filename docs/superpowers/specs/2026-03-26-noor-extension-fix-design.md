@@ -92,7 +92,7 @@ NoorPage.tsx ← DOM outbox ← app-bridge.js ← chrome.runtime ← background.
 - حذف `_TARD_LABELS` و `tardLabel`
 - `TAB_ORDER` يصبح: `['violations', 'compensation', 'excellent', 'absence']`
 
-**تأكيد:** لا يوجد تفريع بناءً على `_type` في `noor-bridge.js` — المحرك يعتمد على `_noorMode` (mowadaba/deductType) لاختيار المسار في نور، و`_noorValue`/`_noorText` لاختيار القيمة. تغيير `_type` من `"tardiness"` إلى `"violation"` لن يكسر شيئاً في الإضافة.
+**تأكيد:** لا يوجد تفريع بناءً على `_type` في `noor-bridge.js` — المحرك يعتمد على `_noorMode` (mowadaba/deductType) لاختيار المسار في نور، و`_noorValue`/`_noorText` لاختيار القيمة. لكن `_type` يُستخدم في `update-status` endpoint (سطر 413-425) لتوجيه التحديث للجدول الصحيح (`TardinessRecords` أو `Violations`). لذا السجلات المدمجة تبقى `_type = "tardiness"` لكنها تُعرض تحت تبويب المخالفات.
 
 ---
 
