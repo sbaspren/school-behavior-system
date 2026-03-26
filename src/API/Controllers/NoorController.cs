@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
-using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SchoolBehaviorSystem.Application.DTOs.Responses;
+using SchoolBehaviorSystem.Application.Interfaces;
 using SchoolBehaviorSystem.Domain.Enums;
 using SchoolBehaviorSystem.Infrastructure.Data;
 
@@ -14,10 +14,12 @@ namespace SchoolBehaviorSystem.API.Controllers;
 public class NoorController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IHijriDateService _hijri;
 
-    public NoorController(AppDbContext db)
+    public NoorController(AppDbContext db, IHijriDateService hijri)
     {
         _db = db;
+        _hijri = hijri;
     }
 
     // ====================================================================
@@ -40,7 +42,7 @@ public class NoorController : ControllerBase
         // ═══ 1. المخالفات السلوكية ═══
         if (type is "all" or "violations")
         {
-            var q = _db.Violations.Where(v => v.NoorStatus == "" || v.NoorStatus == "معلق");
+            var q = _db.Violations.Where(v => (v.NoorStatus == null || v.NoorStatus == "" || v.NoorStatus == "معلق"));
             if (stageEnum != null) q = q.Where(v => v.Stage == stageEnum);
             if (filterMode == "today") q = q.Where(v => v.RecordedAt >= today);
 
@@ -191,7 +193,7 @@ public class NoorController : ControllerBase
             // فلتر اليوم: الغياب يُفلتر بالتاريخ الهجري (كما في الأصل) وليس بالميلادي
             if (filterMode == "today")
             {
-                var todayHijri = GetTodayHijriDate();
+                var todayHijri = _hijri.GetHijriDate();
                 if (!string.IsNullOrEmpty(todayHijri))
                 {
                     var normalizedToday = NoorMappings.NormalizeHijriDate(todayHijri);
@@ -280,20 +282,6 @@ public class NoorController : ControllerBase
         };
     }
 
-    /// <summary>جلب تاريخ اليوم بالهجري</summary>
-    private static string GetTodayHijriDate()
-    {
-        try
-        {
-            var cal = new UmAlQuraCalendar();
-            var now = DateTime.Now;
-            var y = cal.GetYear(now);
-            var m = cal.GetMonth(now);
-            var d = cal.GetDayOfMonth(now);
-            return $"{y}/{m}/{d}";
-        }
-        catch { return ""; }
-    }
 
     // ====================================================================
     // إحصائيات نور
@@ -355,7 +343,7 @@ public class NoorController : ControllerBase
     {
         var stats = new NoorPendingStats();
 
-        var vQ = _db.Violations.Where(v => v.NoorStatus == "" || v.NoorStatus == "معلق");
+        var vQ = _db.Violations.Where(v => (v.NoorStatus == null || v.NoorStatus == "" || v.NoorStatus == "معلق"));
         var tQ = _db.TardinessRecords.Where(t => t.NoorStatus == "" || t.NoorStatus == "معلق");
         var pQ = _db.PositiveBehaviors.Where(p => p.NoorStatus == "" || p.NoorStatus == "معلق");
         var aQ = _db.DailyAbsences.Where(a => a.NoorStatus == "" || a.NoorStatus == "معلق");

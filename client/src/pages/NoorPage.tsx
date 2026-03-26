@@ -6,6 +6,9 @@ import EmptyState from '../components/shared/EmptyState';
 import ActionIcon from '../components/shared/ActionIcon';
 import { noorApi, NoorStatusUpdate } from '../api/noor';
 import { showSuccess, showError } from '../components/shared/Toast';
+import { DEGREE_LABELS } from '../utils/constants';
+import LoadingSpinner from '../components/shared/LoadingSpinner';
+import { classToLetter } from '../utils/printUtils';
 
 // ════════════════════════════════════════════════════════════
 // تعريفات التبويبات الخمسة — مطابق للأصلي NOOR_TABS
@@ -30,17 +33,12 @@ const NOOR_TABS: Record<string, TabDef> = {
 };
 const TAB_ORDER = ['violations', 'tardiness', 'compensation', 'excellent', 'absence'];
 
-const DEGREE_COLORS: Record<string, { bg: string; color: string }> = {
-  '1': { bg: '#dcfce7', color: '#15803d' },
-  '2': { bg: '#fef9c3', color: '#ca8a04' },
-  '3': { bg: '#ffedd5', color: '#ea580c' },
-  '4': { bg: '#fee2e2', color: '#dc2626' },
-  '5': { bg: '#fecaca', color: '#7c2d12' },
-};
-
-const DEGREE_NAMES: Record<string, string> = {
-  '1': 'الأولى', '2': 'الثانية', '3': 'الثالثة', '4': 'الرابعة', '5': 'الخامسة',
-};
+const DEGREE_COLORS: Record<string, { bg: string; color: string }> = Object.fromEntries(
+  Object.entries(DEGREE_LABELS).map(([k, v]) => [k, { bg: v.bg, color: v.color }])
+);
+const DEGREE_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(DEGREE_LABELS).map(([k, v]) => [k, v.label])
+);
 
 // خيارات نوع الغياب — مطابق للأصلي ABSENCE_TYPE_OPTIONS
 const ABSENCE_TYPE_OPTIONS = [
@@ -197,7 +195,8 @@ const NoorPage: React.FC = () => {
   const loadStats = useCallback(async () => {
     try {
       const res = await noorApi.getStats(undefined, filterMode);
-      if (res.data?.data) setStats(res.data.data);
+      const d = res.data?.data;
+      if (d?.pending) setStats(d.pending);
     } catch { /* empty */ }
   }, [filterMode]);
 
@@ -635,10 +634,7 @@ const NoorPage: React.FC = () => {
 
         {/* الجدول */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '48px' }}>
-            <div className="spinner" />
-            <p style={{ color: '#9ca3af', marginTop: '12px' }}>جاري التحميل...</p>
-          </div>
+          <LoadingSpinner />
         ) : records.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '48px', color: '#9ca3af' }}>
             <p style={{ margin: '0 0 8px' }}><span className="material-symbols-outlined" style={{fontSize:36,color:'#15803d'}}>check_circle</span></p>
@@ -676,7 +672,7 @@ const NoorPage: React.FC = () => {
                         padding: '6px 16px', fontSize: '13px', fontWeight: 700, color: '#4b5563',
                       }}>
                         <span style={{ color: currentTabDef.color }}>{group.grade}</span>
-                        {group.className && <span style={{ color: '#9ca3af' }}> / {group.className}</span>}
+                        {group.className && <span style={{ color: '#9ca3af' }}> / {classToLetter(group.className)}</span>}
                         <span style={{
                           marginRight: '12px', fontSize: '11px', color: '#9ca3af',
                           background: '#f3f4f6', padding: '2px 8px', borderRadius: '100px',
@@ -697,7 +693,7 @@ const NoorPage: React.FC = () => {
                         </td>
                         <td style={{ fontWeight: 600, color: '#1f2937' }}>{rec.studentName}</td>
                         <td style={{ fontSize: '13px', color: '#4b5563' }}>{rec.grade}</td>
-                        <td style={{ fontSize: '13px', color: '#4b5563' }}>{rec.className || rec.class}</td>
+                        <td style={{ fontSize: '13px', color: '#4b5563' }}>{classToLetter(rec.className || rec.class)}</td>
 
                         {activeTab === 'violations' && (
                           <>
@@ -759,9 +755,9 @@ const NoorPage: React.FC = () => {
 
                         <td>
                           {(absenceOverrides[idx] || rec._noorValue) ? (
-                            <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#dcfce7', color: '#15803d' }}>✓ مطابق</span>
+                            <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#dcfce7', color: '#15803d' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>check</span> مطابق</span>
                           ) : (
-                            <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#fee2e2', color: '#dc2626' }}>✗ غير مطابق</span>
+                            <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#fee2e2', color: '#dc2626' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>close</span> غير مطابق</span>
                           )}
                         </td>
                       </tr>
@@ -820,7 +816,7 @@ const NoorPage: React.FC = () => {
           <div style={{ background: '#fff', borderRadius: '20px', padding: '24px', maxWidth: '600px', width: '95%', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>نتائج التوثيق</h3>
-              <button onClick={() => setResultDetails(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#9ca3af' }}>✕</button>
+              <button onClick={() => setResultDetails(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span></button>
             </div>
             <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
               <span style={{ padding: '4px 12px', borderRadius: '100px', background: '#dcfce7', color: '#15803d', fontWeight: 700, fontSize: '13px' }}>
@@ -842,10 +838,10 @@ const NoorPage: React.FC = () => {
                   {resultDetails.map((r, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
                       <td style={{ padding: '8px', fontWeight: 600 }}>{r.name}</td>
-                      <td style={{ padding: '8px' }}>{r.grade} ({r.className})</td>
+                      <td style={{ padding: '8px' }}>{r.grade} ({classToLetter(r.className)})</td>
                       <td style={{ padding: '8px' }}>{r.type}</td>
                       <td style={{ padding: '8px', textAlign: 'center' }}>
-                        {r.ok ? <span style={{ color: '#15803d' }}>✓</span> : <span style={{ color: '#dc2626' }}>✗</span>}
+                        {r.ok ? <span style={{ color: '#15803d' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>check</span></span> : <span style={{ color: '#dc2626' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>close</span></span>}
                       </td>
                     </tr>
                   ))}
