@@ -45,7 +45,7 @@ public class NoorController : ControllerBase
         // ═══ 1. المخالفات السلوكية ═══
         if (type is "all" or "violations")
         {
-            var q = _db.Violations.Where(v => (v.NoorStatus == null || v.NoorStatus == "" || v.NoorStatus == "معلق"));
+            var q = _db.Violations.Where(v => (v.NoorStatus == null || v.NoorStatus == "" || v.NoorStatus == "معلق" || v.NoorStatus == "failed"));
             if (stageEnum != null) q = q.Where(v => v.Stage == stageEnum);
             if (filterMode == "today") q = q.Where(v => v.RecordedAt >= today);
 
@@ -113,7 +113,7 @@ public class NoorController : ControllerBase
 
             // ═══ التأخر الصباحي — يُعرض ضمن المخالفات مع _type = "tardiness" للتوجيه الصحيح ═══
             {
-                var tQ = _db.TardinessRecords.Where(t => t.NoorStatus == "" || t.NoorStatus == "معلق");
+                var tQ = _db.TardinessRecords.Where(t => t.NoorStatus == "" || t.NoorStatus == "معلق" || t.NoorStatus == "failed");
                 if (stageEnum != null) tQ = tQ.Where(t => t.Stage == stageEnum);
                 if (filterMode == "today") tQ = tQ.Where(t => t.RecordedAt >= today);
 
@@ -148,7 +148,7 @@ public class NoorController : ControllerBase
         // ═══ 2. السلوك الإيجابي (تعويضية + متمايز) ═══
         if (type is "all" or "compensation" or "excellent" or "positive")
         {
-            var q = _db.PositiveBehaviors.Where(p => p.NoorStatus == "" || p.NoorStatus == "معلق");
+            var q = _db.PositiveBehaviors.Where(p => p.NoorStatus == "" || p.NoorStatus == "معلق" || p.NoorStatus == "failed");
             if (stageEnum != null) q = q.Where(p => p.Stage == stageEnum);
             if (filterMode == "today") q = q.Where(p => p.RecordedAt >= today);
 
@@ -204,7 +204,7 @@ public class NoorController : ControllerBase
         // ═══ 4. الغياب اليومي ═══
         if (type is "all" or "absence")
         {
-            var q = _db.DailyAbsences.Where(a => a.NoorStatus == "" || a.NoorStatus == "معلق");
+            var q = _db.DailyAbsences.Where(a => a.NoorStatus == "" || a.NoorStatus == "معلق" || a.NoorStatus == "failed");
             if (stageEnum != null) q = q.Where(a => a.Stage == stageEnum);
 
             // فلتر اليوم: الغياب يُفلتر بالتاريخ الهجري (كما في الأصل) وليس بالميلادي
@@ -360,10 +360,10 @@ public class NoorController : ControllerBase
     {
         var stats = new NoorPendingStats();
 
-        var vQ = _db.Violations.Where(v => (v.NoorStatus == null || v.NoorStatus == "" || v.NoorStatus == "معلق"));
-        var tQ = _db.TardinessRecords.Where(t => t.NoorStatus == "" || t.NoorStatus == "معلق");
-        var pQ = _db.PositiveBehaviors.Where(p => p.NoorStatus == "" || p.NoorStatus == "معلق");
-        var aQ = _db.DailyAbsences.Where(a => a.NoorStatus == "" || a.NoorStatus == "معلق");
+        var vQ = _db.Violations.Where(v => (v.NoorStatus == null || v.NoorStatus == "" || v.NoorStatus == "معلق" || v.NoorStatus == "failed"));
+        var tQ = _db.TardinessRecords.Where(t => t.NoorStatus == "" || t.NoorStatus == "معلق" || t.NoorStatus == "failed");
+        var pQ = _db.PositiveBehaviors.Where(p => p.NoorStatus == "" || p.NoorStatus == "معلق" || p.NoorStatus == "failed");
+        var aQ = _db.DailyAbsences.Where(a => a.NoorStatus == "" || a.NoorStatus == "معلق" || a.NoorStatus == "failed");
 
         if (stageEnum != null)
         {
@@ -495,6 +495,177 @@ public class NoorController : ControllerBase
     }
 
     // ====================================================================
+    // استبعاد سجلات من التوثيق في نور
+    // ====================================================================
+    [HttpPost("exclude")]
+    public async Task<ActionResult<ApiResponse<object>>> Exclude(
+        [FromBody] NoorBulkRequest request)
+    {
+        int updated = 0;
+        foreach (var item in request.Updates)
+        {
+            try
+            {
+                switch (item.Type)
+                {
+                    case "violation":
+                        var v = await _db.Violations.FindAsync(item.Id);
+                        if (v != null && v.NoorStatus != "تم" && v.NoorStatus != "لا يحتاج")
+                        { v.NoorStatus = "مستبعد"; updated++; }
+                        break;
+                    case "tardiness":
+                        var t = await _db.TardinessRecords.FindAsync(item.Id);
+                        if (t != null && t.NoorStatus != "تم" && t.NoorStatus != "لا يحتاج")
+                        { t.NoorStatus = "مستبعد"; updated++; }
+                        break;
+                    case "compensation":
+                    case "excellent":
+                    case "positive":
+                        var p = await _db.PositiveBehaviors.FindAsync(item.Id);
+                        if (p != null && p.NoorStatus != "تم" && p.NoorStatus != "لا يحتاج")
+                        { p.NoorStatus = "مستبعد"; updated++; }
+                        break;
+                    case "absence":
+                        var a = await _db.DailyAbsences.FindAsync(item.Id);
+                        if (a != null && a.NoorStatus != "تم" && a.NoorStatus != "لا يحتاج")
+                        { a.NoorStatus = "مستبعد"; updated++; }
+                        break;
+                }
+            }
+            catch { /* skip */ }
+        }
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse<object>.Ok(new { updated }));
+    }
+
+    // ====================================================================
+    // استعادة سجلات مستبعدة
+    // ====================================================================
+    [HttpPost("restore")]
+    public async Task<ActionResult<ApiResponse<object>>> Restore(
+        [FromBody] NoorBulkRequest request)
+    {
+        int updated = 0;
+        foreach (var item in request.Updates)
+        {
+            try
+            {
+                switch (item.Type)
+                {
+                    case "violation":
+                        var v = await _db.Violations.FindAsync(item.Id);
+                        if (v != null && v.NoorStatus == "مستبعد")
+                        { v.NoorStatus = ""; updated++; }
+                        break;
+                    case "tardiness":
+                        var t = await _db.TardinessRecords.FindAsync(item.Id);
+                        if (t != null && t.NoorStatus == "مستبعد")
+                        { t.NoorStatus = ""; updated++; }
+                        break;
+                    case "compensation":
+                    case "excellent":
+                    case "positive":
+                        var p = await _db.PositiveBehaviors.FindAsync(item.Id);
+                        if (p != null && p.NoorStatus == "مستبعد")
+                        { p.NoorStatus = ""; updated++; }
+                        break;
+                    case "absence":
+                        var a = await _db.DailyAbsences.FindAsync(item.Id);
+                        if (a != null && a.NoorStatus == "مستبعد")
+                        { a.NoorStatus = ""; updated++; }
+                        break;
+                }
+            }
+            catch { /* skip */ }
+        }
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse<object>.Ok(new { updated }));
+    }
+
+    // ====================================================================
+    // السجلات الموثقة اليوم
+    // ====================================================================
+    [HttpGet("documented-today")]
+    public async Task<ActionResult<ApiResponse<object>>> GetDocumentedToday(
+        [FromQuery] string type = "all")
+    {
+        var today = DateTime.Today;
+        var records = new List<object>();
+
+        if (type is "all" or "violations")
+        {
+            var violations = await _db.Violations
+                .Where(v => (v.NoorStatus == "تم" || v.NoorStatus == "failed") && v.RecordedAt >= today)
+                .Select(v => new {
+                    v.Id, _type = "violation",
+                    v.StudentName, v.Grade, v.Class,
+                    description = v.Description ?? v.ViolationCode ?? "",
+                    date = v.RecordedAt.ToString("yyyy-MM-dd"),
+                    result = v.NoorStatus == "تم" ? "نجح" : "فشل"
+                }).ToListAsync();
+            records.AddRange(violations);
+
+            var tardiness = await _db.TardinessRecords
+                .Where(t => (t.NoorStatus == "تم" || t.NoorStatus == "failed") && t.RecordedAt >= today)
+                .Select(t => new {
+                    t.Id, _type = "tardiness",
+                    t.StudentName, t.Grade, t.Class,
+                    description = t.TardinessType.ToString(),
+                    date = t.RecordedAt.ToString("yyyy-MM-dd"),
+                    result = t.NoorStatus == "تم" ? "نجح" : "فشل"
+                }).ToListAsync();
+            records.AddRange(tardiness);
+        }
+
+        if (type is "all" or "compensation" or "excellent")
+        {
+            var allPositive = await _db.PositiveBehaviors
+                .Where(p => (p.NoorStatus == "تم" || p.NoorStatus == "failed") && p.RecordedAt >= today)
+                .Select(p => new {
+                    p.Id, p.StudentName, p.Grade, p.Class,
+                    behaviorType = p.BehaviorType ?? "",
+                    details = p.Details ?? "",
+                    degree = p.Degree.ToString(),
+                    date = p.RecordedAt.ToString("yyyy-MM-dd"),
+                    p.NoorStatus
+                }).ToListAsync();
+
+            foreach (var p in allPositive)
+            {
+                var isComp = p.behaviorType.Contains("تعويض") || p.details.Contains("تعويض")
+                             || p.degree.Contains("تعويض");
+                var recType = isComp ? "compensation" : "excellent";
+                if (type == "all" || type == recType)
+                {
+                    records.Add(new {
+                        p.Id, _type = recType,
+                        p.StudentName, p.Grade, p.Class,
+                        description = p.behaviorType != "" ? p.behaviorType : p.details,
+                        p.date,
+                        result = p.NoorStatus == "تم" ? "نجح" : "فشل"
+                    });
+                }
+            }
+        }
+
+        if (type is "all" or "absence")
+        {
+            var absences = await _db.DailyAbsences
+                .Where(a => (a.NoorStatus == "تم" || a.NoorStatus == "failed") && a.RecordedAt >= today)
+                .Select(a => new {
+                    a.Id, _type = "absence",
+                    a.StudentName, a.Grade, a.Class,
+                    description = a.AbsenceType.ToString(),
+                    date = a.RecordedAt.ToString("yyyy-MM-dd"),
+                    result = a.NoorStatus == "تم" ? "نجح" : "فشل"
+                }).ToListAsync();
+            records.AddRange(absences);
+        }
+
+        return Ok(ApiResponse<object>.Ok(new { records }));
+    }
+
+    // ====================================================================
     // جدول ربط مخالفات/سلوكيات بنظام نور
     // ====================================================================
     [HttpGet("mappings")]
@@ -556,6 +727,17 @@ public class NoorPendingStats
     public int compensation { get; set; }
     public int excellent { get; set; }
     public int absence { get; set; }
+}
+
+public class NoorBulkRequest
+{
+    public List<NoorBulkItem> Updates { get; set; } = new();
+}
+
+public class NoorBulkItem
+{
+    public int Id { get; set; }
+    public string Type { get; set; } = "";
 }
 
 // ====================================================================
