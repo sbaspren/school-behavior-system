@@ -38,6 +38,7 @@ public class NoorController : ControllerBase
         if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var parsed))
             stageEnum = parsed;
 
+        bool isExcluded = filterMode == "excluded";
         var today = DateTime.UtcNow.Date;
         var records = new List<object>();
         var stats = new NoorPendingStats();
@@ -45,9 +46,11 @@ public class NoorController : ControllerBase
         // ═══ 1. المخالفات السلوكية ═══
         if (type is "all" or "violations")
         {
-            var q = _db.Violations.Where(v => (v.NoorStatus == null || v.NoorStatus == "" || v.NoorStatus == "معلق" || v.NoorStatus == "failed"));
+            var q = isExcluded
+                ? _db.Violations.Where(v => v.NoorStatus == "مستبعد")
+                : _db.Violations.Where(v => (v.NoorStatus == null || v.NoorStatus == "" || v.NoorStatus == "معلق" || v.NoorStatus == "failed"));
             if (stageEnum != null) q = q.Where(v => v.Stage == stageEnum);
-            if (filterMode == "today") q = q.Where(v => v.RecordedAt >= today);
+            if (!isExcluded && filterMode == "today") q = q.Where(v => v.RecordedAt >= today);
 
             var items = await q.Select(v => new
             {
@@ -113,9 +116,11 @@ public class NoorController : ControllerBase
 
             // ═══ التأخر الصباحي — يُعرض ضمن المخالفات مع _type = "tardiness" للتوجيه الصحيح ═══
             {
-                var tQ = _db.TardinessRecords.Where(t => t.NoorStatus == "" || t.NoorStatus == "معلق" || t.NoorStatus == "failed");
+                var tQ = isExcluded
+                    ? _db.TardinessRecords.Where(t => t.NoorStatus == "مستبعد")
+                    : _db.TardinessRecords.Where(t => t.NoorStatus == "" || t.NoorStatus == "معلق" || t.NoorStatus == "failed");
                 if (stageEnum != null) tQ = tQ.Where(t => t.Stage == stageEnum);
-                if (filterMode == "today") tQ = tQ.Where(t => t.RecordedAt >= today);
+                if (!isExcluded && filterMode == "today") tQ = tQ.Where(t => t.RecordedAt >= today);
 
                 var tardItems = await tQ.Select(t => new
                 {
@@ -148,9 +153,11 @@ public class NoorController : ControllerBase
         // ═══ 2. السلوك الإيجابي (تعويضية + متمايز) ═══
         if (type is "all" or "compensation" or "excellent" or "positive")
         {
-            var q = _db.PositiveBehaviors.Where(p => p.NoorStatus == "" || p.NoorStatus == "معلق" || p.NoorStatus == "failed");
+            var q = isExcluded
+                ? _db.PositiveBehaviors.Where(p => p.NoorStatus == "مستبعد")
+                : _db.PositiveBehaviors.Where(p => p.NoorStatus == "" || p.NoorStatus == "معلق" || p.NoorStatus == "failed");
             if (stageEnum != null) q = q.Where(p => p.Stage == stageEnum);
-            if (filterMode == "today") q = q.Where(p => p.RecordedAt >= today);
+            if (!isExcluded && filterMode == "today") q = q.Where(p => p.RecordedAt >= today);
 
             var allPositive = await q.Select(p => new
             {
@@ -204,11 +211,13 @@ public class NoorController : ControllerBase
         // ═══ 4. الغياب اليومي ═══
         if (type is "all" or "absence")
         {
-            var q = _db.DailyAbsences.Where(a => a.NoorStatus == "" || a.NoorStatus == "معلق" || a.NoorStatus == "failed");
+            var q = isExcluded
+                ? _db.DailyAbsences.Where(a => a.NoorStatus == "مستبعد")
+                : _db.DailyAbsences.Where(a => a.NoorStatus == "" || a.NoorStatus == "معلق" || a.NoorStatus == "failed");
             if (stageEnum != null) q = q.Where(a => a.Stage == stageEnum);
 
             // فلتر اليوم: الغياب يُفلتر بالتاريخ الهجري (كما في الأصل) وليس بالميلادي
-            if (filterMode == "today")
+            if (!isExcluded && filterMode == "today")
             {
                 var todayHijri = _hijri.GetHijriDate();
                 if (!string.IsNullOrEmpty(todayHijri))
