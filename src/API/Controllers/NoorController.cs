@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SchoolBehaviorSystem.API.Services;
 using SchoolBehaviorSystem.Application.DTOs.Responses;
 using SchoolBehaviorSystem.Application.Interfaces;
 using SchoolBehaviorSystem.Domain.Enums;
@@ -15,11 +16,13 @@ public class NoorController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IHijriDateService _hijri;
+    private readonly NotificationService _notifications;
 
-    public NoorController(AppDbContext db, IHijriDateService hijri)
+    public NoorController(AppDbContext db, IHijriDateService hijri, NotificationService notifications)
     {
         _db = db;
         _hijri = hijri;
+        _notifications = notifications;
     }
 
     // ====================================================================
@@ -61,20 +64,33 @@ public class NoorController : ControllerBase
 
             foreach (var item in items)
             {
-                // ربط المخالفة بنور عبر رقم المخالفة — حسب المرحلة
                 string? noorValue = null, noorText = null;
                 var stageStr = item.stage ?? "";
-                if (!string.IsNullOrEmpty(item.violationCode))
+
+                // 1. ربط عبر خريطة أوصاف التطبيق → أكواد نور (الأكثر دقة)
+                if (!string.IsNullOrEmpty(item.description))
+                {
+                    var noorCode = NoorMappings.GetNoorCodeForAppDescription(item.description);
+                    if (noorCode != null)
+                    {
+                        var mapping = NoorMappings.GetViolationByStage(noorCode, stageStr);
+                        noorValue = mapping.noorValue;
+                        noorText = mapping.noorText;
+                    }
+                }
+
+                // 2. ربط عبر رقم المخالفة مباشرة (للسجلات التي تستخدم أكواد نور)
+                if (noorValue == null && !string.IsNullOrEmpty(item.violationCode))
                 {
                     var mapping = NoorMappings.GetViolationByStage(item.violationCode, stageStr);
                     noorValue = mapping.noorValue;
                     noorText = mapping.noorText;
                 }
-                
+
+                // 3. بحث بالنص كخطة بديلة أخيرة
                 if (noorValue == null && !string.IsNullOrEmpty(item.description))
                 {
-                    // بحث بالنص كخطة بديلة
-                    var textMapping = NoorMappings.FindNoorViolationByText(item.description);
+                    var textMapping = NoorMappings.FindNoorViolationByText(item.description, stageStr);
                     if (textMapping != null)
                     {
                         noorValue = textMapping.Value.noorValue;
@@ -94,41 +110,42 @@ public class NoorController : ControllerBase
                 });
             }
             stats.violations = items.Count;
-        }
 
-        // ═══ 2. التأخر الصباحي ═══
-        if (type is "all" or "tardiness")
-        {
-            var q = _db.TardinessRecords.Where(t => t.NoorStatus == "" || t.NoorStatus == "معلق");
-            if (stageEnum != null) q = q.Where(t => t.Stage == stageEnum);
-            if (filterMode == "today") q = q.Where(t => t.RecordedAt >= today);
-
-            var items = await q.Select(t => new
+            // ═══ التأخر الصباحي — يُعرض ضمن المخالفات مع _type = "tardiness" للتوجيه الصحيح ═══
             {
-                t.Id,
-                t.StudentName, t.Grade, t.Class,
-                stage = t.Stage.ToString(),
-                tardinessType = t.TardinessType.ToString(),
-                date = t.RecordedAt.ToString("yyyy-MM-dd"),
-                t.NoorStatus
-            }).OrderBy(t => t.Class).ThenBy(t => t.StudentName).ToListAsync();
+                var tQ = _db.TardinessRecords.Where(t => t.NoorStatus == "" || t.NoorStatus == "معلق");
+                if (stageEnum != null) tQ = tQ.Where(t => t.Stage == stageEnum);
+                if (filterMode == "today") tQ = tQ.Where(t => t.RecordedAt >= today);
 
-            foreach (var item in items)
-            {
-                records.Add(new
+                var tardItems = await tQ.Select(t => new
                 {
-                    item.Id, _type = "tardiness",
-                    item.StudentName, item.Grade, item.Class, item.stage,
-                    item.tardinessType, item.date, item.NoorStatus,
-                    _noorValue = "1601174,الدرجة الأولى",
-                    _noorText = "التأخر الصباحي.",
-                    _noorMode = new { mowadaba = "1", deductType = "1" }
-                });
+                    t.Id,
+                    t.StudentName, t.Grade, t.Class,
+                    stage = t.Stage.ToString(),
+                    tardinessType = t.TardinessType.ToString(),
+                    date = t.RecordedAt.ToString("yyyy-MM-dd"),
+                    t.NoorStatus
+                }).OrderBy(t => t.Class).ThenBy(t => t.StudentName).ToListAsync();
+
+                foreach (var item in tardItems)
+                {
+                    var stageStr = item.stage ?? "";
+                    var mapping = NoorMappings.GetViolationByStage("101", stageStr);
+                    records.Add(new
+                    {
+                        item.Id, _type = "tardiness",
+                        item.StudentName, item.Grade, item.Class, item.stage,
+                        item.tardinessType, item.date, item.NoorStatus,
+                        _noorValue = mapping.noorValue,
+                        _noorText = mapping.noorText,
+                        _noorMode = new { mowadaba = "1", deductType = "1" }
+                    });
+                }
+                stats.violations += tardItems.Count;
             }
-            stats.tardiness = items.Count;
         }
 
-        // ═══ 3. السلوك الإيجابي (تعويضية + متمايز) ═══
+        // ═══ 2. السلوك الإيجابي (تعويضية + متمايز) ═══
         if (type is "all" or "compensation" or "excellent" or "positive")
         {
             var q = _db.PositiveBehaviors.Where(p => p.NoorStatus == "" || p.NoorStatus == "معلق");
@@ -308,9 +325,9 @@ public class NoorController : ControllerBase
             {
                 pending = new
                 {
-                    pending.violations, pending.tardiness, pending.compensation,
+                    pending.violations, pending.compensation,
                     pending.excellent, pending.absence,
-                    total = pending.violations + pending.tardiness + pending.compensation + pending.excellent + pending.absence,
+                    total = pending.violations + pending.compensation + pending.excellent + pending.absence,
                     documentedToday
                 }
             }));
@@ -324,16 +341,16 @@ public class NoorController : ControllerBase
         {
             pending = new
             {
-                todayPending.violations, todayPending.tardiness, todayPending.compensation,
+                todayPending.violations, todayPending.compensation,
                 todayPending.excellent, todayPending.absence,
-                total = todayPending.violations + todayPending.tardiness + todayPending.compensation + todayPending.excellent + todayPending.absence,
+                total = todayPending.violations + todayPending.compensation + todayPending.excellent + todayPending.absence,
                 documentedToday
             },
             allPending = new
             {
-                allPending.violations, allPending.tardiness, allPending.compensation,
+                allPending.violations, allPending.compensation,
                 allPending.excellent, allPending.absence,
-                total = allPending.violations + allPending.tardiness + allPending.compensation + allPending.excellent + allPending.absence
+                total = allPending.violations + allPending.compensation + allPending.excellent + allPending.absence
             }
         }));
     }
@@ -364,8 +381,7 @@ public class NoorController : ControllerBase
             aQ = aQ.Where(a => a.RecordedAt >= todayCutoff);
         }
 
-        stats.violations = await vQ.CountAsync();
-        stats.tardiness = await tQ.CountAsync();
+        stats.violations = await vQ.CountAsync() + await tQ.CountAsync();
 
         var positiveRecords = await pQ.Select(p => new { p.BehaviorType, p.Details, p.Degree }).ToListAsync();
         stats.compensation = positiveRecords.Count(p =>
@@ -414,13 +430,25 @@ public class NoorController : ControllerBase
                 {
                     case "violation":
                         var v = await _db.Violations.FindAsync(update.Id);
-                        if (v != null) { v.NoorStatus = update.Status; updated++; }
+                        if (v != null)
+                        {
+                            if (v.NoorStatus == "مستبعد" || v.NoorStatus == "لا يحتاج")
+                            { failed++; continue; }
+                            v.NoorStatus = update.Status;
+                            updated++;
+                        }
                         else failed++;
                         break;
 
                     case "tardiness":
                         var t = await _db.TardinessRecords.FindAsync(update.Id);
-                        if (t != null) { t.NoorStatus = update.Status; updated++; }
+                        if (t != null)
+                        {
+                            if (t.NoorStatus == "مستبعد" || t.NoorStatus == "لا يحتاج")
+                            { failed++; continue; }
+                            t.NoorStatus = update.Status;
+                            updated++;
+                        }
                         else failed++;
                         break;
 
@@ -428,13 +456,25 @@ public class NoorController : ControllerBase
                     case "excellent":
                     case "positive":
                         var p = await _db.PositiveBehaviors.FindAsync(update.Id);
-                        if (p != null) { p.NoorStatus = update.Status; updated++; }
+                        if (p != null)
+                        {
+                            if (p.NoorStatus == "مستبعد" || p.NoorStatus == "لا يحتاج")
+                            { failed++; continue; }
+                            p.NoorStatus = update.Status;
+                            updated++;
+                        }
                         else failed++;
                         break;
 
                     case "absence":
                         var a = await _db.DailyAbsences.FindAsync(update.Id);
-                        if (a != null) { a.NoorStatus = update.Status; updated++; }
+                        if (a != null)
+                        {
+                            if (a.NoorStatus == "مستبعد" || a.NoorStatus == "لا يحتاج")
+                            { failed++; continue; }
+                            a.NoorStatus = update.Status;
+                            updated++;
+                        }
                         else failed++;
                         break;
 
@@ -448,6 +488,9 @@ public class NoorController : ControllerBase
 
         await _db.SaveChangesAsync();
 
+        // إشعار SignalR — الصفحة تستقبله وتعيد جلب السجلات
+        await _notifications.SendAsync("noor-status-updated", new { updated, failed });
+
         return Ok(ApiResponse<object>.Ok(new { updated, failed }));
     }
 
@@ -458,6 +501,37 @@ public class NoorController : ControllerBase
     public ActionResult<ApiResponse<object>> GetMappings()
     {
         return Ok(ApiResponse<object>.Ok(NoorMappings.GetAll()));
+    }
+
+    // ====================================================================
+    // إعدادات إضافة نور v7
+    // ====================================================================
+    /// <summary>
+    /// Returns Noor page navigation and form configuration for the extension.
+    /// </summary>
+    [HttpGet("config")]
+    public IActionResult GetConfig()
+    {
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                // Bookmark __EVENTARGUMENT to navigate from Noor homepage to ManageAttendance page.
+                // This value is Noor-version-specific and may need updating.
+                manageAttendanceBookmark = "Bookmark_Manage_Attendance",
+
+                // Grade map — Phase 1: empty (extension uses built-in GRADE_MAP).
+                // Phase 2: populated via calibration flow.
+                gradeMap = new Dictionary<string, string>(),
+
+                // Default section filter
+                defaultSection = "الكل",
+
+                // Minimum extension version required
+                extensionMinVersion = "7.0.0"
+            }
+        });
     }
 }
 
@@ -479,7 +553,6 @@ public class NoorStatusUpdate
 public class NoorPendingStats
 {
     public int violations { get; set; }
-    public int tardiness { get; set; }
     public int compensation { get; set; }
     public int excellent { get; set; }
     public int absence { get; set; }
@@ -491,6 +564,162 @@ public class NoorPendingStats
 // ====================================================================
 public static class NoorMappings
 {
+    // ═══ خريطة ربط أوصاف مخالفات التطبيق ← أكواد نور الرسمية ═══
+    // التطبيق (DataSeeder) يستخدم نظام ترقيم خاص يختلف عن أكواد نور
+    // مثال: كود "101" في التطبيق = "العبث بالمقاعد" بينما في نور = "التأخر الصباحي"
+    // هذه الخريطة تربط وصف مخالفة التطبيق بكود نور الصحيح
+    private static readonly Dictionary<string, string> _appDescToNoorCode = new()
+    {
+        // ── الدرجة الأولى (DataSeeder) ──
+        ["العبث بالمقاعد والطاولات والأدوات المدرسية"] = "306",  // العبث بتجهيزات المدرسة
+        ["عدم الالتزام بالزي المدرسي المعتمد"] = "301",          // عدم التقيد بالزي المدرسي
+        ["التأخر عن الطابور الصباحي"] = "103",                    // التأخر عن الاصطفاف الصباحي
+        ["التأخر عن الحصص"] = "104",                               // التأخر في الدخول إلى الحصص
+        ["النوم أثناء الحصص"] = "106",                             // النوم داخل الفصل
+        ["الأكل والشرب داخل الفصل"] = "109",                      // تناول الأطعمة أثناء الدرس
+        ["إصدار أصوات مزعجة أو ضوضاء في الفصل"] = "105",         // إعاقة سير الحصص الدراسية
+        ["الخروج من الفصل بدون إذن المعلم"] = "202",              // الدخول أو الخروج دون استئذان
+        ["استخدام عبارات غير لائقة بين الطلاب"] = "304",          // التلفظ بكلمات نابية
+        ["التأخر في العودة من الفسحة"] = "104",                    // التأخر في الدخول إلى الحصص
+        // ── الدرجة الثانية (DataSeeder) ──
+        ["التنمر اللفظي على الطلاب"] = "513",                     // التنمر بجميع أنواعه
+        ["إثارة الفوضى في الفصل أو المدرسة"] = "204",            // إثارة الفوضى
+        ["الكتابة على الجدران وتشويه الممتلكات"] = "306",        // العبث بتجهيزات المدرسة
+        ["التصوير داخل المدرسة بدون إذن"] = "403",                // التصوير أو التسجيل الصوتي
+        ["إحضار أجهزة إلكترونية بدون إذن"] = "307",               // إحضار المواد الخطرة (أقرب تصنيف)
+        ["تزوير توقيع ولي الأمر"] = "310",                        // التوقيع عن ولي الأمر
+        ["الاعتداء اللفظي على الزملاء"] = "304",                  // التلفظ بكلمات نابية
+        ["العبث بممتلكات الآخرين"] = "305",                        // إلحاق الضرر بممتلكات الطلبة
+        ["التدخين الإلكتروني أو حيازة أدواته"] = "405",           // التدخين بأنواعه
+        ["المشاجرة البسيطة بين الطلاب"] = "302",                  // الشجار أو الاشتراك في مضاربة
+        ["الخروج من المدرسة بدون إذن"] = "406",                    // الهروب من المدرسة
+        // ── الدرجة الثالثة (DataSeeder) ──
+        ["الاعتداء الجسدي على الطلاب"] = "401",                   // تعمد إصابة أحد الطلبة
+        ["التدخين أو حيازة السجائر"] = "308",                      // حيازة السجائر بأنواعها
+        ["السرقة من الطلاب أو المدرسة"] = "402",                  // سرقة شيء من ممتلكات
+        ["إتلاف الممتلكات المدرسية عمداً"] = "404",               // إلحاق ضرر بتجهيزات المدرسة
+        ["التنمر الإلكتروني"] = "612",                             // التنمر الإلكتروني
+        ["تهديد الطلاب أو الموظفين"] = "701",                     // تهديد المعلمين أو الإداريين
+        ["حيازة مواد خطرة (عدا الأسلحة)"] = "307",                // إحضار المواد الخطرة
+        ["تصوير المعلمين أو الطلاب ونشرها"] = "708",              // تصوير المعلمين
+        ["الهروب المتكرر من المدرسة"] = "406",                    // الهروب من المدرسة
+        ["التعدي على ممتلكات خاصة بالمعلمين"] = "709",            // إلحاق الضرر بممتلكات المعلمين
+        ["الاعتداء اللفظي الشديد على المعلم"] = "702",            // التلفظ بألفاظ غير لائقة تجاه المعلمين
+        ["ابتزاز الطلاب"] = "512",                                 // ابتزاز الطلبة
+        // ── الدرجة الرابعة (DataSeeder) ──
+        ["الاعتداء الجسدي على المعلم أو الموظف"] = "703",        // الاعتداء بالضرب على المعلمين
+        ["حيازة أو تعاطي المخدرات"] = "510",                      // حيازة أو تعاطي المخدرات
+        ["حيازة الأسلحة البيضاء"] = "509",                         // حيازة أو استخدام الأسلحة
+        ["التحرش الجسدي"] = "506",                                 // التحرش الجنسي
+        ["الاعتداء الجسدي الخطير على طالب"] = "401",              // تعمد إصابة أحد الطلبة
+        ["ترويج المخدرات أو المسكرات"] = "510",                   // حيازة أو تعاطي المخدرات
+        ["إشعال الحرائق عمداً"] = "508",                           // إشعال النار داخل المدرسة
+        ["التخريب الجسيم للممتلكات المدرسية"] = "404",            // إلحاق ضرر بتجهيزات المدرسة
+        ["نشر محتوى إباحي في المدرسة"] = "507",                   // مظاهر الشذوذ الجنسي
+        ["الابتزاز المالي أو الجسدي المتكرر"] = "512",            // ابتزاز الطلبة
+        ["تعاطي المسكرات داخل المدرسة"] = "510",                  // حيازة أو تعاطي المخدرات
+        // ── الدرجة الخامسة (DataSeeder) ──
+        ["حيازة أسلحة نارية"] = "509",                              // حيازة أو استخدام الأسلحة
+        ["ترويج وتوزيع المخدرات داخل المدرسة"] = "510",           // حيازة أو تعاطي المخدرات
+        ["الاعتداء الجنسي"] = "506",                               // التحرش الجنسي
+        // ── أوصاف شائعة يدخلها المستخدم يدوياً ──
+        ["الشجار مع الزملاء"] = "302",                             // الشجار أو الاشتراك في مضاربة
+        ["شجار مع الزملاء"] = "302",
+        ["مشاجرة بين طلاب"] = "302",
+        ["مشاجرة"] = "302",
+        ["ضرب طالب"] = "401",                                       // تعمد إصابة أحد الطلبة
+        ["ضرب زميل"] = "401",
+        ["تأخر صباحي"] = "101",                                    // التأخر الصباحي
+        ["التأخر الصباحي"] = "101",
+        ["هروب من المدرسة"] = "406",                                // الهروب من المدرسة
+        ["الهروب من المدرسة"] = "406",
+        ["سرقة"] = "402",                                           // سرقة شيء من ممتلكات
+        ["تدخين"] = "405",                                          // التدخين بأنواعه
+        ["التدخين"] = "405",
+        ["إثارة الفوضى"] = "204",
+        ["فوضى في الفصل"] = "204",
+        ["النوم في الفصل"] = "106",
+        ["النوم في الحصة"] = "106",
+        // ── أوصاف إضافية ظهرت في بيانات حقيقية ──
+        ["العبث بممتلكات المدرسة"] = "306",                        // العبث بتجهيزات المدرسة
+        ["العبث بالممتلكات المدرسية"] = "306",
+        ["العبث بممتلكات"] = "306",
+        ["التنمر على الزملاء"] = "513",                             // التنمر بجميع أنواعه
+        ["التنمر على الطلاب"] = "513",
+        ["التنمر"] = "513",
+        ["تنمر"] = "513",
+        ["إحضار جوال للمدرسة"] = "105",                             // إعاقة سير الحصص (أقرب تصنيف)
+        ["إحضار جوال"] = "105",
+        ["استخدام الجوال"] = "105",
+        ["استخدام الهاتف"] = "105",
+        ["إحضار هاتف"] = "105",
+    };
+
+    // كلمات عربية شائعة تُستبعد من البحث بالكلمات المفتاحية
+    private static readonly HashSet<string> _stopWords = new()
+    {
+        "في", "من", "على", "عن", "الى", "او", "مع", "بدون",
+        "داخل", "خارج", "بين", "دون", "غير", "عند", "بعد", "قبل",
+        "هو", "هي", "ان", "كان", "ما", "حال", "لم", "لن",
+        "عدا", "تجاه", "احد", "كافه", "بكافه", "جميع", "بجميع",
+    };
+
+    /// <summary>البحث عن كود نور المقابل لوصف مخالفة التطبيق</summary>
+    public static string? GetNoorCodeForAppDescription(string description)
+    {
+        if (string.IsNullOrWhiteSpace(description)) return null;
+        var norm = NormalizeArabicForMatch(description);
+
+        // المستوى 1: بحث مباشر بعد التطبيع
+        foreach (var kv in _appDescToNoorCode)
+        {
+            if (NormalizeArabicForMatch(kv.Key) == norm)
+                return kv.Value;
+        }
+
+        // المستوى 2: بحث بالاحتواء
+        foreach (var kv in _appDescToNoorCode)
+        {
+            var normKey = NormalizeArabicForMatch(kv.Key);
+            if (normKey.Length > 5 && (norm.Contains(normKey) || normKey.Contains(norm)))
+                return kv.Value;
+        }
+
+        // المستوى 3: بحث بالكلمات المفتاحية — أفضل تطابق بـ 2+ كلمات مشتركة
+        var textWords = ExtractKeywords(norm);
+        if (textWords.Count < 2) return null;
+
+        string? bestCode = null;
+        int bestScore = 1; // حد أدنى 2 كلمات
+
+        foreach (var kv in _appDescToNoorCode)
+        {
+            var keyWords = ExtractKeywords(NormalizeArabicForMatch(kv.Key));
+            var shared = 0;
+            foreach (var w in textWords)
+                if (keyWords.Contains(w)) shared++;
+
+            if (shared > bestScore)
+            {
+                bestScore = shared;
+                bestCode = kv.Value;
+            }
+        }
+
+        return bestCode;
+    }
+
+    private static HashSet<string> ExtractKeywords(string text)
+    {
+        var words = new HashSet<string>();
+        foreach (var w in text.Split(' '))
+        {
+            if (w.Length > 2 && !_stopWords.Contains(w))
+                words.Add(w);
+        }
+        return words;
+    }
+
     // ═══ خرائط منفصلة للوصول البرمجي ═══
 
     // خريطة المخالفات — ابتدائي (من Config.gs NOOR_DROPDOWN_MAP)
@@ -756,16 +985,39 @@ public static class NoorMappings
     }
 
     /// <summary>بحث عن مخالفة بالنص (خطة بديلة عندما يكون رقم المخالفة غير متوفر)</summary>
-    public static (string noorText, string noorValue)? FindNoorViolationByText(string text)
+    public static (string noorText, string noorValue)? FindNoorViolationByText(string text, string stage = "")
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
         var norm = NormalizeArabicForMatch(text);
-        foreach (var kv in _violations)
+        bool isPrimary = stage.Contains("ابتدا") || stage.Contains("Primary");
+
+        // البحث في الخريطة المناسبة للمرحلة أولاً
+        var primaryMap = isPrimary ? _violations : _violationsGeneral;
+        var fallbackMap = isPrimary ? _violationsGeneral : _violations;
+
+        foreach (var kv in primaryMap)
+        {
+            var noorNorm = NormalizeArabicForMatch(kv.Value.noorText);
+            if (noorNorm.Contains(norm) || norm.Contains(noorNorm))
+            {
+                // للابتدائي: تطبيق التجاوزات
+                if (isPrimary && _violationsPrimaryOverrides.TryGetValue(kv.Key, out var ov))
+                {
+                    if (ov == null) continue; // غير مطبقة في ابتدائي
+                    return (kv.Value.noorText, ov);
+                }
+                return kv.Value;
+            }
+        }
+
+        // بحث في الخريطة البديلة
+        foreach (var kv in fallbackMap)
         {
             var noorNorm = NormalizeArabicForMatch(kv.Value.noorText);
             if (noorNorm.Contains(norm) || norm.Contains(noorNorm))
                 return kv.Value;
         }
+
         return null;
     }
 
