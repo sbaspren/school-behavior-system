@@ -72,6 +72,10 @@ const NoorPage: React.FC = () => {
   const [resultDetails, setResultDetails] = useState<{ name: string; grade: string; className: string; type: string; ok: boolean }[] | null>(null);
   const [absenceOverrides, setAbsenceOverrides] = useState<Record<number, string>>({});
   const [documentedRecords, setDocumentedRecords] = useState<NoorRecord[]>([]);
+  const [excludedRecords, setExcludedRecords] = useState<NoorRecord[]>([]);
+  const [excludedOpen, setExcludedOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ ids: { id: number; type: string }[]; count: number } | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [lastUpdatedText, setLastUpdatedText] = useState('');
 
@@ -126,6 +130,19 @@ const NoorPage: React.FC = () => {
     }
   }, []);
 
+  const loadExcluded = useCallback(async (type: string) => {
+    try {
+      const res = await noorApi.getPendingRecords(undefined, type, 'excluded');
+      if (res.data?.data?.records) {
+        setExcludedRecords(res.data.data.records);
+      } else {
+        setExcludedRecords([]);
+      }
+    } catch {
+      setExcludedRecords([]);
+    }
+  }, []);
+
   useEffect(() => { loadStats(); }, [loadStats]);
 
   useEffect(() => {
@@ -133,8 +150,9 @@ const NoorPage: React.FC = () => {
       loadDocumentedToday();
     } else {
       loadRecords(activeTab);
+      loadExcluded(activeTab);
     }
-  }, [activeTab, loadRecords, loadDocumentedToday]);
+  }, [activeTab, loadRecords, loadDocumentedToday, loadExcluded]);
 
   // ★ SignalR: تحديث تلقائي عند تلقي إشعار noor-status-updated
   useEffect(() => {
@@ -255,6 +273,58 @@ const NoorPage: React.FC = () => {
       showError('خطأ في تحديث الحالة');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  // ════════════════════════════════════════
+  // إجراءات الاستبعاد والحذف والإرجاع
+  // ════════════════════════════════════════
+  const handleExclude = async (items: { id: number; type: string }[]) => {
+    try {
+      await noorApi.exclude(items);
+      showSuccess(`تم استبعاد ${items.length} سجل`);
+      setSelected(new Set());
+      loadRecords(activeTab);
+      loadExcluded(activeTab);
+      loadStats();
+    } catch {
+      showError('خطأ في الاستبعاد');
+    }
+  };
+
+  const handleRestore = async (items: { id: number; type: string }[]) => {
+    try {
+      await noorApi.restore(items);
+      showSuccess(`تم إرجاع ${items.length} سجل`);
+      loadRecords(activeTab);
+      loadExcluded(activeTab);
+      loadStats();
+    } catch {
+      showError('خطأ في الإرجاع');
+    }
+  };
+
+  const requestDelete = (items: { id: number; type: string }[]) => {
+    setDeleteTarget({ ids: items, count: items.length });
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteConfirmOpen(false);
+    try {
+      const updates: NoorStatusUpdate[] = deleteTarget.ids.map(item => ({
+        id: item.id, type: item.type, status: 'لا يحتاج',
+      }));
+      await noorApi.updateStatus(updates);
+      showSuccess(`تم حذف ${deleteTarget.count} سجل من التوثيق نهائياً`);
+      setSelected(new Set());
+      setDeleteTarget(null);
+      loadRecords(activeTab);
+      loadExcluded(activeTab);
+      loadStats();
+    } catch {
+      showError('خطأ في الحذف');
     }
   };
 
@@ -488,12 +558,16 @@ const NoorPage: React.FC = () => {
                       <td style={{ fontWeight: 600, color: '#1f2937' }}>{rec.studentName}</td>
                       <td style={{ fontSize: '13px', color: '#4b5563' }}>{rec.grade}</td>
                       <td style={{ fontSize: '13px', color: '#4b5563' }}>{classToLetter(rec.className || rec.class)}</td>
-                      <td style={{ fontSize: '13px', color: '#4b5563' }}>{rec._type}</td>
+                      <td style={{ fontSize: '13px', color: '#4b5563' }}>
+                        {rec._type === 'violation' ? 'مخالفة' : rec._type === 'tardiness' ? 'تأخر' :
+                         rec._type === 'compensation' ? 'تعويضية' : rec._type === 'excellent' ? 'متمايز' :
+                         rec._type === 'absence' ? 'غياب' : rec._type}
+                      </td>
                       <td style={{ fontSize: '13px', color: '#374151', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {rec.description || rec.behaviorType || rec.tardinessType || rec.excuseType || ''}
                       </td>
                       <td>
-                        {rec.noorStatus === 'فشل' ? (
+                        {rec.result === 'فشل' ? (
                           <span style={{ display: 'inline-block', padding: '2px 10px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#fee2e2', color: '#dc2626' }}>فشل</span>
                         ) : (
                           <span style={{ display: 'inline-block', padding: '2px 10px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#dcfce7', color: '#15803d' }}>نجح</span>
@@ -535,6 +609,7 @@ const NoorPage: React.FC = () => {
                       {activeTab === 'excellent' && <><th>السلوك المتمايز</th><th>المعلم</th><th>التاريخ</th></>}
                       {activeTab === 'absence' && <><th>نوع الغياب</th><th>التاريخ</th></>}
                       <th>نور</th>
+                      <th style={{ width: '80px' }}>إجراء</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -627,6 +702,24 @@ const NoorPage: React.FC = () => {
                                 <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#fee2e2', color: '#dc2626' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>close</span> غير مطابق</span>
                               )}
                             </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <button
+                                  onClick={() => handleExclude([{ id: rec.id, type: rec._type }])}
+                                  title="استبعاد"
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '6px', color: '#9ca3af' }}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>block</span>
+                                </button>
+                                <button
+                                  onClick={() => requestDelete([{ id: rec.id, type: rec._type }])}
+                                  title="حذف من التوثيق"
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '6px', color: '#9ca3af' }}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete_forever</span>
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </React.Fragment>
@@ -660,6 +753,104 @@ const NoorPage: React.FC = () => {
         )}
       </div>
 
+      {/* ═══ قسم المستبعد ═══ */}
+      {activeTab !== 'documented' && excludedRecords.length > 0 && (
+        <div style={{
+          marginTop: '16px', background: '#fffbeb', borderRadius: '12px',
+          border: '1px solid #fde68a', overflow: 'hidden',
+        }}>
+          <button
+            onClick={() => setExcludedOpen(!excludedOpen)}
+            style={{
+              width: '100%', padding: '12px 16px', background: 'none', border: 'none',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+              fontSize: '14px', fontWeight: 700, color: '#92400e',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>block</span>
+            المستبعد ({excludedRecords.length})
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: 'auto' }}>
+              {excludedOpen ? 'expand_less' : 'expand_more'}
+            </span>
+          </button>
+          {excludedOpen && (
+            <div style={{ padding: '0 16px 16px', overflowX: 'auto' }}>
+              <table className="data-table" style={{ width: '100%' }}>
+                <thead>
+                  <tr style={{ background: '#fef3c7', color: '#92400e' }}>
+                    <th>اسم الطالب</th>
+                    <th>الصف</th>
+                    <th>الفصل</th>
+                    <th>الوصف</th>
+                    <th style={{ width: '100px' }}>إجراء</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {excludedRecords.map((rec, i) => (
+                    <tr key={`excl-${rec._type}-${rec.id}`} style={{ background: i % 2 === 0 ? '#fffbeb' : '#fef9e7' }}>
+                      <td style={{ fontWeight: 600 }}>{rec.studentName}</td>
+                      <td>{rec.grade}</td>
+                      <td>{classToLetter(rec.className || rec.class)}</td>
+                      <td style={{ fontSize: '13px' }}>{rec.description || rec.behaviorType || rec.tardinessType || ''}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button onClick={() => handleRestore([{ id: rec.id, type: rec._type }])} title="إرجاع"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#10b981' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>undo</span>
+                          </button>
+                          <button onClick={() => requestDelete([{ id: rec.id, type: rec._type }])} title="حذف نهائياً"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#ef4444' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete_forever</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ شريط الإجراءات العائم ═══ */}
+      {activeTab !== 'documented' && (
+        <FloatingBar
+          count={selected.size}
+          actions={[
+            {
+              icon: 'block',
+              label: 'استبعاد المحدد',
+              color: '#f59e0b',
+              onClick: () => {
+                const items = Array.from(selected).map(idx => ({
+                  id: records[idx].id, type: records[idx]._type,
+                }));
+                handleExclude(items);
+              },
+            },
+            {
+              icon: 'delete_forever',
+              label: 'حذف من التوثيق',
+              color: '#ef4444',
+              onClick: () => {
+                const items = Array.from(selected).map(idx => ({
+                  id: records[idx].id, type: records[idx]._type,
+                }));
+                requestDelete(items);
+              },
+            },
+            {
+              icon: 'check_circle',
+              label: 'تحديث كـ "تم"',
+              color: '#10b981',
+              onClick: markAsDone,
+            },
+          ]}
+          onCancel={() => setSelected(new Set())}
+        />
+      )}
+
       {/* مربع تأكيد التوثيق */}
       {confirmOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -674,6 +865,32 @@ const NoorPage: React.FC = () => {
                 style={{ padding: '8px 24px', borderRadius: '12px', border: '2px solid #d1d5db', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '14px' }}>إلغاء</button>
               <button onClick={executeMarkAsDone}
                 style={{ padding: '8px 24px', borderRadius: '12px', border: 'none', background: '#22c55e', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '14px' }}>بدء التوثيق</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* مربع تأكيد الحذف */}
+      {deleteConfirmOpen && deleteTarget && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: '20px', padding: '24px', maxWidth: '400px', width: '90%', textAlign: 'center' }}>
+            <div style={{ marginBottom: '12px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '48px', color: '#ef4444' }}>warning</span>
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px', color: '#1f2937' }}>حذف من التوثيق نهائياً</h3>
+            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '20px', lineHeight: '1.6' }}>
+              سيتم إزالة <strong style={{ color: '#ef4444' }}>{deleteTarget.count}</strong> سجل من صفحة التوثيق نهائياً.
+              السجلات ستبقى في النظام لكن لن تظهر هنا مرة أخرى.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button onClick={() => { setDeleteConfirmOpen(false); setDeleteTarget(null); }}
+                style={{ padding: '8px 24px', borderRadius: '12px', border: '2px solid #d1d5db', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '14px' }}>
+                إلغاء
+              </button>
+              <button onClick={executeDelete}
+                style={{ padding: '8px 24px', borderRadius: '12px', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '14px' }}>
+                حذف نهائياً
+              </button>
             </div>
           </div>
         </div>
@@ -781,12 +998,12 @@ function getDefaultAbsenceValue(rec: NoorRecord): string {
 
 function getColSpan(tab: string): number {
   switch (tab) {
-    case 'violations': return 8;
-    case 'excellent': return 8;
-    case 'compensation': return 7;
-    case 'absence': return 7;
+    case 'violations': return 9;
+    case 'excellent': return 9;
+    case 'compensation': return 8;
+    case 'absence': return 8;
     case 'documented': return 6;
-    default: return 8;
+    default: return 9;
   }
 }
 
