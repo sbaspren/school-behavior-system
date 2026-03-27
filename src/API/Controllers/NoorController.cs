@@ -396,10 +396,10 @@ public class NoorController : ControllerBase
     /// <summary>عد الموثق اليوم</summary>
     private async Task<int> CountDocumentedToday(Stage? stageEnum, DateTime today)
     {
-        var docVQ = _db.Violations.Where(v => v.NoorStatus == "تم" && v.RecordedAt >= today);
-        var docTQ = _db.TardinessRecords.Where(t => t.NoorStatus == "تم" && t.RecordedAt >= today);
-        var docPQ = _db.PositiveBehaviors.Where(p => p.NoorStatus == "تم" && p.RecordedAt >= today);
-        var docAQ = _db.DailyAbsences.Where(a => a.NoorStatus == "تم" && a.RecordedAt >= today);
+        var docVQ = _db.Violations.Where(v => (v.NoorStatus == "تم" || v.NoorStatus == "failed") && v.RecordedAt >= today);
+        var docTQ = _db.TardinessRecords.Where(t => (t.NoorStatus == "تم" || t.NoorStatus == "failed") && t.RecordedAt >= today);
+        var docPQ = _db.PositiveBehaviors.Where(p => (p.NoorStatus == "تم" || p.NoorStatus == "failed") && p.RecordedAt >= today);
+        var docAQ = _db.DailyAbsences.Where(a => (a.NoorStatus == "تم" || a.NoorStatus == "failed") && a.RecordedAt >= today);
 
         if (stageEnum != null)
         {
