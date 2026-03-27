@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import MI from '../components/shared/MI';
 import PageHero from '../components/shared/PageHero';
 import TabBar from '../components/shared/TabBar';
@@ -9,13 +9,13 @@ import { showSuccess, showError } from '../components/shared/Toast';
 import { DEGREE_LABELS } from '../utils/constants';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { classToLetter } from '../utils/printUtils';
+import { useSignalR } from '../hooks/useSignalR';
+import FloatingBar from '../components/shared/FloatingBar';
 
 // ════════════════════════════════════════════════════════════
 // تعريفات التبويبات الخمسة — مطابق للأصلي NOOR_TABS
 // ════════════════════════════════════════════════════════════
 
-const _TARD_LABELS: Record<string, string> = { Morning: 'تأخر صباحي', Period: 'تأخر عن الحصة', Assembly: 'تأخر عن الاصطفاف' };
-const tardLabel = (t?: string) => (t && _TARD_LABELS[t]) || t || 'تأخر صباحي';
 interface TabDef {
   id: string;
   label: string;
@@ -25,13 +25,13 @@ interface TabDef {
 }
 
 const NOOR_TABS: Record<string, TabDef> = {
-  violations:   { id: 'violations',   icon: 'balance', label: 'مخالفات',       color: '#ef4444', desc: 'المخالفات السلوكية المعلقة للتوثيق في نور' },
-  tardiness:    { id: 'tardiness',    icon: 'hourglass_empty', label: 'تأخر',          color: '#f59e0b', desc: 'سجلات التأخر الصباحي — تُدخل كمخالفة الدرجة الأولى' },
+  violations:   { id: 'violations',   icon: 'balance', label: 'مخالفات',       color: '#ef4444', desc: 'المخالفات السلوكية المعلقة للتوثيق في نور (تشمل التأخر الصباحي)' },
   compensation: { id: 'compensation', icon: 'sync', label: 'تعويضية',       color: '#3b82f6', desc: 'درجات التعويض — فرص تعويض للطلاب المخصوم منهم' },
   excellent:    { id: 'excellent',    icon: 'auto_awesome', label: 'سلوك متمايز',   color: '#22c55e', desc: 'السلوك المتمايز للطلاب المتميزين' },
   absence:      { id: 'absence',     icon: 'event_busy', label: 'غياب يومي',     color: '#f97316', desc: 'سجلات الغياب اليومي — يُدخل في نفس اليوم فقط' },
+  documented:   { id: 'documented',  icon: 'check_circle', label: 'الموثق اليوم', color: '#00695c', desc: 'السجلات التي تم توثيقها في نور اليوم' },
 };
-const TAB_ORDER = ['violations', 'tardiness', 'compensation', 'excellent', 'absence'];
+const TAB_ORDER = ['violations', 'compensation', 'excellent', 'absence', 'documented'];
 
 const DEGREE_COLORS: Record<string, { bg: string; color: string }> = Object.fromEntries(
   Object.entries(DEGREE_LABELS).map(([k, v]) => [k, { bg: v.bg, color: v.color }])
@@ -53,7 +53,6 @@ type NoorRecord = Record<string, any>;
 
 interface NoorStats {
   violations: number;
-  tardiness: number;
   compensation: number;
   excellent: number;
   absence: number;
@@ -72,122 +71,14 @@ const NoorPage: React.FC = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [resultDetails, setResultDetails] = useState<{ name: string; grade: string; className: string; type: string; ok: boolean }[] | null>(null);
   const [absenceOverrides, setAbsenceOverrides] = useState<Record<number, string>>({});
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [noorMappings, setNoorMappings] = useState<Record<string, any> | null>(null);
+  const [documentedRecords, setDocumentedRecords] = useState<NoorRecord[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [lastUpdatedText, setLastUpdatedText] = useState('');
 
   // ════════════════════════════════════════
-  // ★ حالة الاتصال بإضافة نور — مطابق لـ NOOR_STATE في JS_Noor.html
+  // ★ SignalR — تحديثات مباشرة
   // ════════════════════════════════════════
-  const [extConnected, setExtConnected] = useState(false);
-  const [extUserName, setExtUserName] = useState('');
-  const [extWorking, setExtWorking] = useState(false);
-  const [extProgress, setExtProgress] = useState({ done: 0, total: 0, current: '' });
-  const bridgeInboxRef = useRef<HTMLDivElement | null>(null);
-  const bridgeOutboxRef = useRef<HTMLDivElement | null>(null);
-
-  // ════════════════════════════════════════
-  // ★ جسر إضافة كروم — مطابق لـ _noorFindBridge / _noorSendToExt في JS_Noor.html
-  // ════════════════════════════════════════
-  const findBridge = useCallback(() => {
-    bridgeInboxRef.current = document.getElementById('noor-bridge-inbox') as HTMLDivElement;
-    bridgeOutboxRef.current = document.getElementById('noor-bridge-outbox') as HTMLDivElement;
-    // محاولة parent (لو في iframe)
-    if (!bridgeInboxRef.current) {
-      try { bridgeInboxRef.current = window.parent.document.getElementById('noor-bridge-inbox') as HTMLDivElement; } catch { /* */ }
-    }
-    if (!bridgeOutboxRef.current) {
-      try { bridgeOutboxRef.current = window.parent.document.getElementById('noor-bridge-outbox') as HTMLDivElement; } catch { /* */ }
-    }
-  }, []);
-
-  const sendToExt = useCallback((data: Record<string, unknown>) => {
-    findBridge();
-    if (!bridgeInboxRef.current) return false;
-    bridgeInboxRef.current.textContent = JSON.stringify(data);
-    return true;
-  }, [findBridge]);
-
-  // ★ معالجة رسائل الإضافة — مطابق لـ _noorHandleExtMessage في JS_Noor.html
-  const handleExtMessage = useCallback((data: Record<string, unknown>) => {
-    if (!data?.action) return;
-    switch (data.action) {
-      case 'connected':
-        setExtConnected(true);
-        setExtUserName(String(data.userName || ''));
-        showSuccess('تم الاتصال بنور عبر الإضافة — جاهز للتوثيق');
-        break;
-      case 'progress':
-        setExtProgress({ done: Number(data.done || 0), total: Number(data.total || 0), current: String(data.current || '') });
-        break;
-      case 'done': {
-        setExtWorking(false);
-        const results = data.results as { success: number; failed: number; updates: { rowIndex: number; type: string; status: string }[] } | undefined;
-        if (results?.updates) {
-          // تحديث حالة نور في قاعدة البيانات
-          const apiUpdates: NoorStatusUpdate[] = results.updates.map(u => ({
-            id: u.rowIndex, type: u.type, status: u.status,
-          }));
-          noorApi.updateStatus(apiUpdates).catch(() => {});
-        }
-        const successCount = results?.success || 0;
-        const failedCount = results?.failed || 0;
-        showSuccess(`تم التوثيق: ${successCount} نجح${failedCount > 0 ? ` | ${failedCount} فشل` : ''}`);
-        loadRecords(activeTab);
-        loadStats();
-        break;
-      }
-      case 'error':
-        setExtWorking(false);
-        showError('خطأ: ' + String(data.message || ''));
-        break;
-      case 'disconnected':
-        setExtConnected(false);
-        setExtUserName('');
-        break;
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ★ مراقبة رسائل الإضافة عبر MutationObserver + postMessage
-  useEffect(() => {
-    findBridge();
-    const outbox = bridgeOutboxRef.current;
-    let observer: MutationObserver | null = null;
-    if (outbox) {
-      observer = new MutationObserver(() => {
-        if (!outbox.textContent) return;
-        try {
-          const data = JSON.parse(outbox.textContent);
-          outbox.textContent = '';
-          handleExtMessage(data);
-        } catch { outbox.textContent = ''; }
-      });
-      observer.observe(outbox, { childList: true, characterData: true, subtree: true });
-    }
-    // fallback: postMessage
-    const msgHandler = (e: MessageEvent) => {
-      if (e.data?.source === 'noor-extension') handleExtMessage(e.data);
-    };
-    window.addEventListener('message', msgHandler);
-    // Ping on mount
-    sendToExt({ source: 'school-system', action: 'ping' });
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener('message', msgHandler);
-    };
-  }, [findBridge, handleExtMessage, sendToExt]);
-
-  const noorConnect = () => {
-    const sent = sendToExt({ source: 'school-system', action: 'ping' });
-    if (!sent) showError('الجسر غير موجود — تأكد أن إضافة نور مفعّلة ونور مفتوح في تبويب آخر');
-    else showSuccess('جاري فحص الاتصال...');
-  };
-
-  const noorDisconnect = () => {
-    setExtConnected(false);
-    setExtUserName('');
-    showSuccess('تم قطع الاتصال بنور');
-  };
+  const { lastNotification } = useSignalR();
 
   // ════════════════════════════════════════
   // جلب الإحصائيات
@@ -221,19 +112,61 @@ const NoorPage: React.FC = () => {
     }
   }, [filterMode]);
 
-  useEffect(() => { loadStats(); }, [loadStats]);
-  useEffect(() => { loadRecords(activeTab); }, [activeTab, loadRecords]);
-  useEffect(() => {
-    noorApi.getMappings().then(res => {
-      if (res.data?.data) setNoorMappings(res.data.data);
-    }).catch(() => {});
+  // ════════════════════════════════════════
+  // جلب الموثق اليوم
+  // ════════════════════════════════════════
+  const loadDocumentedToday = useCallback(async () => {
+    try {
+      const res = await noorApi.getDocumentedToday('all');
+      if (res.data?.data?.records) {
+        setDocumentedRecords(res.data.data.records);
+      }
+    } catch {
+      setDocumentedRecords([]);
+    }
   }, []);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
+
+  useEffect(() => {
+    if (activeTab === 'documented') {
+      loadDocumentedToday();
+    } else {
+      loadRecords(activeTab);
+    }
+  }, [activeTab, loadRecords, loadDocumentedToday]);
+
+  // ★ SignalR: تحديث تلقائي عند تلقي إشعار noor-status-updated
+  useEffect(() => {
+    if (lastNotification?.type === 'noor-status-updated') {
+      loadRecords(activeTab);
+      loadStats();
+      if (activeTab === 'documented') loadDocumentedToday();
+      setLastUpdated(new Date());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastNotification]);
+
+  // ★ مؤقت آخر تحديث
+  useEffect(() => {
+    if (!lastUpdated) return;
+    const update = () => {
+      const seconds = Math.floor((Date.now() - lastUpdated.getTime()) / 1000);
+      if (seconds < 5) setLastUpdatedText('الآن');
+      else if (seconds < 60) setLastUpdatedText(`قبل ${seconds} ثانية`);
+      else setLastUpdatedText(`قبل ${Math.floor(seconds / 60)} دقيقة`);
+    };
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [lastUpdated]);
 
   // ════════════════════════════════════════
   // تبديل التبويب
   // ════════════════════════════════════════
   const switchTab = (tab: string) => {
     setActiveTab(tab);
+    if (tab === 'documented') loadDocumentedToday();
   };
 
   // ════════════════════════════════════════
@@ -298,51 +231,11 @@ const NoorPage: React.FC = () => {
   const executeMarkAsDone = async () => {
     setConfirmOpen(false);
     const selectedRecs = Array.from(selected).map(idx => records[idx]);
-
-    // ★ إذا الإضافة متصلة: أرسل للتوثيق الفعلي عبر الجسر
-    if (extConnected) {
-      const recsWithOverrides = selectedRecs.map((rec, i) => {
-        const idx = Array.from(selected)[i];
-        const override = absenceOverrides[idx];
-        return override ? { ...rec, _absenceOverride: override } : rec;
-      }).filter(rec => rec._noorValue); // فقط المطابق
-
-      if (recsWithOverrides.length === 0) {
-        showError('لم يتم تحديد سجلات مطابقة لنور');
-        return;
-      }
-
-      setExtWorking(true);
-      setExtProgress({ done: 0, total: recsWithOverrides.length, current: '' });
-
-      const stageKey = recsWithOverrides[0]?.stage || '';
-      const gradeMap = noorMappings?.grades?.[stageKey] || {};
-
-      const sent = sendToExt({
-        source: 'school-system',
-        action: 'execute',
-        operation: activeTab,
-        records: recsWithOverrides,
-        stage: stageKey,
-        gradeMap,
-      });
-
-      if (!sent) {
-        setExtWorking(false);
-        showError('الجسر غير متصل — تأكد من فتح نور في تبويب آخر مع تفعيل الإضافة');
-      }
-      return;
-    }
-
-    // ★ بدون إضافة: تحديث حالة نور في قاعدة البيانات فقط
     setUpdating(true);
     try {
       const updates: NoorStatusUpdate[] = selectedRecs.map(rec => ({
-        id: rec.id,
-        type: rec._type,
-        status: 'تم',
+        id: rec.id, type: rec._type, status: 'تم',
       }));
-
       const res = await noorApi.updateStatus(updates);
       if (res.data?.data) {
         const { updated, failed } = res.data.data;
@@ -350,7 +243,7 @@ const NoorPage: React.FC = () => {
           name: rec.studentName || '',
           grade: rec.grade || '',
           className: rec.className || rec.class || '',
-          type: rec.description || tardLabel(rec.tardinessType) || rec.behaviorType || rec.excuseType || '',
+          type: rec.description || rec.tardinessType || rec.behaviorType || rec.excuseType || '',
           ok: i < updated,
         }));
         setResultDetails(details);
@@ -391,7 +284,7 @@ const NoorPage: React.FC = () => {
     return { matched, unmatched: records.length - matched };
   }, [records, absenceOverrides]);
 
-  const currentTabDef = NOOR_TABS[activeTab];
+  const currentTabDef = NOOR_TABS[activeTab] || NOOR_TABS['violations'];
 
   return (
     <div className="sec-noor">
@@ -402,7 +295,6 @@ const NoorPage: React.FC = () => {
         gradient="linear-gradient(135deg, #00695c, #00897b)"
         stats={[
           { icon: 'gavel', label: 'مخالفات', value: stats?.violations ?? '-', color: '#ef4444' },
-          { icon: 'timer_off', label: 'تأخر', value: stats?.tardiness ?? '-', color: '#f59e0b' },
           { icon: 'autorenew', label: 'تعويضية', value: stats?.compensation ?? '-', color: '#60a5fa' },
           { icon: 'stars', label: 'متمايز', value: stats?.excellent ?? '-', color: '#86efac' },
           { icon: 'event_busy', label: 'غياب', value: stats?.absence ?? '-', color: '#f97316' },
@@ -411,109 +303,34 @@ const NoorPage: React.FC = () => {
       />
 
       {/* ═══ فلتر العرض: اليوم / كل غير الموثق ═══ */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px',
-        background: '#fff', borderRadius: '16px', border: '2px solid #e5e7eb', padding: '8px 16px',
-      }}>
-        <span style={{ fontSize: '13px', fontWeight: 700, color: '#6b7280', marginLeft: '8px' }}>عرض:</span>
-        <button
-          onClick={() => switchFilter('today')}
-          style={{
-            padding: '6px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
-            background: filterMode === 'today' ? '#4f46e5' : '#f3f4f6',
-            color: filterMode === 'today' ? '#fff' : '#6b7280',
-            border: 'none', cursor: 'pointer',
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>calendar_today</span> اليوم
-        </button>
-        <button
-          onClick={() => switchFilter('all')}
-          style={{
-            padding: '6px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
-            background: filterMode === 'all' ? '#4f46e5' : '#f3f4f6',
-            color: filterMode === 'all' ? '#fff' : '#6b7280',
-            border: 'none', cursor: 'pointer',
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>schedule</span> كل غير الموثق
-        </button>
-      </div>
-
-      {/* ═══ شريط الاتصال بإضافة نور ═══ */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: '#fff', borderRadius: '16px', border: '2px solid #e5e7eb',
-        padding: '10px 16px', marginBottom: '12px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{
-            width: '12px', height: '12px', borderRadius: '50%',
-            background: extConnected ? '#22c55e' : '#ef4444',
-            display: 'inline-block',
-            boxShadow: `0 0 8px ${extConnected ? '#22c55e50' : '#ef444450'}`,
-          }} />
-          <div>
-            <span style={{ fontWeight: 700, fontSize: '13px', color: '#1f2937' }}>
-              {extConnected ? 'متصل بنور' : 'غير متصل'}
-            </span>
-            {extUserName && (
-              <span style={{ fontSize: '12px', color: '#9ca3af', marginRight: '8px' }}>({extUserName})</span>
-            )}
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {extConnected ? (
-            <>
-              <button onClick={() => sendToExt({ source: 'school-system', action: 'ping' })}
-                style={{ padding: '6px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 700, background: '#f3f4f6', color: '#374151', border: '2px solid #d1d5db', cursor: 'pointer' }}>
-                <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span> تحديث الحالة
-              </button>
-              <button onClick={noorDisconnect}
-                style={{ padding: '6px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 700, background: '#f3f4f6', color: '#374151', border: '2px solid #d1d5db', cursor: 'pointer' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>link</span> قطع الاتصال
-              </button>
-            </>
-          ) : (
-            <button onClick={noorConnect}
-              style={{ padding: '6px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 700, background: '#4f46e5', color: '#fff', border: 'none', cursor: 'pointer' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>link</span> فحص الاتصال
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ═══ شاشة التقدم (عند التوثيق الفعلي) ═══ */}
-      {extWorking && (
+      {activeTab !== 'documented' && (
         <div style={{
-          background: '#fff', borderRadius: '20px', border: '2px solid #e5e7eb',
-          padding: '40px', textAlign: 'center', marginBottom: '16px',
+          display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px',
+          background: '#fff', borderRadius: '16px', border: '2px solid #e5e7eb', padding: '8px 16px',
         }}>
-          <div style={{ width: '120px', height: '120px', margin: '0 auto 20px', position: 'relative' }}>
-            <svg viewBox="0 0 120 120" style={{ transform: 'rotate(-90deg)' }}>
-              <circle cx="60" cy="60" r="52" fill="none" stroke="#e5e7eb" strokeWidth="8" />
-              <circle cx="60" cy="60" r="52" fill="none" stroke="#4f46e5" strokeWidth="8" strokeLinecap="round"
-                strokeDasharray={`${2 * Math.PI * 52}`}
-                strokeDashoffset={`${2 * Math.PI * 52 * (1 - (extProgress.total > 0 ? extProgress.done / extProgress.total : 0))}`}
-                style={{ transition: 'stroke-dashoffset 0.5s' }} />
-            </svg>
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: 900, color: '#1f2937' }}>
-              {extProgress.total > 0 ? Math.round(extProgress.done / extProgress.total * 100) : 0}%
-            </div>
-          </div>
-          <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>جاري التوثيق في نور...</h3>
-          <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '8px' }}>{extProgress.done} من {extProgress.total} سجل</p>
-          {extProgress.current && (
-            <p style={{ fontSize: '12px', color: '#6b7280', background: '#f8fafc', borderRadius: '12px', padding: '8px 16px', display: 'inline-block' }}>
-              {extProgress.current}
-            </p>
-          )}
-          <div style={{ marginTop: '24px' }}>
-            <button onClick={() => { setExtWorking(false); sendToExt({ source: 'school-system', action: 'cancel' }); showSuccess('تم إيقاف التوثيق'); }}
-              style={{ padding: '8px 24px', borderRadius: '12px', background: '#ef4444', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '14px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>stop</span> إيقاف
-            </button>
-          </div>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: '#6b7280', marginLeft: '8px' }}>عرض:</span>
+          <button
+            onClick={() => switchFilter('today')}
+            style={{
+              padding: '6px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
+              background: filterMode === 'today' ? '#4f46e5' : '#f3f4f6',
+              color: filterMode === 'today' ? '#fff' : '#6b7280',
+              border: 'none', cursor: 'pointer',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>calendar_today</span> اليوم
+          </button>
+          <button
+            onClick={() => switchFilter('all')}
+            style={{
+              padding: '6px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
+              background: filterMode === 'all' ? '#4f46e5' : '#f3f4f6',
+              color: filterMode === 'all' ? '#fff' : '#6b7280',
+              border: 'none', cursor: 'pointer',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>schedule</span> كل غير الموثق
+          </button>
         </div>
       )}
 
@@ -553,7 +370,11 @@ const NoorPage: React.FC = () => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
-            onClick={() => { loadRecords(activeTab); loadStats(); }}
+            onClick={() => {
+              if (activeTab === 'documented') { loadDocumentedToday(); }
+              else { loadRecords(activeTab); }
+              loadStats();
+            }}
             style={{
               padding: '8px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
               background: '#f3f4f6', color: '#374151', border: '2px solid #d1d5db', cursor: 'pointer',
@@ -563,30 +384,39 @@ const NoorPage: React.FC = () => {
             <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span> تحديث السجلات
           </button>
           <span style={{ fontSize: '13px', color: '#9ca3af' }}>
-            {records.length > 0 ? `${records.length} سجل` : ''}
+            {activeTab === 'documented'
+              ? (documentedRecords.length > 0 ? `${documentedRecords.length} سجل` : '')
+              : (records.length > 0 ? `${records.length} سجل` : '')}
           </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {selected.size > 0 && (
-            <span style={{ fontSize: '13px', color: '#4f46e5', fontWeight: 700 }}>
-              {selected.size} محدد
+          {lastUpdatedText && (
+            <span style={{ fontSize: '12px', color: '#9da3b8' }}>
+              آخر تحديث: {lastUpdatedText}
             </span>
           )}
-          <button
-            onClick={markAsDone}
-            disabled={selected.size === 0 || updating}
-            style={{
-              padding: '8px 20px', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
-              background: selected.size > 0 ? (extConnected ? '#4f46e5' : '#22c55e') : '#e5e7eb',
-              color: selected.size > 0 ? '#fff' : '#9ca3af',
-              border: 'none', cursor: selected.size > 0 ? 'pointer' : 'not-allowed',
-              display: 'flex', alignItems: 'center', gap: '6px',
-              opacity: updating ? 0.7 : 1,
-            }}
-          >
-            {extConnected ? <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>play_arrow</span> : <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>check_circle</span>} {updating ? 'جاري التحديث...' : (extConnected ? 'بدء التوثيق في نور' : 'تحديث كـ "تم" في نور')}
-          </button>
         </div>
+        {activeTab !== 'documented' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {selected.size > 0 && (
+              <span style={{ fontSize: '13px', color: '#4f46e5', fontWeight: 700 }}>
+                {selected.size} محدد
+              </span>
+            )}
+            <button
+              onClick={markAsDone}
+              disabled={selected.size === 0 || updating}
+              style={{
+                padding: '8px 20px', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
+                background: selected.size > 0 ? '#22c55e' : '#e5e7eb',
+                color: selected.size > 0 ? '#fff' : '#9ca3af',
+                border: 'none', cursor: selected.size > 0 ? 'pointer' : 'not-allowed',
+                display: 'flex', alignItems: 'center', gap: '6px',
+                opacity: updating ? 0.7 : 1,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>check_circle</span> {updating ? 'جاري التحديث...' : 'تحديث كـ "تم"'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ═══ شريط نوع الغياب للجميع (لتبويب الغياب فقط) ═══ */}
@@ -632,162 +462,201 @@ const NoorPage: React.FC = () => {
           </div>
         </div>
 
-        {/* الجدول */}
-        {loading ? (
-          <LoadingSpinner />
-        ) : records.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '48px', color: '#9ca3af' }}>
-            <p style={{ margin: '0 0 8px' }}><span className="material-symbols-outlined" style={{fontSize:36,color:'#15803d'}}>check_circle</span></p>
-            <p style={{ fontSize: '16px', fontWeight: 500 }}>لا توجد سجلات معلقة</p>
-          </div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table" style={{ width: '100%' }}>
-              <thead>
-                <tr style={{ background: '#00695c', color: '#fff' }}>
-                  <th style={{ width: '40px' }}>
-                    <input
-                      type="checkbox"
-                      checked={selected.size === records.length && records.length > 0}
-                      onChange={(e) => toggleAll(e.target.checked)}
-                    />
-                  </th>
-                  <th>اسم الطالب</th>
-                  <th>الصف</th>
-                  <th>الفصل</th>
-                  {activeTab === 'violations' && <><th>المخالفة</th><th>الدرجة</th><th>التاريخ</th></>}
-                  {activeTab === 'tardiness' && <><th>نوع التأخر</th><th>التاريخ</th></>}
-                  {activeTab === 'compensation' && <><th>السلوك التعويضي</th><th>التاريخ</th></>}
-                  {activeTab === 'excellent' && <><th>السلوك المتمايز</th><th>المعلم</th><th>التاريخ</th></>}
-                  {activeTab === 'absence' && <><th>نوع الغياب</th><th>التاريخ</th></>}
-                  <th>نور</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupedRecords.map(group => (
-                  <React.Fragment key={group.key}>
-                    {/* صف المجموعة */}
-                    <tr style={{ background: '#f8fafc' }}>
-                      <td colSpan={getColSpan(activeTab)} style={{
-                        padding: '6px 16px', fontSize: '13px', fontWeight: 700, color: '#4b5563',
-                      }}>
-                        <span style={{ color: currentTabDef.color }}>{group.grade}</span>
-                        {group.className && <span style={{ color: '#9ca3af' }}> / {classToLetter(group.className)}</span>}
-                        <span style={{
-                          marginRight: '12px', fontSize: '11px', color: '#9ca3af',
-                          background: '#f3f4f6', padding: '2px 8px', borderRadius: '100px',
-                        }}>
-                          {group.records.length} سجل
-                        </span>
+        {/* ═══ جدول الموثق اليوم ═══ */}
+        {activeTab === 'documented' ? (
+          documentedRecords.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px', color: '#9ca3af' }}>
+              <p style={{ margin: '0 0 8px' }}><span className="material-symbols-outlined" style={{fontSize:36,color:'#9ca3af'}}>inbox</span></p>
+              <p style={{ fontSize: '16px', fontWeight: 500 }}>لا توجد سجلات موثقة اليوم</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table" style={{ width: '100%' }}>
+                <thead>
+                  <tr style={{ background: '#00695c', color: '#fff' }}>
+                    <th>اسم الطالب</th>
+                    <th>الصف</th>
+                    <th>الفصل</th>
+                    <th>النوع</th>
+                    <th>الوصف</th>
+                    <th>النتيجة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documentedRecords.map((rec, idx) => (
+                    <tr key={`doc-${rec._type}-${rec.id}-${idx}`} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      <td style={{ fontWeight: 600, color: '#1f2937' }}>{rec.studentName}</td>
+                      <td style={{ fontSize: '13px', color: '#4b5563' }}>{rec.grade}</td>
+                      <td style={{ fontSize: '13px', color: '#4b5563' }}>{classToLetter(rec.className || rec.class)}</td>
+                      <td style={{ fontSize: '13px', color: '#4b5563' }}>{rec._type}</td>
+                      <td style={{ fontSize: '13px', color: '#374151', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {rec.description || rec.behaviorType || rec.tardinessType || rec.excuseType || ''}
+                      </td>
+                      <td>
+                        {rec.noorStatus === 'فشل' ? (
+                          <span style={{ display: 'inline-block', padding: '2px 10px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#fee2e2', color: '#dc2626' }}>فشل</span>
+                        ) : (
+                          <span style={{ display: 'inline-block', padding: '2px 10px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#dcfce7', color: '#15803d' }}>نجح</span>
+                        )}
                       </td>
                     </tr>
-                    {/* صفوف البيانات */}
-                    {group.records.map(({ rec, idx }) => (
-                      <tr key={`${rec._type}-${rec.id}`} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={selected.has(idx)}
-                            onChange={() => toggleOne(idx)}
-                          />
-                        </td>
-                        <td style={{ fontWeight: 600, color: '#1f2937' }}>{rec.studentName}</td>
-                        <td style={{ fontSize: '13px', color: '#4b5563' }}>{rec.grade}</td>
-                        <td style={{ fontSize: '13px', color: '#4b5563' }}>{classToLetter(rec.className || rec.class)}</td>
-
-                        {activeTab === 'violations' && (
-                          <>
-                            <td style={{ fontSize: '13px', color: '#374151', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {rec.description || rec.violationCode}
-                            </td>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : (
+          /* ═══ الجدول الأساسي (تبويبات السجلات المعلقة) ═══ */
+          <>
+            {loading ? (
+              <LoadingSpinner />
+            ) : records.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '48px', color: '#9ca3af' }}>
+                <p style={{ margin: '0 0 8px' }}><span className="material-symbols-outlined" style={{fontSize:36,color:'#15803d'}}>check_circle</span></p>
+                <p style={{ fontSize: '16px', fontWeight: 500 }}>لا توجد سجلات معلقة</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table" style={{ width: '100%' }}>
+                  <thead>
+                    <tr style={{ background: '#00695c', color: '#fff' }}>
+                      <th style={{ width: '40px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selected.size === records.length && records.length > 0}
+                          onChange={(e) => toggleAll(e.target.checked)}
+                        />
+                      </th>
+                      <th>اسم الطالب</th>
+                      <th>الصف</th>
+                      <th>الفصل</th>
+                      {activeTab === 'violations' && <><th>المخالفة</th><th>الدرجة</th><th>التاريخ</th></>}
+                      {activeTab === 'compensation' && <><th>السلوك التعويضي</th><th>التاريخ</th></>}
+                      {activeTab === 'excellent' && <><th>السلوك المتمايز</th><th>المعلم</th><th>التاريخ</th></>}
+                      {activeTab === 'absence' && <><th>نوع الغياب</th><th>التاريخ</th></>}
+                      <th>نور</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedRecords.map(group => (
+                      <React.Fragment key={group.key}>
+                        {/* صف المجموعة */}
+                        <tr style={{ background: '#f8fafc' }}>
+                          <td colSpan={getColSpan(activeTab)} style={{
+                            padding: '6px 16px', fontSize: '13px', fontWeight: 700, color: '#4b5563',
+                          }}>
+                            <span style={{ color: currentTabDef.color }}>{group.grade}</span>
+                            {group.className && <span style={{ color: '#9ca3af' }}> / {classToLetter(group.className)}</span>}
+                            <span style={{
+                              marginRight: '12px', fontSize: '11px', color: '#9ca3af',
+                              background: '#f3f4f6', padding: '2px 8px', borderRadius: '100px',
+                            }}>
+                              {group.records.length} سجل
+                            </span>
+                          </td>
+                        </tr>
+                        {/* صفوف البيانات */}
+                        {group.records.map(({ rec, idx }) => (
+                          <tr key={`${rec._type}-${rec.id}`} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
                             <td>
-                              <DegreeBadge degree={String(rec.degree)} />
+                              <input
+                                type="checkbox"
+                                checked={selected.has(idx)}
+                                onChange={() => toggleOne(idx)}
+                              />
                             </td>
-                            <td style={{ fontSize: '12px', color: '#6b7280' }}>{rec.date}</td>
-                          </>
-                        )}
+                            <td style={{ fontWeight: 600, color: '#1f2937' }}>{rec.studentName}</td>
+                            <td style={{ fontSize: '13px', color: '#4b5563' }}>{rec.grade}</td>
+                            <td style={{ fontSize: '13px', color: '#4b5563' }}>{classToLetter(rec.className || rec.class)}</td>
 
-                        {activeTab === 'tardiness' && (
-                          <>
-                            <td style={{ fontSize: '13px', color: '#374151' }}>{tardLabel(rec.tardinessType)}</td>
-                            <td style={{ fontSize: '12px', color: '#6b7280' }}>{rec.date}</td>
-                          </>
-                        )}
+                            {activeTab === 'violations' && (
+                              <>
+                                <td style={{ fontSize: '13px', color: '#374151', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {rec.description || rec.violationCode}
+                                </td>
+                                <td>
+                                  <DegreeBadge degree={String(rec.degree)} />
+                                </td>
+                                <td style={{ fontSize: '12px', color: '#6b7280' }}>{rec.date}</td>
+                              </>
+                            )}
 
-                        {activeTab === 'compensation' && (
-                          <>
-                            <td style={{ fontSize: '13px', color: '#374151', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {rec.behaviorType || rec.details}
-                            </td>
-                            <td style={{ fontSize: '12px', color: '#6b7280' }}>{rec.date}</td>
-                          </>
-                        )}
+                            {activeTab === 'compensation' && (
+                              <>
+                                <td style={{ fontSize: '13px', color: '#374151', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {rec.behaviorType || rec.details}
+                                </td>
+                                <td style={{ fontSize: '12px', color: '#6b7280' }}>{rec.date}</td>
+                              </>
+                            )}
 
-                        {activeTab === 'excellent' && (
-                          <>
-                            <td style={{ fontSize: '13px', color: '#374151', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {rec.behaviorType || rec.details}
-                            </td>
-                            <td style={{ fontSize: '13px', color: '#6b7280' }}>{rec.recordedBy}</td>
-                            <td style={{ fontSize: '12px', color: '#6b7280' }}>{rec.date}</td>
-                          </>
-                        )}
+                            {activeTab === 'excellent' && (
+                              <>
+                                <td style={{ fontSize: '13px', color: '#374151', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {rec.behaviorType || rec.details}
+                                </td>
+                                <td style={{ fontSize: '13px', color: '#6b7280' }}>{rec.recordedBy}</td>
+                                <td style={{ fontSize: '12px', color: '#6b7280' }}>{rec.date}</td>
+                              </>
+                            )}
 
-                        {activeTab === 'absence' && (
-                          <>
+                            {activeTab === 'absence' && (
+                              <>
+                                <td>
+                                  <select
+                                    value={absenceOverrides[idx] || getDefaultAbsenceValue(rec)}
+                                    onChange={(e) => setAbsenceOverride(idx, e.target.value)}
+                                    style={{
+                                      fontSize: '12px', padding: '4px 8px', border: '2px solid #ddd',
+                                      borderRadius: '12px', minWidth: '130px', background: '#fff',
+                                    }}
+                                  >
+                                    {ABSENCE_TYPE_OPTIONS.map(o => (
+                                      <option key={o.value} value={o.value}>{o.label}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td style={{ fontSize: '12px', color: '#6b7280' }}>{rec.hijriDate || rec.date}</td>
+                              </>
+                            )}
+
                             <td>
-                              <select
-                                value={absenceOverrides[idx] || getDefaultAbsenceValue(rec)}
-                                onChange={(e) => setAbsenceOverride(idx, e.target.value)}
-                                style={{
-                                  fontSize: '12px', padding: '4px 8px', border: '2px solid #ddd',
-                                  borderRadius: '12px', minWidth: '130px', background: '#fff',
-                                }}
-                              >
-                                {ABSENCE_TYPE_OPTIONS.map(o => (
-                                  <option key={o.value} value={o.value}>{o.label}</option>
-                                ))}
-                              </select>
+                              {(absenceOverrides[idx] || rec._noorValue) ? (
+                                <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#dcfce7', color: '#15803d' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>check</span> مطابق</span>
+                              ) : (
+                                <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#fee2e2', color: '#dc2626' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>close</span> غير مطابق</span>
+                              )}
                             </td>
-                            <td style={{ fontSize: '12px', color: '#6b7280' }}>{rec.hijriDate || rec.date}</td>
-                          </>
-                        )}
-
-                        <td>
-                          {(absenceOverrides[idx] || rec._noorValue) ? (
-                            <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#dcfce7', color: '#15803d' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>check</span> مطابق</span>
-                          ) : (
-                            <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#fee2e2', color: '#dc2626' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>close</span> غير مطابق</span>
-                          )}
-                        </td>
-                      </tr>
+                          </tr>
+                        ))}
+                      </React.Fragment>
                     ))}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-        {/* فوتر */}
-        {records.length > 0 && (
-          <div style={{
-            padding: '10px 16px', borderTop: '1px solid #f3f4f6',
-            display: 'flex', alignItems: 'center', gap: '16px', fontSize: '13px', color: '#6b7280',
-          }}>
-            <span>الإجمالي: <strong style={{ color: '#1f2937' }}>{records.length}</strong> سجل</span>
-            <span>المحدد: <strong style={{ color: '#4f46e5' }}>{selected.size}</strong></span>
-            <span style={{ marginRight: 'auto', display: 'flex', gap: '12px' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-                مطابق ({matchStats.matched})
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
-                غير مطابق ({matchStats.unmatched})
-              </span>
-            </span>
-          </div>
+            {/* فوتر */}
+            {records.length > 0 && (
+              <div style={{
+                padding: '10px 16px', borderTop: '1px solid #f3f4f6',
+                display: 'flex', alignItems: 'center', gap: '16px', fontSize: '13px', color: '#6b7280',
+              }}>
+                <span>الإجمالي: <strong style={{ color: '#1f2937' }}>{records.length}</strong> سجل</span>
+                <span>المحدد: <strong style={{ color: '#4f46e5' }}>{selected.size}</strong></span>
+                <span style={{ marginRight: 'auto', display: 'flex', gap: '12px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+                    مطابق ({matchStats.matched})
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                    غير مطابق ({matchStats.unmatched})
+                  </span>
+                </span>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -914,9 +783,9 @@ function getColSpan(tab: string): number {
   switch (tab) {
     case 'violations': return 8;
     case 'excellent': return 8;
-    case 'tardiness': return 7;
     case 'compensation': return 7;
     case 'absence': return 7;
+    case 'documented': return 6;
     default: return 8;
   }
 }
