@@ -140,7 +140,8 @@ public class TeachersController : ControllerBase
 
     // معاينة ملف Excel قبل الاستيراد
     [HttpPost("preview-excel")]
-    public async Task<ActionResult<ApiResponse<List<object>>>> PreviewExcel([FromForm] IFormFile file)
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<List<object>>>> PreviewExcel(IFormFile file)
     {
         if (file == null || file.Length == 0)
             return Ok(ApiResponse.Fail("الملف مطلوب"));
@@ -180,8 +181,9 @@ public class TeachersController : ControllerBase
 
     // استيراد من ملف Excel
     [HttpPost("import-excel")]
+    [Consumes("multipart/form-data")]
     public async Task<ActionResult<ApiResponse>> ImportFromExcel(
-        [FromForm] IFormFile file,
+        IFormFile file,
         [FromForm] bool updateExisting = false)
     {
         if (file == null || file.Length == 0)

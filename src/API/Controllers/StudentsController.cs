@@ -163,7 +163,8 @@ public class StudentsController : ControllerBase
 
     // معاينة ملف Excel قبل الاستيراد — مطابق لـ processUploadedFile في Server_Settings.gs سطر 728-792
     [HttpPost("preview-excel")]
-    public async Task<ActionResult<ApiResponse<object>>> PreviewExcel([FromForm] IFormFile file)
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<object>>> PreviewExcel(IFormFile file)
     {
         if (file == null || file.Length == 0)
             return Ok(ApiResponse.Fail("الملف مطلوب"));
@@ -231,8 +232,9 @@ public class StudentsController : ControllerBase
     // استيراد من ملف Excel
     // ★ يدعم ClosedXML + fallback لقراءة XML مباشرة (ملفات نور بأنماط غير قياسية)
     [HttpPost("import-excel")]
+    [Consumes("multipart/form-data")]
     public async Task<ActionResult<ApiResponse>> ImportFromExcel(
-        [FromForm] IFormFile file,
+        IFormFile file,
         [FromForm] string? stage = null)
     {
         if (file == null || file.Length == 0)
