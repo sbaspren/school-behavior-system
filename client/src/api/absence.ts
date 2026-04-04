@@ -78,8 +78,12 @@ export const absenceApi = {
   sendWhatsAppBulk: (ids: number[], senderPhone?: string, sentBy?: string) =>
     api.post('/absence/send-whatsapp-bulk', { ids, senderPhone, sentBy }),
 
+  updateTypeBulk: (ids: number[], absenceType: string) => api.post('/absence/update-type-bulk', { ids, absenceType }),
+
   delete: (id: number) => api.delete(`/absence/${id}`),
   deleteBulk: (ids: number[]) => api.post('/absence/delete-bulk', { ids }),
+  deleteNoorImports: () => api.delete('/absence/import-noor'),
+  deletePlatformImports: () => api.delete('/absence/import-platform'),
 
   getCumulative: (studentId: number) => api.get(`/absence/cumulative/${studentId}`),
 

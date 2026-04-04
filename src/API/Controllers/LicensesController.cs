@@ -28,7 +28,9 @@ public class LicensesController : ControllerBase
     [HttpGet("check-setup")]
     public async Task<ActionResult<ApiResponse<object>>> CheckSetup()
     {
-        var hasUsers = await _db.Users.AnyAsync();
+        // ★ IgnoreQueryFilters — بدون JWT، TenantId defaults to 1
+        // نتحقق من جميع المستخدمين والاشتراكات بدون فلتر Tenant
+        var hasUsers = await _db.Users.IgnoreQueryFilters().AnyAsync();
         var hasTenant = await _db.Tenants.AnyAsync(t => t.Status == TenantStatus.Active);
         return Ok(ApiResponse<object>.Ok(new
         {
@@ -68,6 +70,10 @@ public class LicensesController : ControllerBase
         tenant.ExpiresAt = DateTime.UtcNow.AddDays(tenant.DurationDays);
         tenant.UpdatedAt = DateTime.UtcNow;
 
+        // ★ تعيين OverrideTenantId لضمان أن SaveChangesAsync يستخدم tenant.Id الصحيح
+        // بدون JWT، الـ TenantId الافتراضي = 1 مما يكتب البيانات في tenant خاطئ
+        HttpContext.Items["OverrideTenantId"] = tenant.Id;
+
         // إنشاء حساب المدير
         var admin = new User
         {
@@ -83,7 +89,7 @@ public class LicensesController : ControllerBase
         _db.Users.Add(admin);
 
         // إنشاء إعدادات مدرسة افتراضية
-        if (!await _db.SchoolSettings.AnyAsync(s => s.TenantId == tenant.Id))
+        if (!await _db.SchoolSettings.IgnoreQueryFilters().AnyAsync(s => s.TenantId == tenant.Id))
         {
             _db.SchoolSettings.Add(new SchoolSettings
             {
@@ -226,16 +232,18 @@ public class LicensesController : ControllerBase
         if (!IsMasterKeyValid())
             return Unauthorized(ApiResponse.Fail("مفتاح غير صحيح"));
 
-        var list = await _db.Tenants
+        // ★ نجلب البيانات أولاً ثم نحسب daysRemaining في الذاكرة (Math.Max لا يُترجم في MySQL)
+        var tenants = await _db.Tenants
             .OrderByDescending(t => t.CreatedAt)
-            .Select(t => new
-            {
-                t.Id, t.Code, t.SchoolName, t.AdminName, t.AdminPhone,
-                plan = t.Plan.ToString(), status = t.Status.ToString(),
-                t.DurationDays, t.Amount, t.ActivatedAt, t.ExpiresAt, t.CreatedAt,
-                daysRemaining = t.ExpiresAt.HasValue ? Math.Max(0, (t.ExpiresAt.Value - DateTime.UtcNow).Days) : 0
-            })
             .ToListAsync();
+
+        var list = tenants.Select(t => new
+        {
+            t.Id, t.Code, t.SchoolName, t.AdminName, t.AdminPhone,
+            plan = t.Plan.ToString(), status = t.Status.ToString(),
+            t.DurationDays, t.Amount, t.ActivatedAt, t.ExpiresAt, t.CreatedAt,
+            daysRemaining = t.ExpiresAt.HasValue ? Math.Max(0, (t.ExpiresAt.Value - DateTime.UtcNow).Days) : 0
+        }).ToList();
 
         return Ok(ApiResponse<object>.Ok(list));
     }

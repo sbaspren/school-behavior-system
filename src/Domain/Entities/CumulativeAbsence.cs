@@ -17,6 +17,8 @@ public class CumulativeAbsence : ITenantEntity
     public int UnexcusedDays { get; set; }               // غياب بدون عذر
     public int LateDays { get; set; }                    // تأخير
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+    public int Semester { get; set; } = 1;               // الفصل الدراسي
+    public string AcademicYear { get; set; } = "";       // السنة الهجرية
 
     public Student Student { get; set; } = null!;
 }

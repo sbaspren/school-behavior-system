@@ -612,9 +612,6 @@ public class AcademicController : ControllerBase
             double den = Math.Sqrt(dx * dy);
             return den > 0 ? Math.Round(num / den, 3) : 0;
         }
-        static string GradeCategory(double avg) =>
-            avg >= 90 ? "ممتاز" : avg >= 80 ? "جيد جداً" : avg >= 70 ? "جيد" : avg >= 60 ? "مقبول" : "ضعيف";
-
         // ══ 1. Overall descriptive stats ══
         var overallStats = new
         {

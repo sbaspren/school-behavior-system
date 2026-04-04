@@ -3,7 +3,7 @@ using SchoolBehaviorSystem.Domain.Interfaces;
 
 namespace SchoolBehaviorSystem.Domain.Entities;
 
-public class PositiveBehavior : ITenantEntity
+public class PositiveBehavior : ITenantEntity, IStudentRecord
 {
     public int Id { get; set; }
     public int TenantId { get; set; } = 1;
@@ -20,7 +20,10 @@ public class PositiveBehavior : ITenantEntity
     public string RecordedBy { get; set; } = "";
     public DateTime RecordedAt { get; set; } = DateTime.UtcNow;
     public bool IsSent { get; set; }
+    public int Semester { get; set; } = 1;               // الفصل الدراسي
+    public string AcademicYear { get; set; } = "";       // السنة الهجرية
     public string NoorStatus { get; set; } = "";         // حالة نور
+    public DateTime? NoorDocumentedAt { get; set; }      // تاريخ التوثيق في نور
     public int? LinkedViolationId { get; set; }           // ربط بمخالفة (للتعويض)
 
     public Student Student { get; set; } = null!;

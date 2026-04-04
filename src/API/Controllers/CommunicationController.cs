@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SchoolBehaviorSystem.Application.DTOs.Responses;
+using SchoolBehaviorSystem.Application.Interfaces;
 using SchoolBehaviorSystem.Domain.Entities;
 using SchoolBehaviorSystem.Domain.Enums;
 using SchoolBehaviorSystem.Infrastructure.Data;
@@ -14,10 +15,12 @@ namespace SchoolBehaviorSystem.API.Controllers;
 public class CommunicationController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IHijriDateService _hijri;
 
-    public CommunicationController(AppDbContext db)
+    public CommunicationController(AppDbContext db, IHijriDateService hijri)
     {
         _db = db;
+        _hijri = hijri;
     }
 
     [HttpGet]
@@ -32,7 +35,9 @@ public class CommunicationController : ControllerBase
     {
         var query = _db.CommunicationLogs.AsQueryable();
 
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
+        // ★ فرض عزل المراحل — الوكيل يرى مرحلته فقط
+        var effectiveStage = EnforceScopeStage(stage);
+        if (!string.IsNullOrEmpty(effectiveStage) && Enum.TryParse<Stage>(effectiveStage, true, out var stageEnum))
             query = query.Where(r => r.Stage == stageEnum);
         if (!string.IsNullOrEmpty(messageType))
             query = query.Where(r => r.MessageType == messageType);
@@ -76,7 +81,9 @@ public class CommunicationController : ControllerBase
         [FromQuery] string? stage = null)
     {
         var query = _db.CommunicationLogs.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
+        // ★ فرض عزل المراحل
+        var effectiveStage2 = EnforceScopeStage(stage);
+        if (!string.IsNullOrEmpty(effectiveStage2) && Enum.TryParse<Stage>(effectiveStage2, true, out var stageEnum))
             query = query.Where(r => r.Stage == stageEnum);
 
         var total = await query.CountAsync();
@@ -88,8 +95,8 @@ public class CommunicationController : ControllerBase
             r.SendStatus == "\u0641\u0634\u0644" || r.SendStatus == "failed" ||
             r.SendStatus.Contains("\u0641\u0634\u0644")); // فشل / failed
 
-        var todayStr = DateTime.Now.ToString("yyyy/MM/dd");
-        var weekAgoStr = DateTime.Now.AddDays(-7).ToString("yyyy/MM/dd");
+        var todayStr = DateTime.UtcNow.ToString("yyyy/MM/dd");
+        var weekAgoStr = DateTime.UtcNow.AddDays(-7).ToString("yyyy/MM/dd");
         var todayCount = await query.CountAsync(r => r.MiladiDate == todayStr);
         var weekCount = await query.CountAsync(r => string.Compare(r.MiladiDate, weekAgoStr) >= 0);
 
@@ -110,14 +117,8 @@ public class CommunicationController : ControllerBase
         if (!Enum.TryParse<Stage>(request.Stage, true, out var stageEnum))
             return BadRequest(ApiResponse.Fail("\u0645\u0631\u062d\u0644\u0629 \u063a\u064a\u0631 \u0635\u0627\u0644\u062d\u0629")); // مرحلة غير صالحة
 
-        var now = DateTime.Now;
-        var hijriDate = "";
-        try
-        {
-            var hijriCal = new System.Globalization.UmAlQuraCalendar();
-            hijriDate = $"{hijriCal.GetYear(now)}/{hijriCal.GetMonth(now):D2}/{hijriCal.GetDayOfMonth(now):D2}";
-        }
-        catch { /* fallback empty */ }
+        var now = DateTime.UtcNow;
+        var hijriDate = _hijri.GetHijriDate();
 
         var log = new CommunicationLog
         {
@@ -214,7 +215,9 @@ public class CommunicationController : ControllerBase
         [FromQuery] string? dateTo = null)
     {
         var query = _db.CommunicationLogs.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
+        // ★ عزل المراحل — الوكيل يرى مرحلته فقط
+        var effectiveStage = EnforceScopeStage(stage);
+        if (!string.IsNullOrEmpty(effectiveStage) && Enum.TryParse<Stage>(effectiveStage, true, out var stageEnum))
             query = query.Where(r => r.Stage == stageEnum);
         if (!string.IsNullOrEmpty(messageType))
             query = query.Where(r => r.MessageType == messageType);
@@ -277,7 +280,7 @@ public class CommunicationController : ControllerBase
             Stage = request.Stage ?? "",
             UserType = request.UserType ?? "",
             ConnectionStatus = "\u063a\u064a\u0631 \u0645\u062a\u0635\u0644", // غير متصل
-            LinkedAt = DateTime.Now,
+            LinkedAt = DateTime.UtcNow,
             IsPrimary = !await _db.WhatsAppSessions.AnyAsync(),
         };
 
@@ -323,6 +326,18 @@ public class CommunicationController : ControllerBase
         var totalMessages = await _db.WhatsAppSessions.SumAsync(s => s.MessageCount);
 
         return Ok(ApiResponse<object>.Ok(new { totalSessions, connectedSessions, totalMessages }));
+    }
+
+    /// <summary>
+    /// ★ عزل المراحل — الوكيل يرى مرحلته فقط
+    /// </summary>
+    private string? EnforceScopeStage(string? requestedStage)
+    {
+        var scopeType = User.FindFirst("scope_type")?.Value;
+        var scopeValue = User.FindFirst("scope_value")?.Value;
+        if (string.IsNullOrEmpty(scopeType) || scopeType == "all") return requestedStage;
+        if (scopeType == "stage" && !string.IsNullOrEmpty(scopeValue)) return scopeValue;
+        return requestedStage;
     }
 }
 

@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { teachersApi, TeacherData } from '../../api/teachers';
 import { settingsApi, StageConfigData } from '../../api/settings';
 import { showSuccess, showError } from '../shared/Toast';
-import { SETTINGS_STAGES, CLASS_LETTERS, STAGE_SUBJECTS } from '../../utils/constants';
+import { SETTINGS_STAGES, CLASS_LETTERS, STAGE_SUBJECTS, filterEnabledStages } from '../../utils/constants';
+import FilterBtn from '../shared/FilterBtn';
+import LoadingSpinner from '../shared/LoadingSpinner';
 
 interface TeacherRow {
   id: number;
@@ -29,10 +31,7 @@ const TeachersTab: React.FC = () => {
   const [editingTeacher, setEditingTeacher] = useState<TeacherRow | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<TeacherRow | null>(null);
 
-  const enabledStages = useMemo(() =>
-    stages.filter((s) => s.isEnabled && s.grades.some((g) => g.isEnabled && g.classCount > 0)),
-    [stages]
-  );
+  const enabledStages = useMemo(() => filterEnabledStages(stages), [stages]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -146,12 +145,7 @@ const TeachersTab: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '60px' }}>
-        <div className="spinner" />
-        <p style={{ color: '#666', marginTop: '16px' }}>جاري التحميل...</p>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
@@ -185,17 +179,17 @@ const TeachersTab: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
         <span style={{ fontSize: '14px', fontWeight: 700, color: '#6b7280' }}>المرحلة:</span>
         <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '8px', padding: '4px', flexWrap: 'wrap' }}>
-          <FilterButton label="الكل" count={teachers.length} active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} />
+          <FilterBtn label="الكل" count={teachers.length} active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} color="#0f766e" />
           {enabledStages.map((stage) => {
             const stageInfo = SETTINGS_STAGES.find((s) => s.id === stage.stage);
             const count = teachers.filter((t) => t.assignedClasses && t.assignedClasses.includes(`_${stage.stage}_`)).length;
             return (
-              <FilterButton key={stage.stage} label={stageInfo?.name || stage.stage} count={count}
-                active={stageFilter === (stageInfo?.name || stage.stage)} onClick={() => setStageFilter(stageInfo?.name || stage.stage)} />
+              <FilterBtn key={stage.stage} label={stageInfo?.name || stage.stage} count={count}
+                active={stageFilter === (stageInfo?.name || stage.stage)} onClick={() => setStageFilter(stageInfo?.name || stage.stage)} color="#0f766e" />
             );
           })}
           {unassignedCount > 0 && (
-            <FilterButton label="بدون فصول" count={unassignedCount} active={stageFilter === '__unassigned__'} onClick={() => setStageFilter('__unassigned__')} color="#ea580c" />
+            <FilterBtn label="بدون فصول" count={unassignedCount} active={stageFilter === '__unassigned__'} onClick={() => setStageFilter('__unassigned__')} color="#ea580c" />
           )}
         </div>
       </div>
@@ -286,7 +280,7 @@ const TeachersTab: React.FC = () => {
           <div style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', width: '100%', maxWidth: '700px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #ccfbf1, #d1fae5)', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>معاينة الاستيراد</h3>
-              <button onClick={() => setImportPreview(null)} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}>✕</button>
+              <button onClick={() => setImportPreview(null)} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span></button>
             </div>
             <div style={{ padding: '16px 24px' }}>
               <div style={{ display: 'flex', gap: '16px', marginBottom: '12px' }}>
@@ -382,20 +376,6 @@ const TeachersTab: React.FC = () => {
   );
 };
 
-// ============================================================
-// Filter Button
-// ============================================================
-const FilterButton: React.FC<{ label: string; count: number; active: boolean; onClick: () => void; color?: string }> = ({ label, count, active, onClick, color }) => (
-  <button onClick={onClick} style={{
-    padding: '6px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 700,
-    background: active ? '#fff' : 'transparent',
-    color: active ? (color || '#0f766e') : '#6b7280',
-    boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-    border: 'none', cursor: 'pointer', transition: 'all 0.2s',
-  }}>
-    {label} <span style={{ fontSize: '12px', color: active ? (color || '#14b8a6') : '#9ca3af' }}>({count})</span>
-  </button>
-);
 
 // ============================================================
 // Teacher Modal
@@ -500,7 +480,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ teacher, stages, onClose, o
         {/* Header */}
         <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #ccfbf1, #d1fae5)', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>{isEdit ? 'تعديل معلم' : 'إضافة معلم جديد'}</h3>
-          <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}>✕</button>
+          <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span></button>
         </div>
 
         {/* Body */}

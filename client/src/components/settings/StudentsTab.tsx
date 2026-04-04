@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { studentsApi, StudentData } from '../../api/students';
 import { settingsApi, StageConfigData } from '../../api/settings';
 import { showSuccess, showError } from '../shared/Toast';
-import { SETTINGS_STAGES, CLASS_LETTERS } from '../../utils/constants';
+import { SETTINGS_STAGES, CLASS_LETTERS, filterEnabledStages } from '../../utils/constants';
+import FilterBtn from '../shared/FilterBtn';
+import LoadingSpinner from '../shared/LoadingSpinner';
 
 interface StudentRow {
   id: number;
@@ -25,10 +27,7 @@ const StudentsTab: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<StudentRow | null>(null);
 
-  const enabledStages = useMemo(() =>
-    stages.filter((s) => s.isEnabled && s.grades.some((g) => g.isEnabled && g.classCount > 0)),
-    [stages]
-  );
+  const enabledStages = useMemo(() => filterEnabledStages(stages), [stages]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -157,12 +156,7 @@ const StudentsTab: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '60px' }}>
-        <div className="spinner" />
-        <p style={{ color: '#666', marginTop: '16px' }}>جاري التحميل...</p>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
@@ -198,13 +192,13 @@ const StudentsTab: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '14px', fontWeight: 700, color: '#6b7280' }}>المرحلة:</span>
           <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '8px', padding: '4px' }}>
-            <FilterBtn label="الكل" count={students.length} active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} />
+            <FilterBtn label="الكل" count={students.length} active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} color="#4338ca" />
             {enabledStages.map((stage) => {
               const info = SETTINGS_STAGES.find((s) => s.id === stage.stage);
               const stageName = info?.name || stage.stage;
               const stageId = SETTINGS_STAGES.find((s) => s.name === stageName)?.id || stageName;
               const count = students.filter((s) => s.stage === stageId).length;
-              return <FilterBtn key={stage.stage} label={stageName} count={count} active={stageFilter === stageName} onClick={() => setStageFilter(stageName)} />;
+              return <FilterBtn key={stage.stage} label={stageName} count={count} active={stageFilter === stageName} onClick={() => setStageFilter(stageName)} color="#4338ca" />;
             })}
           </div>
         </div>
@@ -330,21 +324,6 @@ const StudentsTab: React.FC = () => {
   );
 };
 
-// ============================================================
-// Filter Button
-// ============================================================
-const FilterBtn: React.FC<{ label: string; count?: number; active: boolean; onClick: () => void }> = ({ label, count, active, onClick }) => (
-  <button onClick={onClick} style={{
-    padding: '6px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 700,
-    background: active ? '#fff' : 'transparent',
-    color: active ? '#4338ca' : '#6b7280',
-    boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-    border: 'none', cursor: 'pointer',
-  }}>
-    {label}
-    {count !== undefined && <span style={{ fontSize: '12px', marginRight: '4px', color: active ? '#6366f1' : '#9ca3af' }}> ({count})</span>}
-  </button>
-);
 
 // ============================================================
 // Add Student Modal
@@ -411,7 +390,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ stages, onClose, onSa
         {/* Header */}
         <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #eef2ff, #e0e7ff)', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>إضافة طالب جديد</h3>
-          <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}>✕</button>
+          <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span></button>
         </div>
 
         {/* Body */}

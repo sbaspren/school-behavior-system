@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { violationsApi } from '../api/violations';
 import { positiveBehaviorApi } from '../api/positiveBehavior';
 import { studentsApi } from '../api/students';
-import { settingsApi } from '../api/settings';
-import { SETTINGS_STAGES } from '../utils/constants';
+import { SETTINGS_STAGES, DEGREE_LABELS } from '../utils/constants';
+import { useAppContext } from '../hooks/useAppContext';
+import type { StudentOption } from '../types';
+import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { printListReport, ListReportRow } from '../utils/printTemplates';
-import { toIndic, escapeHtml } from '../utils/printUtils';
+import { toIndic, escapeHtml, classToLetter } from '../utils/printUtils';
 
 // ═══════════════════════════════════════════════════════════════
 // صفحة سجل السلوك والمخالفات — مطابقة لـ JS_History.html
@@ -27,18 +29,7 @@ interface PosRecord {
   hijriDate: string; recordedBy: string; recordedAt: string; isSent: boolean;
 }
 
-interface StudentOption {
-  id: number; studentNumber: string; name: string;
-  stage: string; grade: string; className: string;
-}
 
-const DEGREE_LABELS: Record<number, { label: string; color: string; bg: string; border: string }> = {
-  1: { label: 'الأولى', color: '#15803d', bg: '#dcfce7', border: '#86efac' },
-  2: { label: 'الثانية', color: '#ca8a04', bg: '#fef9c3', border: '#fde68a' },
-  3: { label: 'الثالثة', color: '#ea580c', bg: '#ffedd5', border: '#fdba74' },
-  4: { label: 'الرابعة', color: '#dc2626', bg: '#fee2e2', border: '#fca5a5' },
-  5: { label: 'الخامسة', color: '#7c2d12', bg: '#fecaca', border: '#f87171' },
-};
 
 const GRADE_ORDER = ['أول', 'ثاني', 'ثالث', 'رابع', 'خامس', 'سادس'];
 
@@ -66,11 +57,11 @@ const formatClassShort = (grade: string, cls: string, stage: string) => {
 // Main Page
 // ═══════════════════════════════════════════════════════════════
 const HistoryPage: React.FC = () => {
+  const { schoolSettings } = useAppContext();
   const [violations, setViolations] = useState<ViolRecord[]>([]);
   const [posRecords, setPosRecords] = useState<PosRecord[]>([]);
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [schoolSettings, setSchoolSettings] = useState<Record<string, string>>({});
 
   // Filters
   const [stageFilter, setStageFilter] = useState('__all__');
@@ -80,21 +71,20 @@ const HistoryPage: React.FC = () => {
   const [degreeFilter, setDegreeFilter] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
+  const initialLoadDone = useRef(false);
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
-      const [vRes, pRes, sRes, seRes] = await Promise.all([
+      const [vRes, pRes, sRes] = await Promise.all([
         violationsApi.getAll(),
         positiveBehaviorApi.getAll(),
         studentsApi.getAll(),
-        settingsApi.getSettings(),
       ]);
       if (vRes.data?.data) setViolations(vRes.data.data);
       if (pRes.data?.data) setPosRecords(pRes.data.data);
       if (sRes.data?.data) setStudents(sRes.data.data);
-      if (seRes.data?.data) setSchoolSettings(seRes.data.data);
     } catch { /* empty */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone.current = true; }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -226,7 +216,7 @@ const HistoryPage: React.FC = () => {
   const [detailGroup, setDetailGroup] = useState<typeof studentGroups[0] | null>(null);
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: '60px' }}><div className="spinner" /><p style={{ color: '#666', marginTop: '16px' }}>جاري تحميل السجل...</p></div>;
+    return <LoadingSpinner text="جاري تحميل السجل..." />;
   }
 
   return (
@@ -323,7 +313,7 @@ const HistoryPage: React.FC = () => {
                   onClick={() => setDetailGroup(group)}>
                   <div>
                     <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#1f2937' }}>{group.info.studentName}</h3>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>{group.info.grade} / {group.info.className}</p>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>{group.info.grade} / {classToLetter(group.info.className)}</p>
                   </div>
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <span style={{ fontSize: '22px', fontWeight: 800, color: behaviorScore >= 80 ? '#059669' : behaviorScore >= 60 ? '#ca8a04' : '#dc2626' }}>
@@ -390,7 +380,7 @@ const HistoryPage: React.FC = () => {
                   return (
                     <tr key={v.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                       <td style={{ padding: '8px 12px', fontWeight: 700, fontSize: '13px' }}>{v.studentName}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '13px', color: '#6b7280' }}>{v.grade} / {v.className}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '13px', color: '#6b7280' }}>{v.grade} / {classToLetter(v.className)}</td>
                       <td style={{ padding: '8px 12px', fontSize: '13px' }}>{v.description}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                         <span style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 700, background: deg.bg, color: deg.color }}>{toIndic(v.degree)}</span>
@@ -417,10 +407,10 @@ const HistoryPage: React.FC = () => {
               <div>
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}><span className="material-symbols-outlined" style={{ fontSize: '20px', verticalAlign: 'middle' }}>folder_open</span> {detailGroup.info.studentName}</h3>
                 <div style={{ fontSize: '14px', color: '#4338ca', marginTop: '4px' }}>
-                  {detailGroup.info.grade} / {detailGroup.info.className} — {detailGroup.violations.length} مخالفة | {detailGroup.positive.length} سلوك إيجابي
+                  {detailGroup.info.grade} / {classToLetter(detailGroup.info.className)} — {detailGroup.violations.length} مخالفة | {detailGroup.positive.length} سلوك إيجابي
                 </div>
               </div>
-              <button onClick={() => setDetailGroup(null)} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#6b7280' }}>✕</button>
+              <button onClick={() => setDetailGroup(null)} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#6b7280' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span></button>
             </div>
             <div style={{ padding: '16px 24px', overflowY: 'auto', flex: 1 }}>
               {/* Behavior Score */}

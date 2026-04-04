@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
-using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SchoolBehaviorSystem.Application.DTOs.Responses;
+using SchoolBehaviorSystem.Application.Interfaces;
+using SchoolBehaviorSystem.API.Controllers.Base;
 using SchoolBehaviorSystem.Domain.Entities;
 using SchoolBehaviorSystem.Domain.Enums;
 using SchoolBehaviorSystem.Infrastructure.Data;
@@ -16,10 +17,14 @@ namespace SchoolBehaviorSystem.API.Controllers;
 public class PositiveBehaviorController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IHijriDateService _hijri;
+    private readonly ISemesterService _semesterSvc;
 
-    public PositiveBehaviorController(AppDbContext db)
+    public PositiveBehaviorController(AppDbContext db, IHijriDateService hijri, ISemesterService semesterSvc)
     {
         _db = db;
+        _hijri = hijri;
+        _semesterSvc = semesterSvc;
     }
 
     // ─── GET ALL with filters ───
@@ -33,7 +38,9 @@ public class PositiveBehaviorController : ControllerBase
     {
         var query = _db.PositiveBehaviors.AsQueryable();
 
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
+        // ★ فرض عزل المراحل — الوكيل يرى مرحلته فقط
+        var effectiveStage = EnforceScopeStage(stage);
+        if (!string.IsNullOrEmpty(effectiveStage) && Enum.TryParse<Stage>(effectiveStage, true, out var stageEnum))
             query = query.Where(r => r.Stage == stageEnum);
         if (!string.IsNullOrEmpty(grade))
             query = query.Where(r => r.Grade == grade);
@@ -64,24 +71,28 @@ public class PositiveBehaviorController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> GetDailyStats([FromQuery] string? stage = null)
     {
         var query = _db.PositiveBehaviors.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
+        // ★ فرض عزل المراحل
+        var effectiveStage2 = EnforceScopeStage(stage);
+        if (!string.IsNullOrEmpty(effectiveStage2) && Enum.TryParse<Stage>(effectiveStage2, true, out var stageEnum))
             query = query.Where(r => r.Stage == stageEnum);
 
-        var all = await query.ToListAsync();
         var today = DateTime.UtcNow.Date;
-        var todayCount = all.Count(r => r.RecordedAt >= today);
-        var uniqueStudents = all.Select(r => r.StudentId).Distinct().Count();
+        var totalRecords = await query.CountAsync();
+        var todayCount = await query.CountAsync(r => r.RecordedAt >= today);
+        var uniqueStudents = await query.Select(r => r.StudentId).Distinct().CountAsync();
 
+        // Degree مخزّن كـ string — نجمع في الذاكرة فقط القيم (أخف من تحميل كل الأعمدة)
+        var degrees = await query.Select(r => r.Degree).ToListAsync();
         double totalDegrees = 0;
-        foreach (var r in all)
+        foreach (var d in degrees)
         {
-            if (double.TryParse(r.Degree, out var deg))
+            if (double.TryParse(d, out var deg))
                 totalDegrees += deg;
         }
 
         return Ok(ApiResponse<object>.Ok(new
         {
-            totalRecords = all.Count,
+            totalRecords,
             todayCount,
             uniqueStudents,
             totalDegrees
@@ -104,9 +115,7 @@ public class PositiveBehaviorController : ControllerBase
         var hijriDate = request.HijriDate;
         if (string.IsNullOrEmpty(hijriDate))
         {
-            var cal = new UmAlQuraCalendar();
-            var now = DateTime.Now;
-            hijriDate = $"{cal.GetYear(now)}/{cal.GetMonth(now):D2}/{cal.GetDayOfMonth(now):D2}";
+            hijriDate = _hijri.GetHijriDate();
         }
 
         var record = new PositiveBehavior
@@ -125,6 +134,9 @@ public class PositiveBehaviorController : ControllerBase
             RecordedAt = DateTime.UtcNow
         };
 
+        var (sem, yr) = await _semesterSvc.GetCurrentAsync();
+        record.Semester = sem;
+        record.AcademicYear = yr;
         _db.PositiveBehaviors.Add(record);
         await _db.SaveChangesAsync();
 
@@ -144,25 +156,31 @@ public class PositiveBehaviorController : ControllerBase
             .Where(s => request.StudentIds.Contains(s.Id))
             .ToListAsync();
 
-        var cal = new UmAlQuraCalendar();
-        var now = DateTime.Now;
-        var hijriDate = request.HijriDate ?? $"{cal.GetYear(now)}/{cal.GetMonth(now):D2}/{cal.GetDayOfMonth(now):D2}";
+        var hijriDate = request.HijriDate ?? _hijri.GetHijriDate();
 
-        var records = students.Select(s => new PositiveBehavior
+        var (sem, yr) = await _semesterSvc.GetCurrentAsync();
+        var records = new List<PositiveBehavior>();
+        foreach (var s in students)
         {
-            StudentId = s.Id,
-            StudentNumber = s.StudentNumber,
-            StudentName = s.Name,
-            Grade = s.Grade,
-            Class = s.Class,
-            Stage = s.Stage,
-            BehaviorType = request.BehaviorType,
-            Degree = request.Degree ?? "",
-            Details = request.Details ?? "",
-            HijriDate = hijriDate,
-            RecordedBy = request.RecordedBy ?? "الوكيل",
-            RecordedAt = DateTime.UtcNow
-        }).ToList();
+            var pb = new PositiveBehavior
+            {
+                StudentId = s.Id,
+                StudentNumber = s.StudentNumber,
+                StudentName = s.Name,
+                Grade = s.Grade,
+                Class = s.Class,
+                Stage = s.Stage,
+                BehaviorType = request.BehaviorType,
+                Degree = request.Degree ?? "",
+                Details = request.Details ?? "",
+                HijriDate = hijriDate,
+                RecordedBy = request.RecordedBy ?? "الوكيل",
+                RecordedAt = DateTime.UtcNow
+            };
+            pb.Semester = sem;
+            pb.AcademicYear = yr;
+            records.Add(pb);
+        }
 
         _db.PositiveBehaviors.AddRange(records);
         await _db.SaveChangesAsync();
@@ -206,7 +224,7 @@ public class PositiveBehaviorController : ControllerBase
 
     // ─── BULK DELETE ───
     [HttpPost("delete-bulk")]
-    public async Task<ActionResult<ApiResponse<object>>> DeleteBulk([FromBody] BulkIdsRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> DeleteBulk([FromBody] CommonBulkIdsRequest request)
     {
         var records = await _db.PositiveBehaviors
             .Where(r => request.Ids.Contains(r.Id))
@@ -246,34 +264,37 @@ public class PositiveBehaviorController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> GetReport([FromQuery] string? stage = null)
     {
         var query = _db.PositiveBehaviors.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
+        // ★ فرض عزل المراحل
+        var effectiveStage3 = EnforceScopeStage(stage);
+        if (!string.IsNullOrEmpty(effectiveStage3) && Enum.TryParse<Stage>(effectiveStage3, true, out var stageEnum))
             query = query.Where(r => r.Stage == stageEnum);
 
-        var records = await query.ToListAsync();
-
-        var topStudents = records
+        var topStudents = await query
             .GroupBy(r => new { r.StudentId, r.StudentName, r.Grade, r.Class })
             .Select(g => new { g.Key.StudentId, g.Key.StudentName, grade = g.Key.Grade, className = g.Key.Class, count = g.Count() })
             .OrderByDescending(x => x.count)
             .Take(10)
-            .ToList();
+            .ToListAsync();
 
-        var byClass = records
+        var byClass = await query
             .GroupBy(r => r.Grade + " " + r.Class)
             .Select(g => new { className = g.Key, count = g.Count() })
             .OrderByDescending(x => x.count)
-            .ToList();
+            .ToListAsync();
 
-        var byType = records
+        var byType = await query
             .GroupBy(r => r.BehaviorType)
             .Select(g => new { type = g.Key, count = g.Count() })
             .OrderByDescending(x => x.count)
-            .ToList();
+            .ToListAsync();
+
+        var total = await query.CountAsync();
+        var uniqueStudents = await query.Select(r => r.StudentId).Distinct().CountAsync();
 
         return Ok(ApiResponse<object>.Ok(new
         {
-            total = records.Count,
-            uniqueStudents = records.Select(r => r.StudentId).Distinct().Count(),
+            total,
+            uniqueStudents,
             topStudents,
             byClass,
             byType
@@ -301,14 +322,7 @@ public class PositiveBehaviorController : ControllerBase
                 return Ok(ApiResponse.Fail("المخالفة المرتبطة غير موجودة"));
         }
 
-        var hijriDate = "";
-        try
-        {
-            var cal = new UmAlQuraCalendar();
-            var now = DateTime.Now;
-            hijriDate = $"{cal.GetYear(now)}/{cal.GetMonth(now):D2}/{cal.GetDayOfMonth(now):D2}";
-        }
-        catch { /* ignore */ }
+        var hijriDate = _hijri.GetHijriDate();
 
         // بناء نص السلوك مع ربط المخالفة
         var behaviorNote = request.BehaviorText + " (فرص تعويض)";
@@ -332,6 +346,9 @@ public class PositiveBehaviorController : ControllerBase
             LinkedViolationId = request.ViolationId
         };
 
+        var (sem3, yr3) = await _semesterSvc.GetCurrentAsync();
+        record.Semester = sem3;
+        record.AcademicYear = yr3;
         _db.PositiveBehaviors.Add(record);
         await _db.SaveChangesAsync();
 
@@ -348,7 +365,9 @@ public class PositiveBehaviorController : ControllerBase
     public async Task<IActionResult> ExportCsv([FromQuery] string? stage = null)
     {
         var query = _db.PositiveBehaviors.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
+        // ★ فرض عزل المراحل
+        var effectiveStage4 = EnforceScopeStage(stage);
+        if (!string.IsNullOrEmpty(effectiveStage4) && Enum.TryParse<Stage>(effectiveStage4, true, out var stageEnum))
             query = query.Where(r => r.Stage == stageEnum);
 
         var records = await query.OrderByDescending(r => r.RecordedAt).ToListAsync();
@@ -363,6 +382,18 @@ public class PositiveBehaviorController : ControllerBase
 
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
         return File(bytes, "text/csv; charset=utf-8", "positive_behavior.csv");
+    }
+
+    /// <summary>
+    /// ★ عزل المراحل — الوكيل يرى مرحلته فقط
+    /// </summary>
+    private string? EnforceScopeStage(string? requestedStage)
+    {
+        var scopeType = User.FindFirst("scope_type")?.Value;
+        var scopeValue = User.FindFirst("scope_value")?.Value;
+        if (string.IsNullOrEmpty(scopeType) || scopeType == "all") return requestedStage;
+        if (scopeType == "stage" && !string.IsNullOrEmpty(scopeValue)) return scopeValue;
+        return requestedStage;
     }
 }
 

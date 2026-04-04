@@ -3,74 +3,19 @@ import { useSearchParams } from 'react-router-dom';
 import { staffInputApi, StaffVerifyData, StaffStudent, StudentsMap, TodayEntries } from '../api/staffInput';
 import { teacherInputApi } from '../api/teacherInput';
 import { getTodayHijri } from '../utils/hijriDate';
-
-// ═══════════════════════════════════════════
-// Static Data (same as WakeelForm/TeacherForm)
-// ═══════════════════════════════════════════
-
-interface NoteItem { id: number; text: string; }
-interface PositiveNoteItem { id: number; text: string; cat: string; }
-interface PositiveItem { id: number; text: string; degree: number; group: string; }
-
-const NOTES: NoteItem[] = [
-  {id:1,text:'عدم حل الواجب'},{id:2,text:'عدم الحفظ'},
-  {id:3,text:'عدم المشاركة والتفاعل'},{id:4,text:'عدم إحضار الكتاب الدراسي'},
-  {id:5,text:'عدم إحضار الدفتر'},{id:6,text:'كثرة السرحان داخل الفصل'},
-  {id:7,text:'عدم إحضار أدوات الرسم'},{id:8,text:'عدم إحضار الأدوات الهندسية'},
-  {id:9,text:'عدم إحضار الملابس الرياضية'},{id:10,text:'النوم داخل الفصل'},
-  {id:11,text:'عدم تدوين الملاحظات مع المعلم'},{id:12,text:'إهمال تسليم البحوث والمشاريع'},
-  {id:13,text:'عدم المذاكرة للاختبارات القصيرة'},{id:14,text:'الانشغال بمادة أخرى أثناء الحصة'},
-  {id:15,text:'عدم تصحيح الأخطاء في الدفتر'},{id:16,text:'عدم إحضار ملف الإنجاز'},
-];
-
-const POSITIVE_NOTES: Record<string, PositiveNoteItem[]> = {
-  'ابتدائي': [
-    {id:101,text:'بطل الفصل اليوم، شكراً لدعمكم',cat:'عام'},
-    {id:102,text:'ملتزم جداً بنظام الفصل اليوم',cat:'انضباط'},
-    {id:103,text:'خلوق ومؤدب مع زملائه، بارك الله في تربيتكم',cat:'أخلاق'},
-    {id:104,text:'مبدعنا مستمر في تميزه لليوم، استمر يا بطل!',cat:'إنجاز'},
-  ],
-  'متوسط': [
-    {id:201,text:'حضور مميز وتفاعل ذكي اليوم',cat:'عام'},
-    {id:202,text:'كل التقدير لانضباطه وحرصه العالي في الحصة',cat:'انضباط'},
-    {id:203,text:'خُلقه الراقي اليوم نموذج يفتخر به',cat:'أخلاق'},
-    {id:204,text:'مستمر في وتيرة الإنجاز العالية، فخورون به',cat:'إنجاز'},
-  ],
-  'ثانوي': [
-    {id:301,text:'تقديري لتميزه وانضباطه خلال حصة اليوم',cat:'عام'},
-    {id:302,text:'جديته وانضباطه الذاتي يجعله قدوة لزملائه',cat:'انضباط'},
-    {id:303,text:'نموذج للشاب الخلوق والمحترم، فخور بوجوده',cat:'أخلاق'},
-    {id:304,text:'ثبات مستواه وتطوره المستمر، إلى القمة دائماً',cat:'إنجاز'},
-  ],
-};
-
-const POSITIVE: PositiveItem[] = [
-  {id:1,text:'انضباط الطالب وعدم غيابه بدون عذر خلال الفصل الدراسي',degree:6,group:'6 درجات'},
-  {id:2,text:'المشاركة في الخدمة المجتمعية خارج المدرسة',degree:6,group:'6 درجات / مشاركة'},
-  {id:3,text:'تقديم فعالية حوارية',degree:6,group:'6 درجات / مشاركة'},
-  {id:4,text:'المشاركة في حملة توعوية',degree:6,group:'6 درجات / مشاركة'},
-  {id:5,text:'عرض تجارب شخصية ناجحة',degree:6,group:'6 درجات / مشاركة'},
-  {id:6,text:'الالتحاق ببرنامج أو دورة',degree:6,group:'6 درجات / مشاركة'},
-  {id:7,text:'مهارات الاتصال (العمل الجماعي، التعلم بالأقران)',degree:4,group:'4 درجات / مشاركة'},
-  {id:8,text:'مهارات القيادة والمسؤولية (التخطيط، التحفيز)',degree:4,group:'4 درجات / مشاركة'},
-  {id:9,text:'المهارات الرقمية (إعداد العروض، تصميم المحتوى الإلكتروني)',degree:4,group:'4 درجات / مشاركة'},
-  {id:10,text:'مهارة إدارة الوقت',degree:4,group:'4 درجات / مشاركة'},
-  {id:11,text:'كتابة رسالة شكر (للوطن، للقيادة الرشيدة، للأسرة، للمعلم)',degree:2,group:'درجتان / مشاركة'},
-  {id:12,text:'المشاركة في الإذاعة',degree:2,group:'درجتان / مشاركة'},
-  {id:13,text:'تقديم مقترح لصالح المجتمع المدرسي',degree:2,group:'درجتان / مشاركة'},
-  {id:14,text:'التعاون مع الزملاء والمعلمين وإدارة المدرسة',degree:2,group:'درجتان / مشاركة'},
-];
-
-const POS_DEG_COLORS: Record<number, string> = {6:'#dcfce7',4:'#fef9c3',2:'#dbeafe'};
-const POS_DEG_TEXT: Record<number, string> = {6:'#166534',4:'#854d0e',2:'#1e40af'};
-const REASONS = ['ظرف صحي', 'ظرف أسري', 'موعد حكومي', 'طلب ولي الأمر'];
-const GUARDIANS = ['الأب', 'الأخ', 'الأم'];
+import { PERMISSION_REASONS, GUARDIANS } from '../utils/constants';
+import {
+  NOTES, POSITIVE_NOTES, POSITIVE,
+  POS_DEG_COLORS, POS_DEG_TEXT,
+  type NoteItem, type PositiveNoteItem, type PositiveItem,
+} from '../utils/formData';
+import { MF, ROLE_THEME, SEC_COLORS } from '../utils/mobileFormStyles';
 
 type TabId = 'permission' | 'notes' | 'positive';
-const TABS: { id: TabId; label: string; color: string }[] = [
-  { id: 'permission', label: 'استئذان', color: '#3b82f6' },
-  { id: 'notes', label: 'ملاحظات', color: '#06b6d4' },
-  { id: 'positive', label: 'سلوك متمايز', color: '#22c55e' },
+const TABS: { id: TabId; label: string; color: string; icon: string }[] = [
+  { id: 'permission', label: 'استئذان', color: '#3b82f6', icon: 'door_front' },
+  { id: 'notes', label: 'ملاحظات', color: '#06b6d4', icon: 'menu_book' },
+  { id: 'positive', label: 'سلوك متمايز', color: '#22c55e', icon: 'star' },
 ];
 
 export default function CounselorFormPage() {
@@ -214,209 +159,321 @@ export default function CounselorFormPage() {
 
   useEffect(() => { if (msg) { const t = setTimeout(() => setMsg(null), 4000); return () => clearTimeout(t); } }, [msg]);
 
-  if (loading) return <div style={S.loadingPage}>جاري التحميل...</div>;
+  if (loading) return (
+    <div style={MF.loadingPage}>
+      <span className="material-symbols-outlined" style={{ fontSize: '36px', color: ROLE_THEME.counselor.color }}>psychology</span>
+      <span style={MF.loadingText}>جاري التحميل...</span>
+    </div>
+  );
   if (error) return (
-    <div style={S.errorPage}>
-      <div style={{ marginBottom: '16px' }}><span className="material-symbols-outlined" style={{ fontSize: '48px', display: 'block', marginBottom: '16px', color: '#9ca3af' }}>lock</span></div>
-      <div style={{ fontSize: '18px', fontWeight: 700, color: '#dc2626' }}>{error}</div>
+    <div style={MF.errorPage}>
+      <span className="material-symbols-outlined" style={MF.errorIcon}>lock</span>
+      <div style={MF.errorTitle}>{error}</div>
+      <div style={MF.errorMsg}>تحقق من صلاحية الرابط وحاول مرة أخرى</div>
     </div>
   );
 
   const tabColor = TABS.find(t => t.id === tab)?.color || '#3b82f6';
 
   return (
-    <div style={S.page}>
-      <div style={S.header}>
-        <div style={{ fontSize: '18px', fontWeight: 800 }}>نموذج المرشد</div>
-        <div style={{ fontSize: '13px', opacity: 0.85 }}>{pageData?.staff.name} — {pageData?.sn}</div>
-        <button onClick={() => loadData()} style={S.refreshBtn}>تحديث</button>
+    <div style={MF.page}>
+      {/* ── الشريط الملون ── */}
+      <div style={{ ...MF.accentStrip, background: ROLE_THEME.counselor.color }} />
+
+      {/* ── الهيدر ── */}
+      <div style={MF.header}>
+        <div style={MF.headerRow}>
+          <div style={MF.headerInfo}>
+            <div style={{ ...MF.headerIcon, background: ROLE_THEME.counselor.bg }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '22px', color: ROLE_THEME.counselor.color }}>psychology</span>
+            </div>
+            <div>
+              <div style={MF.headerTitle}>نموذج المرشد</div>
+              <div style={MF.headerSub}>{pageData?.staff.name} — {pageData?.sn}</div>
+            </div>
+          </div>
+          <button onClick={() => loadData()} style={MF.refreshBtn}>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>refresh</span>
+            تحديث
+          </button>
+        </div>
       </div>
 
-      <div style={S.tabBar}>
+      {/* ── التبويبات ── */}
+      <div style={MF.tabsBar}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => handleTabChange(t.id)} style={{
-            ...S.tabBtn, borderBottom: tab === t.id ? `3px solid ${t.color}` : '3px solid transparent',
-            color: tab === t.id ? t.color : '#6b7280', fontWeight: tab === t.id ? 700 : 400,
-          }}>{t.label}</button>
+            ...MF.tab,
+            ...(tab === t.id ? { ...MF.tabActive, background: t.color } : {}),
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>{t.icon}</span>
+            {t.label}
+          </button>
         ))}
       </div>
 
+      {/* ── الرسائل ── */}
       {msg && (
-        <div style={{ margin: '8px 16px', padding: '10px 16px', borderRadius: '8px',
-          background: msg.type === 'success' ? '#dcfce7' : '#fee2e2',
-          color: msg.type === 'success' ? '#166534' : '#991b1b', fontSize: '14px', fontWeight: 600, textAlign: 'center',
-        }}>{msg.text}</div>
+        <div style={{ ...( msg.type === 'success' ? MF.msgSuccess : MF.msgError ), margin: '8px 16px' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+            {msg.type === 'success' ? 'check_circle' : 'error'}
+          </span>
+          {msg.text}
+        </div>
       )}
 
-      <div style={S.content}>
-        <div style={S.card}>
-          <div style={{ display: 'grid', gridTemplateColumns: needsClass ? '1fr 1fr 1fr' : '1fr 1fr', gap: '8px' }}>
-            <select value={selectedStage} onChange={e => { setSelectedStage(e.target.value); setSelectedGrade(''); setSelectedClass(''); setSelectedStudents([]); }} style={S.select}>
-              <option value="">المرحلة</option>
-              {stages.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select value={selectedGrade} onChange={e => { setSelectedGrade(e.target.value); setSelectedClass(''); setSelectedStudents([]); }} style={S.select}>
-              <option value="">الصف</option>
-              {grades.map(g => <option key={g} value={g}>{g}</option>)}
-            </select>
-            {needsClass && (
-              <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedStudents([]); }} style={S.select}>
-                <option value="">الفصل</option>
-                {classes.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            )}
+      <div style={MF.content}>
+        {/* ── بطاقة اختيار المرحلة / الصف / الفصل ── */}
+        <div style={MF.card}>
+          <div style={{ ...MF.cardAccent, background: tabColor }} />
+          <div style={MF.cardBody}>
+            <div style={MF.cardTitle}>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: tabColor }}>school</span>
+              اختيار الفصل
+            </div>
+            <div style={needsClass ? MF.selectGrid3 : MF.selectGrid2}>
+              <div>
+                <div style={MF.selectLabel}>المرحلة</div>
+                <select value={selectedStage} onChange={e => { setSelectedStage(e.target.value); setSelectedGrade(''); setSelectedClass(''); setSelectedStudents([]); }} style={MF.select}>
+                  <option value="">المرحلة</option>
+                  {stages.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={MF.selectLabel}>الصف</div>
+                <select value={selectedGrade} onChange={e => { setSelectedGrade(e.target.value); setSelectedClass(''); setSelectedStudents([]); }} style={MF.select}>
+                  <option value="">الصف</option>
+                  {grades.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              {needsClass && (
+                <div>
+                  <div style={MF.selectLabel}>الفصل</div>
+                  <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedStudents([]); }} style={MF.select}>
+                    <option value="">الفصل</option>
+                    {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
+        {/* ── بطاقة الاستئذان ── */}
         {tab === 'permission' && (
-          <div style={S.card}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              <select value={reason} onChange={e => setReason(e.target.value)} style={S.select}>
-                <option value="">السبب</option>
-                {REASONS.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <select value={guardian} onChange={e => setGuardian(e.target.value)} style={S.select}>
-                <option value="">المستلم</option>
-                {GUARDIANS.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
+          <div style={MF.card}>
+            <div style={{ ...MF.cardAccent, background: '#3b82f6' }} />
+            <div style={MF.cardBody}>
+              <div style={MF.cardTitle}>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#3b82f6' }}>door_front</span>
+                بيانات الاستئذان
+              </div>
+              <div style={MF.selectGrid2}>
+                <div>
+                  <div style={MF.selectLabel}>السبب</div>
+                  <select value={reason} onChange={e => setReason(e.target.value)} style={MF.select}>
+                    <option value="">السبب</option>
+                    {PERMISSION_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={MF.selectLabel}>المستلم</div>
+                  <select value={guardian} onChange={e => setGuardian(e.target.value)} style={MF.select}>
+                    <option value="">المستلم</option>
+                    {GUARDIANS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
+        {/* ── بطاقة الملاحظات ── */}
         {tab === 'notes' && (
-          <div style={S.card}>
-            <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
-              {['سلبية', 'إشادة'].map(t => (
-                <button key={t} onClick={() => { setNoteSubType(t); setSelectedNote(null); }} style={{
-                  ...S.pillBtn, background: noteSubType === t ? '#06b6d4' : '#f3f4f6',
-                  color: noteSubType === t ? '#fff' : '#374151',
-                }}>{t === 'سلبية' ? 'ملاحظات سلبية' : 'إشادة'}</button>
-              ))}
-            </div>
-            <div style={S.scrollList}>
-              {currentNotes.map((n: any) => {
-                const active = selectedNote?.id === n.id;
-                return (
-                  <div key={n.id} onClick={() => setSelectedNote(active ? null : n)} style={{
-                    ...S.listItem, background: active ? '#ecfeff' : '#fff',
-                    borderRight: `4px solid ${active ? '#06b6d4' : '#e5e7eb'}`,
-                  }}>
-                    <span style={{ flex: 1, fontSize: '13px' }}>{n.text}</span>
-                    {'cat' in n && <span style={{ fontSize: '11px', color: '#9ca3af' }}>{(n as PositiveNoteItem).cat}</span>}
-                  </div>
-                );
-              })}
-            </div>
-            {selectedNote && <textarea placeholder="تفاصيل إضافية..." value={noteDetails}
-              onChange={e => setNoteDetails(e.target.value)} style={S.textarea} rows={2} />}
-          </div>
-        )}
-
-        {tab === 'positive' && (
-          <div style={S.card}>
-            <div style={S.scrollList}>
-              {POSITIVE.map(p => {
-                const active = selectedPositive?.id === p.id;
-                return (
-                  <div key={p.id} onClick={() => setSelectedPositive(active ? null : p)} style={{
-                    ...S.listItem, background: active ? '#f0fdf4' : '#fff',
-                    borderRight: `4px solid ${active ? '#22c55e' : POS_DEG_COLORS[p.degree] || '#e5e7eb'}`,
-                  }}>
-                    <span style={{ flex: 1, fontSize: '13px' }}>{p.text}</span>
-                    <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700,
-                      background: POS_DEG_COLORS[p.degree], color: POS_DEG_TEXT[p.degree],
-                    }}>{p.degree} درجات</span>
-                  </div>
-                );
-              })}
-            </div>
-            {selectedPositive && <textarea placeholder="تفاصيل إضافية..." value={positiveDetails}
-              onChange={e => setPositiveDetails(e.target.value)} style={S.textarea} rows={2} />}
-          </div>
-        )}
-
-        {(selectedStage && selectedGrade && (!needsClass || selectedClass)) && (
-          <div style={S.card}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: 700 }}>
-                اختر الطلاب
-                {selectedStudents.length > 0 && <span style={{ marginRight: '8px', padding: '2px 10px', borderRadius: '12px', background: tabColor, color: '#fff', fontSize: '12px' }}>{selectedStudents.length}</span>}
-              </span>
-              <button onClick={toggleAll} style={{ ...S.pillBtn, background: '#f3f4f6', fontSize: '12px' }}>
-                {selectedStudents.length === filteredStudents.length ? 'إلغاء الكل' : 'تحديد الكل'}
-              </button>
-            </div>
-            <input placeholder="بحث عن طالب..." value={search} onChange={e => setSearch(e.target.value)} style={S.searchInput} />
-            {selectedStudents.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', margin: '8px 0' }}>
-                {selectedStudents.map(s => {
-                  const sec = (s as any)._sec;
+          <div style={MF.card}>
+            <div style={{ ...MF.cardAccent, background: '#06b6d4' }} />
+            <div style={MF.cardBody}>
+              <div style={MF.cardTitle}>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#06b6d4' }}>menu_book</span>
+                اختيار الملاحظة
+              </div>
+              <div style={MF.pillRow}>
+                {['سلبية', 'إشادة'].map(t => (
+                  <button key={t} onClick={() => { setNoteSubType(t); setSelectedNote(null); }} style={{
+                    ...MF.pill,
+                    ...(noteSubType === t ? { ...MF.pillActive, background: '#06b6d4' } : {}),
+                  }}>{t === 'سلبية' ? 'ملاحظات سلبية' : 'إشادة'}</button>
+                ))}
+              </div>
+              <div style={MF.scrollList}>
+                {currentNotes.map((n: any) => {
+                  const active = selectedNote?.id === n.id;
                   return (
-                  <span key={s.id} onClick={() => toggleStudent(s)} style={{
-                    padding: '4px 10px', borderRadius: '16px', fontSize: '12px', cursor: 'pointer',
-                    background: tabColor + '20', color: tabColor, fontWeight: 600,
-                  }}>{s.name.split(' ').slice(0, 2).join(' ')}{sec ? ` (${sec})` : ''} ✕</span>
+                    <div key={n.id} onClick={() => setSelectedNote(active ? null : n)} style={{
+                      ...MF.listItem, background: active ? '#ecfeff' : '#fff',
+                      borderRight: `4px solid ${active ? '#06b6d4' : '#e8ebf2'}`,
+                    }}>
+                      <span style={{ flex: 1, fontSize: '13px' }}>{n.text}</span>
+                      {'cat' in n && <span style={{ fontSize: '11px', color: '#9da3b8' }}>{(n as PositiveNoteItem).cat}</span>}
+                    </div>
                   );
                 })}
               </div>
-            )}
-            <div style={S.scrollList}>
-              {filteredStudents.map(s => {
-                const sec = (s as any)._sec;
-                return (
-                <div key={s.id} onClick={() => toggleStudent(s)} style={{ ...S.studentItem, background: isSelected(s.id) ? tabColor + '10' : '#fff' }}>
-                  <div style={{ width: '20px', height: '20px', borderRadius: '4px',
-                    border: `2px solid ${isSelected(s.id) ? tabColor : '#d1d5db'}`,
-                    background: isSelected(s.id) ? tabColor : '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700,
-                  }}>{isSelected(s.id) && '✓'}</div>
-                  <span style={{ fontSize: '14px', flex: 1 }}>{s.name}</span>
-                  {sec && <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '8px', background: '#f3f4f6', color: '#6b7280' }}>{sec}</span>}
+              {selectedNote && <textarea placeholder="تفاصيل إضافية..." value={noteDetails}
+                onChange={e => setNoteDetails(e.target.value)} style={MF.textarea} rows={2} />}
+            </div>
+          </div>
+        )}
+
+        {/* ── بطاقة السلوك المتمايز ── */}
+        {tab === 'positive' && (
+          <div style={MF.card}>
+            <div style={{ ...MF.cardAccent, background: '#22c55e' }} />
+            <div style={MF.cardBody}>
+              <div style={MF.cardTitle}>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#22c55e' }}>star</span>
+                اختيار السلوك المتمايز
+              </div>
+              <div style={MF.scrollList}>
+                {POSITIVE.map(p => {
+                  const active = selectedPositive?.id === p.id;
+                  return (
+                    <div key={p.id} onClick={() => setSelectedPositive(active ? null : p)} style={{
+                      ...MF.listItem, background: active ? '#f0fdf4' : '#fff',
+                      borderRight: `4px solid ${active ? '#22c55e' : POS_DEG_COLORS[p.degree] || '#e8ebf2'}`,
+                    }}>
+                      <span style={{ flex: 1, fontSize: '13px' }}>{p.text}</span>
+                      <span style={{ ...MF.degreeBadge,
+                        background: POS_DEG_COLORS[p.degree], color: POS_DEG_TEXT[p.degree],
+                      }}>{p.degree} درجات</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {selectedPositive && <textarea placeholder="تفاصيل إضافية..." value={positiveDetails}
+                onChange={e => setPositiveDetails(e.target.value)} style={MF.textarea} rows={2} />}
+            </div>
+          </div>
+        )}
+
+        {/* ── بطاقة اختيار الطلاب ── */}
+        {(selectedStage && selectedGrade && (!needsClass || selectedClass)) && (
+          <div style={MF.card}>
+            <div style={{ ...MF.cardAccent, background: tabColor }} />
+            <div style={MF.cardBody}>
+              <div style={MF.studentHeader}>
+                <span style={MF.studentHeaderTitle}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px', color: tabColor }}>group</span>
+                  اختر الطلاب
+                  {selectedStudents.length > 0 && <span style={{ ...MF.countBadge, background: tabColor }}>{selectedStudents.length}</span>}
+                </span>
+                <button onClick={toggleAll} style={MF.selectAllBtn}>
+                  {selectedStudents.length === filteredStudents.length ? 'إلغاء الكل' : 'تحديد الكل'}
+                </button>
+              </div>
+              <div style={MF.searchBox}>
+                <span className="material-symbols-outlined" style={MF.searchIcon}>search</span>
+                <input placeholder="بحث عن طالب..." value={search} onChange={e => setSearch(e.target.value)} style={MF.searchInput} />
+              </div>
+              {selectedStudents.length > 0 && (
+                <div style={MF.chips}>
+                  {selectedStudents.map(s => {
+                    const sec = (s as any)._sec;
+                    return (
+                    <span key={s.id} onClick={() => toggleStudent(s)} style={{
+                      ...MF.chip, background: tabColor + '20', color: tabColor,
+                    }}>
+                      {s.name.split(' ').slice(0, 2).join(' ')}{sec ? ` (${sec})` : ''}
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+                    </span>
+                    );
+                  })}
                 </div>
-                );
-              })}
-              {filteredStudents.length === 0 && <div style={{ padding: '20px', textAlign: 'center', color: '#9ca3af', fontSize: '14px' }}>
-                {currentStudents.length === 0 ? 'اختر المرحلة والصف' : 'لا توجد نتائج'}
-              </div>}
+              )}
+              <div style={MF.scrollList}>
+                {filteredStudents.map(s => {
+                  const sec = (s as any)._sec;
+                  return (
+                  <div key={s.id} onClick={() => toggleStudent(s)} style={{ ...MF.studentItem, background: isSelected(s.id) ? tabColor + '10' : '#fff' }}>
+                    <div style={{
+                      ...MF.checkbox,
+                      ...(isSelected(s.id) ? { ...MF.checkboxOn, background: tabColor } : {}),
+                    }}>
+                      {isSelected(s.id) && <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#fff' }}>check</span>}
+                    </div>
+                    <span style={MF.studentName}>{s.name}</span>
+                    {sec && <span style={MF.studentClass}>{sec}</span>}
+                  </div>
+                  );
+                })}
+                {filteredStudents.length === 0 && <div style={MF.empty}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '24px', display: 'block', marginBottom: '8px', color: '#9da3b8' }}>
+                    {currentStudents.length === 0 ? 'person_search' : 'search_off'}
+                  </span>
+                  {currentStudents.length === 0 ? 'اختر المرحلة والصف' : 'لا توجد نتائج'}
+                </div>}
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      <div style={S.bottomBar}>
+      {/* ── الشريط السفلي ── */}
+      <div style={MF.bottomBar}>
         <button onClick={handleSubmit} disabled={submitting || selectedStudents.length === 0
           || (tab === 'permission' && (!reason || !guardian))
           || (tab === 'notes' && !selectedNote)
           || (tab === 'positive' && !selectedPositive)
         } style={{
-          ...S.submitBtn, background: selectedStudents.length > 0 ? tabColor : '#d1d5db', opacity: submitting ? 0.6 : 1,
-        }}>{submitting ? 'جاري الإرسال...' : `إرسال (${selectedStudents.length})`}</button>
-        <button onClick={loadLog} style={S.logBtn}>سجل اليوم</button>
+          ...MF.submitBtn, background: selectedStudents.length > 0 ? tabColor : '#d1d5db', opacity: submitting ? 0.6 : 1,
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>send</span>
+          {submitting ? 'جاري الإرسال...' : `إرسال (${selectedStudents.length})`}
+        </button>
+        <button onClick={loadLog} style={MF.logBtn}>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>history</span>
+          سجل اليوم
+        </button>
       </div>
 
+      {/* ── نافذة السجل ── */}
       {showLog && (
-        <div style={S.overlay} onClick={() => setShowLog(false)}>
-          <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e5e7eb' }}>
-              <span style={{ fontWeight: 700, fontSize: '16px' }}><span className="material-symbols-outlined" style={{ fontSize: '18px', verticalAlign: 'middle' }}>history</span> سجل اليوم</span>
-              <button onClick={() => setShowLog(false)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>✕</button>
+        <div style={MF.overlay} onClick={() => setShowLog(false)}>
+          <div style={MF.modal} onClick={e => e.stopPropagation()}>
+            <div style={MF.modalHandle} />
+            <div style={MF.modalHeader}>
+              <span style={MF.modalTitle}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px', color: ROLE_THEME.counselor.color }}>history</span>
+                سجل اليوم
+              </span>
+              <button onClick={() => setShowLog(false)} style={MF.modalClose}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+              </button>
             </div>
-            <div style={{ padding: '16px 20px', maxHeight: '60vh', overflowY: 'auto' }}>
+            <div style={MF.modalBody}>
               {logData?.entries ? (() => {
                 const entries = logData.entries;
                 const stageKeys = Object.keys(entries);
                 const total = stageKeys.reduce((sum, k) => sum + entries[k].length, 0);
-                if (total === 0) return <div style={{ textAlign: 'center', padding: '30px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: '24px', verticalAlign: 'middle' }}>inbox</span> لا توجد سجلات</div>;
+                if (total === 0) return (
+                  <div style={MF.empty}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '32px', display: 'block', marginBottom: '8px', color: '#9da3b8' }}>inbox</span>
+                    لا توجد سجلات
+                  </div>
+                );
                 return stageKeys.map(st => {
                   const arr = entries[st];
                   if (!arr?.length) return null;
                   return (
                     <div key={st}>
-                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#6b7280', padding: '8px 12px', background: '#f3f4f6', borderRadius: '10px', margin: '12px 0 8px', textAlign: 'center' }}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle', color: '#6366f1' }}>square</span> {st} ({arr.length})</div>
+                      <div style={MF.logStageHeader}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px', color: ROLE_THEME.counselor.color }}>square</span>
+                        {st} ({arr.length})
+                      </div>
                       {arr.map((e, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f3f4f6' }}>
-                          <span style={{ fontSize: '14px', fontWeight: 700 }}>{e.name}</span>
-                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '100px', color: '#fff', background: e.type === 'استئذان' ? '#3b82f6' : '#ea580c' }}>
+                        <div key={i} style={MF.logItem}>
+                          <span style={MF.logName}>{e.name}</span>
+                          <span style={{ ...MF.logBadge, background: e.type === 'استئذان' ? '#3b82f6' : '#ea580c' }}>
                             {e.type} {e.time}
                           </span>
                         </div>
@@ -425,7 +482,10 @@ export default function CounselorFormPage() {
                   );
                 });
               })() : (
-                <div style={{ textAlign: 'center', padding: '30px', color: '#9ca3af' }}>لا توجد سجلات اليوم</div>
+                <div style={MF.empty}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '32px', display: 'block', marginBottom: '8px', color: '#9da3b8' }}>inbox</span>
+                  لا توجد سجلات اليوم
+                </div>
               )}
             </div>
           </div>
@@ -434,27 +494,3 @@ export default function CounselorFormPage() {
     </div>
   );
 }
-
-const S: Record<string, React.CSSProperties> = {
-  page: { direction: 'rtl', fontFamily: "'Segoe UI', 'Tahoma', 'Arial', sans-serif", minHeight: '100vh', background: '#f0f2f5', paddingBottom: '70px', WebkitTapHighlightColor: 'transparent' },
-  loadingPage: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: "'Segoe UI', 'Tahoma', 'Arial', sans-serif", fontSize: '16px', color: '#6b7280' },
-  errorPage: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: "'Segoe UI', 'Tahoma', 'Arial', sans-serif" },
-  header: { position: 'sticky', top: 0, zIndex: 100, background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff', padding: '16px 20px', textAlign: 'center' },
-  refreshBtn: { position: 'absolute', left: '16px', top: '16px', border: 'none', background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer' },
-  tabBar: { display: 'flex', background: '#fff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: '76px', zIndex: 99 },
-  tabBtn: { flex: 1, padding: '12px 8px', border: 'none', background: 'none', fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Segoe UI', 'Tahoma', 'Arial', sans-serif" },
-  content: { maxWidth: '600px', margin: '0 auto', padding: '12px 16px' },
-  card: { background: '#fff', borderRadius: '16px', padding: '16px', marginBottom: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' },
-  select: { width: '100%', padding: '10px 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', fontFamily: "'Segoe UI', 'Tahoma', 'Arial', sans-serif" },
-  searchInput: { width: '100%', padding: '10px 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', fontFamily: "'Segoe UI', 'Tahoma', 'Arial', sans-serif", marginBottom: '8px', boxSizing: 'border-box' },
-  pillBtn: { padding: '6px 14px', borderRadius: '100px', border: 'none', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: "'Segoe UI', 'Tahoma', 'Arial', sans-serif" },
-  scrollList: { maxHeight: '280px', overflowY: 'auto' },
-  listItem: { display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderBottom: '1px solid #f3f4f6', cursor: 'pointer' },
-  studentItem: { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderBottom: '1px solid #f3f4f6', cursor: 'pointer' },
-  textarea: { width: '100%', padding: '10px 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', fontFamily: "'Segoe UI', 'Tahoma', 'Arial', sans-serif", marginTop: '8px', boxSizing: 'border-box', resize: 'vertical' },
-  bottomBar: { position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', gap: '8px', padding: '12px 16px', background: '#fff', borderTop: '1px solid #e5e7eb', zIndex: 100, maxWidth: '600px', margin: '0 auto', boxShadow: '0 -4px 12px rgba(0,0,0,.06)' },
-  submitBtn: { flex: 1, padding: '14px', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '16px', fontWeight: 700, cursor: 'pointer', fontFamily: "'Segoe UI', 'Tahoma', 'Arial', sans-serif" },
-  logBtn: { padding: '14px 20px', border: '2px solid #d1d5db', borderRadius: '12px', background: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: "'Segoe UI', 'Tahoma', 'Arial', sans-serif" },
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '600px', maxHeight: '70vh' },
-};

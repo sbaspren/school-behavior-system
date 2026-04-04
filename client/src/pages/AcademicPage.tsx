@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { academicApi, AcademicStudentData, AcademicSubjectData } from '../api/academic';
-import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { SETTINGS_STAGES } from '../utils/constants';
+import { useAppContext } from '../hooks/useAppContext';
 import * as XLSX from 'xlsx';
 import {
   Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale,
@@ -12,6 +12,7 @@ import { Doughnut, Bar, Radar } from 'react-chartjs-2';
 import AcademicAnalysis from '../components/AcademicAnalysis';
 import PageHero from '../components/shared/PageHero';
 import TabBar from '../components/shared/TabBar';
+import FilterBtn from '../components/shared/FilterBtn';
 import { computeAdvancedAnalysis, getTeacherWeakStudents, type AdvancedAnalysis, type SummaryRow as StatSummaryRow, type GradeRow as StatGradeRow } from '../utils/academicStats';
 import * as AcadPrint from '../utils/academicPrints';
 
@@ -61,7 +62,10 @@ const NON_ACADEMIC = ['السلوك', 'المواظبة', 'النشاط'];
 
 const AcademicPage: React.FC = () => {
   // ── State ──
-  const [stages, setStages] = useState<StageConfigData[]>([]);
+  const appCtx = useAppContext();
+  const stages = appCtx.stages;
+  const enabledStages = appCtx.enabledStages;
+  const schoolSettings = appCtx.schoolSettings as any;
   const [currentStage, setCurrentStage] = useState('');
   const [tab, setTab] = useState<'dashboard' | 'reports' | 'charts' | 'analysis'>('dashboard');
   const [loading, setLoading] = useState(true);
@@ -70,7 +74,6 @@ const AcademicPage: React.FC = () => {
   const [periods, setPeriods] = useState<PeriodInfo[]>([]);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [advancedAnalysis, setAdvancedAnalysis] = useState<AdvancedAnalysis | null>(null);
-  const [schoolSettings, setSchoolSettings] = useState<any>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importPeriod, setImportPeriod] = useState('نهاية الفصل');
   const [importStatus, setImportStatus] = useState<{ type: string; msg: string } | null>(null);
@@ -95,42 +98,23 @@ const AcademicPage: React.FC = () => {
   const [classComparison, setClassComparison] = useState<ClassCompItem[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const enabledStages = useMemo(() =>
-    stages.filter(s => s.isEnabled && s.grades.some(g => g.isEnabled && g.classCount > 0)),
-    [stages]
-  );
-
-  // ── Load stages ──
+  // ── Set initial stage from context ──
   useEffect(() => {
-    settingsApi.getStructure().then(res => {
-      if (res.data?.data?.stages) {
-        const st = Array.isArray(res.data.data.stages) ? res.data.data.stages : [];
-        setStages(st);
-        const enabled = st.filter((s: StageConfigData) => s.isEnabled && s.grades.some((g: { isEnabled: boolean; classCount: number }) => g.isEnabled && g.classCount > 0));
-        if (enabled.length > 0) {
-          setCurrentStage(enabled[0].stage);
-        } else {
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
-      }
-    }).catch(() => {
+    if (enabledStages.length > 0 && !currentStage) {
+      setCurrentStage(enabledStages[0].stage);
+    } else if (enabledStages.length === 0 && !appCtx.loading) {
       setLoading(false);
-    });
-    // Load school settings for printing
-    settingsApi.getSettings?.().then((res: any) => {
-      if (res?.data?.data) setSchoolSettings(res.data.data);
-    }).catch(() => {});
-  }, []);
+    }
+  }, [enabledStages, currentStage, appCtx.loading]);
 
   // ── Load data ──
+  const initialLoadDone = useRef(false);
   const loadData = useCallback(async () => {
     if (!currentStage) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     setStudentReport(null);
     setSubjectReportData(null);
     setClassComparison(null);
@@ -158,7 +142,7 @@ const AcademicPage: React.FC = () => {
         }
       }
     } catch { /* empty */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone.current = true; }
   }, [currentStage]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -369,6 +353,24 @@ const AcademicPage: React.FC = () => {
         onTabChange={(id) => setTab(id as typeof tab)}
         sectionColor="#0d9488"
       />
+
+      {/* Stage filter buttons */}
+      {enabledStages.length > 1 && (
+        <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', background: '#f1f5f9', borderRadius: '10px', margin: '0 0 16px' }}>
+          {enabledStages.map(s => {
+            const info = SETTINGS_STAGES.find(st => st.id === s.stage);
+            return (
+              <FilterBtn
+                key={s.stage}
+                label={info?.name || s.stage}
+                active={currentStage === s.stage}
+                onClick={() => setCurrentStage(s.stage)}
+                color="#0d9488"
+              />
+            );
+          })}
+        </div>
+      )}
 
       {loading && (
         <div style={{ textAlign: 'center', padding: '32px 0' }}>

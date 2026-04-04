@@ -14,6 +14,17 @@ public interface IWhatsAppServerService
     /// جاهز للتفعيل لاحقاً — يتطلب سيرفر يدعم /pair endpoint.
     /// </summary>
     Task<PairingCodeResult> RequestPairingCodeAsync(string serverUrl, string phoneNumber);
+
+    /// <summary>
+    /// فحص حالة QR session — هل تم المسح؟
+    /// </summary>
+    Task<QRPollResult> PollQRStatusAsync(string serverUrl, string sessionId);
+
+    /// <summary>
+    /// فحص هل جلسة رقم معين لا تزال حية على السيرفر.
+    /// يستخدم محاولة إرسال وهمية — 404 = ميتة، غيره = حية.
+    /// </summary>
+    Task<bool> IsSessionAliveAsync(string serverUrl, string phoneNumber);
 }
 
 public class WhatsAppServerStatus
@@ -32,5 +43,13 @@ public class PairingCodeResult
 {
     public bool Success { get; set; }
     public string? Code { get; set; }
+    public string? Error { get; set; }
+}
+
+public class QRPollResult
+{
+    public string Status { get; set; } = "unknown"; // "waiting", "connected", "error"
+    public string? Phone { get; set; }
+    public string? QrData { get; set; }
     public string? Error { get; set; }
 }

@@ -36,6 +36,11 @@ export const noorApi = {
   restore: (updates: NoorBulkItem[]) =>
     api.post('/noor/restore', { updates }),
 
-  getDocumentedToday: (type?: string) =>
-    api.get(`/noor/documented-today?type=${type || 'all'}`),
+  getDocumentedToday: (type?: string, period?: string, stage?: string) => {
+    const params = new URLSearchParams();
+    params.set('type', type || 'all');
+    params.set('period', period || 'today');
+    if (stage) params.set('stage', stage);
+    return api.get(`/noor/documented-today?${params.toString()}`);
+  },
 };

@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { violationsApi } from '../api/violations';
-import { settingsApi, StageConfigData } from '../api/settings';
-import { SETTINGS_STAGES } from '../utils/constants';
+import { SETTINGS_STAGES, DEGREE_LABELS as DEGREE_LABELS_OBJ, DEGREE_LABEL_NAMES } from '../utils/constants';
+import { useAppContext } from '../hooks/useAppContext';
+import { classToLetter } from '../utils/printUtils';
 
-const DEGREE_COLORS: Record<number, string> = {
-  1: '#22c55e', 2: '#eab308', 3: '#f97316', 4: '#ef4444', 5: '#7c2d12',
-};
-const DEGREE_LABELS: Record<number, string> = {
-  1: 'الأولى', 2: 'الثانية', 3: 'الثالثة', 4: 'الرابعة', 5: 'الخامسة',
-};
+const DEGREE_COLORS: Record<number, string> = Object.fromEntries(
+  Object.entries(DEGREE_LABELS_OBJ).map(([k, v]) => [Number(k), v.color])
+);
+const DEGREE_LABELS = DEGREE_LABEL_NAMES;
 
 interface ReportData {
   total: number;
@@ -21,8 +20,8 @@ interface ReportData {
 }
 
 const ReportsPage: React.FC = () => {
+  const { enabledStages } = useAppContext();
   const [data, setData] = useState<ReportData | null>(null);
-  const [stages, setStages] = useState<StageConfigData[]>([]);
   const [loading, setLoading] = useState(true);
   const [stageFilter, setStageFilter] = useState('__all__');
   const [gradeFilter, setGradeFilter] = useState('');
@@ -30,23 +29,15 @@ const ReportsPage: React.FC = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  const enabledStages = useMemo(() =>
-    stages.filter(s => s.isEnabled && s.grades.some(g => g.isEnabled && g.classCount > 0)),
-    [stages]
-  );
-
+  const initialLoadDone = useRef(false);
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const stage = stageFilter !== '__all__' ? stageFilter : undefined;
-      const [rRes, sRes] = await Promise.all([
-        violationsApi.getReport(stage, gradeFilter || undefined, classFilter || undefined, dateFrom || undefined, dateTo || undefined),
-        settingsApi.getStructure(),
-      ]);
+      const rRes = await violationsApi.getReport(stage, gradeFilter || undefined, classFilter || undefined, dateFrom || undefined, dateTo || undefined);
       if (rRes.data?.data) setData(rRes.data.data);
-      if (sRes.data?.data?.stages) setStages(Array.isArray(sRes.data.data.stages) ? sRes.data.data.stages : []);
     } catch { /* empty */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone.current = true; }
   }, [stageFilter, gradeFilter, classFilter, dateFrom, dateTo]);
 
   // Extract unique grades/classes from byClass data for filters
@@ -160,7 +151,7 @@ const ReportsPage: React.FC = () => {
               {data.byClass.slice(0, 10).map((c, i) => (
                 <div key={i} style={{ marginBottom: '10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '3px' }}>
-                    <span style={{ fontWeight: 600 }}>{c.grade} / {c.className}</span>
+                    <span style={{ fontWeight: 600 }}>{c.grade} / {classToLetter(c.className)}</span>
                     <span style={{ color: '#6b7280' }}>{c.count}</span>
                   </div>
                   <div style={{ height: '20px', background: '#f3f4f6', borderRadius: '5px', overflow: 'hidden' }}>
@@ -220,7 +211,7 @@ const ReportsPage: React.FC = () => {
                     <tr key={s.studentId} style={{ borderBottom: '1px solid #f3f4f6' }}>
                       <td style={{ padding: '10px' }}>{i + 1}</td>
                       <td style={{ padding: '10px', fontWeight: 600 }}>{s.studentName}</td>
-                      <td style={{ padding: '10px' }}>{s.grade} / {s.className}</td>
+                      <td style={{ padding: '10px' }}>{s.grade} / {classToLetter(s.className)}</td>
                       <td style={{ padding: '10px', textAlign: 'center' }}>
                         <span style={{ background: '#fee2e2', color: '#dc2626', padding: '2px 10px', borderRadius: '100px', fontWeight: 600 }}>{s.count}</span>
                       </td>

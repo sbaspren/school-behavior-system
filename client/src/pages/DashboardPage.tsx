@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import FilterBtn from '../components/shared/FilterBtn';
 import { dashboardApi } from '../api/dashboard';
-import { settingsApi, StageConfigData } from '../api/settings';
-import { SETTINGS_STAGES } from '../utils/constants';
+import { SETTINGS_STAGES, CLASS_LETTERS } from '../utils/constants';
+import { useAppContext } from '../hooks/useAppContext';
+import { classToLetter } from '../utils/printUtils';
 
 // ═══════ Types ═══════
 interface TodayStats {
@@ -219,38 +221,26 @@ const SECTION_ROUTES: Record<string, string> = {
   'violations': '/violations', 'absence': '/absence', 'educational-notes': '/notes',
   'tardiness': '/tardiness', 'permissions': '/permissions', 'positive': '/positive',
 };
-const STAGE_ABBR: Record<string, string> = { 'Intermediate': 'مت', 'Secondary': 'ثا' };
+const STAGE_ABBR: Record<string, string> = { 'EarlyChildhood': 'طم', 'Primary': 'اب', 'Intermediate': 'مت', 'Secondary': 'ثا' };
 
 // ═══════ Main Component ═══════
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const { stages, enabledStages } = useAppContext();
   const [data, setData] = useState<DashboardData | null>(null);
-  const [stages, setStages] = useState<StageConfigData[]>([]);
   const [loading, setLoading] = useState(true);
   const [stageFilter, setStageFilter] = useState('');
   const [timelineSem, setTimelineSem] = useState(() => getSemesterProgress().semIdx);
-  const [printSectionHidden, setPrintSectionHidden] = useState(false);
   const [dismissedPrints, setDismissedPrints] = useState<Set<string>>(new Set());
 
-  const enabledStages = useMemo(() =>
-    stages.filter((s) => s.isEnabled && s.grades.some((g) => g.isEnabled && g.classCount > 0)),
-    [stages]
-  );
-
+  const initialLoadDone = useRef(false);
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
-      const [dRes, sRes] = await Promise.all([
-        dashboardApi.get(stageFilter || undefined),
-        settingsApi.getStructure(),
-      ]);
+      const dRes = await dashboardApi.get(stageFilter || undefined);
       if (dRes.data?.data) setData(dRes.data.data);
-      if (sRes.data?.data?.stages) {
-        const raw = sRes.data.data.stages;
-        setStages(Array.isArray(raw) ? raw : Object.values(raw));
-      }
     } catch { /* empty */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone.current = true; }
   }, [stageFilter]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -293,19 +283,20 @@ const DashboardPage: React.FC = () => {
         .dash-stats-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
         .dash-stat-card{transition:transform .15s ease,box-shadow .15s ease}
         .dash-stat-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.08)}
+        .dash-attention-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+        .dash-attention-row>div{transition:transform .15s ease,box-shadow .15s ease}
+        .dash-attention-row>div:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.08)}
         .dash-row4{display:grid;grid-template-columns:55% 45%;gap:20px}
-        .dash-row5{display:grid;grid-template-columns:240px 1fr 1fr;gap:20px}
-        .dash-attention-inner{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-        .dash-attention-inner>div{transition:transform .15s ease,box-shadow .15s ease}
-        .dash-attention-inner>div:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.08)}
+        .dash-row5{display:grid;grid-template-columns:280px 1fr;gap:20px}
         @media(max-width:1100px){
           .dash-stats-grid{grid-template-columns:repeat(3,1fr)}
+          .dash-attention-row{grid-template-columns:repeat(2,1fr)}
           .dash-row4{grid-template-columns:1fr}
           .dash-row5{grid-template-columns:1fr 1fr}
         }
         @media(max-width:700px){
           .dash-stats-grid{grid-template-columns:repeat(2,1fr)}
-          .dash-attention-inner{grid-template-columns:1fr}
+          .dash-attention-row{grid-template-columns:1fr}
           .dash-row5{grid-template-columns:1fr}
           .dash-row4{grid-template-columns:1fr}
         }
@@ -321,9 +312,9 @@ const DashboardPage: React.FC = () => {
           </p>
           {/* Stage filter buttons */}
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-            <button onClick={() => setStageFilter('')} style={filterBtn(!stageFilter)}>الكل</button>
+            <FilterBtn label="الكل" active={!stageFilter} onClick={() => setStageFilter('')} color="#4f46e5" />
             {enabledStages.map(s => (
-              <button key={s.stage} onClick={() => setStageFilter(s.stage)} style={filterBtn(stageFilter === s.stage)}>{stageLabel(s.stage)}</button>
+              <FilterBtn key={s.stage} label={stageLabel(s.stage)} active={stageFilter === s.stage} onClick={() => setStageFilter(s.stage)} color="#4f46e5" />
             ))}
           </div>
         </div>
@@ -345,16 +336,12 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ═══════ Row 2: Timeline ═══════ */}
-      <SemesterTimeline semIdx={timelineSem} onSwitch={setTimelineSem} />
-
-      {/* ═══════ Row 3: Stats Cards ═══════ */}
+      {/* ═══════ Row 2: Stats Cards ═══════ */}
       <div className="dash-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 20 }}>
         {STAT_CARDS.map(sc => {
           const todayAny = (data.today || {}) as unknown as Record<string, number>;
           const allStageKeys = Object.keys(data.stageStats || {});
           const hasStageBreakdown = sc.key !== 'pendingExcuses' && allStageKeys.length > 0;
-          // حساب القيم لكل مرحلة
           const stageValues: { abbr: string; val: number }[] = [];
           let total = 0;
           if (hasStageBreakdown) {
@@ -367,72 +354,204 @@ const DashboardPage: React.FC = () => {
           } else {
             total = todayAny[sc.key] ?? 0;
           }
-          // عند الفلترة بمرحلة محددة
           const displayTotal = stageFilter && hasStageBreakdown
             ? ((data.stageStats[stageFilter] || {} as StageStatsItem)[sc.key as keyof StageStatsItem] ?? 0)
             : total;
+          // مؤشر الاتجاه
+          const semKeys: Record<string, string> = { absence: 'absence', tardiness: 'tardiness', permissions: 'permissions', violations: 'violations' };
+          const trendKey = semKeys[sc.key];
+          let trendContent: React.ReactNode = null;
+          if (trendKey && data.semesterTotals) {
+            const semVal = (data.semesterTotals as Record<string, number>)[trendKey] ?? 0;
+            const prog = getSemesterProgress();
+            const di = now.getDay();
+            const schoolDays = Math.max(1, (prog.week - 1) * 5 + Math.min(di === 6 ? 0 : di === 5 ? 0 : di + 1, 5));
+            const avg = Math.round((semVal / schoolDays) * 10) / 10;
+            const up = displayTotal > avg;
+            const dn = displayTotal < avg;
+            trendContent = (
+              <div style={{ textAlign: 'center', fontSize: 9, fontWeight: 600, color: '#9da3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                <span>م.يومي {avg}</span>
+                {up && <span style={{ color: '#ef4444', fontSize: 10 }}>▲</span>}
+                {dn && <span style={{ color: '#22c55e', fontSize: 10 }}>▼</span>}
+                {!up && !dn && <span style={{ fontSize: 10 }}>—</span>}
+              </div>
+            );
+          }
           return (
             <div key={sc.key} className="dash-stat-card" style={{
               background: '#fff', borderRadius: 16, padding: '12px 10px',
               border: '1px solid #f0f2f7', boxShadow: '0 1px 4px rgba(0,0,0,.04)',
               position: 'relative', overflow: 'hidden', cursor: 'default',
+              display: 'flex', flexDirection: 'column',
             }}>
               <div style={{ position: 'absolute', top: 0, right: 0, width: 3, height: '100%', background: sc.color }} />
+              {/* العنوان */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                 <div style={{ width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: sc.bg, flexShrink: 0 }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 15, color: sc.color }}>{sc.icon}</span>
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>{sc.label}</span>
               </div>
-              {/* مت / ثا */}
-              {hasStageBreakdown && !stageFilter && stageValues.length > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 4 }}>
-                  {stageValues.map((sv, i) => (
-                    <span key={i} style={{ fontSize: 10, fontWeight: 700, color: '#9da3b8' }}>
-                      {sv.abbr} <span style={{ fontWeight: 800, color: '#475569' }}>{sv.val}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
-              {/* خط فاصل + المجموع */}
-              {hasStageBreakdown && !stageFilter && (
-                <div style={{ borderTop: '1.5px solid #f1f5f9', marginTop: 2, paddingTop: 4 }} />
-              )}
-              <div style={{ textAlign: 'center', padding: hasStageBreakdown && !stageFilter ? '0' : '4px 0' }}>
+              {/* مت / ثا — أو placeholder */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 4, minHeight: 16 }}>
+                {hasStageBreakdown && !stageFilter && stageValues.length > 0 ? stageValues.map((sv, i) => (
+                  <span key={i} style={{ fontSize: 10, fontWeight: 700, color: '#9da3b8' }}>
+                    {sv.abbr} <span style={{ fontWeight: 800, color: '#475569' }}>{sv.val}</span>
+                  </span>
+                )) : null}
+              </div>
+              {/* خط فاصل */}
+              <div style={{ borderTop: '1.5px solid #f1f5f9', marginTop: 2, paddingTop: 4 }} />
+              {/* المجموع */}
+              <div style={{ textAlign: 'center', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <span style={{ fontSize: 26, fontWeight: 900, color: '#1a1d2e' }}>{displayTotal}</span>
+              </div>
+              {/* مؤشر الاتجاه — أو placeholder */}
+              <div style={{ minHeight: 14, marginTop: 2 }}>
+                {trendContent}
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* ═══════ Row 4: الحصة الحالية (55%) + يحتاج انتباهك (45%) ═══════ */}
-      <div className="dash-row4" style={{ marginBottom: 20 }}>
-        <PeriodCard stageFilter={stageFilter} />
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1d2e', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ef4444' }}>notifications_active</span> يحتاج انتباهك
-          </div>
-          <div className="dash-attention-inner">
-            <AttentionCard icon="gavel" title="مخالفات بدون إجراء" count={data.pending?.violationsNoAction?.length ?? 0} color="#ef4444"
-              items={(data.pending?.violationsNoAction || []).slice(0, 3).map(v => ({ text: v.name, tag: `${v.grade} ${v.cls}` }))} />
-            <AttentionCard icon="edit_note" title="ملاحظات معلقة" count={data.pending?.notesPending?.length ?? 0} color="#f97316"
-              items={(data.pending?.notesPending || []).slice(0, 3).map(n => ({ text: `${n.name} — ${n.type}`, tag: n.cls || '' }))} />
-            <AttentionCard icon="sms_failed" title="لم يُبلّغ ولي الأمر" count={totalNotSent} color="#3b82f6"
-              items={[
-                ...(notSent.absence > 0 ? [{ text: `${notSent.absence} غياب`, tag: 'اليوم' }] : []),
-                ...(notSent.tardiness > 0 ? [{ text: `${notSent.tardiness} تأخر`, tag: 'اليوم' }] : []),
-                ...(notSent.violations > 0 ? [{ text: `${notSent.violations} مخالفة`, tag: 'اليوم' }] : []),
-              ]} />
-            <AttentionCard icon="pending_actions" title="أعذار بانتظار" count={data.today?.pendingExcuses ?? 0} color="#8b5cf6" items={[]} />
-          </div>
+      {/* ═══════ Row 3: يحتاج انتباهك ═══════ */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1d2e', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ef4444' }}>notifications_active</span> يحتاج انتباهك
+        </div>
+        <div className="dash-attention-row">
+          <AttentionCard icon="gavel" title="مخالفات بدون إجراء" count={data.pending?.violationsNoAction?.length ?? 0} color="#ef4444"
+            items={(data.pending?.violationsNoAction || []).slice(0, 3).map(v => ({ text: v.name, tag: `${v.grade} ${classToLetter(v.cls)}` }))} />
+          <AttentionCard icon="edit_note" title="ملاحظات معلقة" count={data.pending?.notesPending?.length ?? 0} color="#f97316"
+            items={(data.pending?.notesPending || []).slice(0, 3).map(n => ({ text: `${n.name} — ${n.type}`, tag: classToLetter(n.cls) || '' }))} />
+          <AttentionCard icon="sms_failed" title="لم يُبلّغ ولي الأمر" count={totalNotSent} color="#3b82f6"
+            items={[
+              ...(notSent.absence > 0 ? [{ text: `${notSent.absence} غياب`, tag: 'اليوم' }] : []),
+              ...(notSent.tardiness > 0 ? [{ text: `${notSent.tardiness} تأخر`, tag: 'اليوم' }] : []),
+              ...(notSent.violations > 0 ? [{ text: `${notSent.violations} مخالفة`, tag: 'اليوم' }] : []),
+            ]} />
+          <AttentionCard icon="pending_actions" title="أعذار بانتظار" count={data.today?.pendingExcuses ?? 0} color="#8b5cf6"
+            items={data.today?.pendingExcuses ? [{ text: `${data.today.pendingExcuses} عذر بانتظار المراجعة`, tag: 'أعذار' }] : []} />
         </div>
       </div>
 
-      {/* ═══════ Row 5: تقويم (صغير) + تحويلات المعلمين (متوسط) + متابعة الغياب (كبير) ═══════ */}
+      {/* ═══════ Row 4: الحصة الحالية (55%) + متابعة الغياب (45%) ═══════ */}
+      <div className="dash-row4" style={{ marginBottom: 20 }}>
+        <PeriodCard stageFilter={stageFilter} />
+        {/* متابعة إدخال الغياب */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', border: '1px solid #f0f2f7', boxShadow: '0 1px 3px rgba(0,0,0,.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #f97316, #fb923c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'white' }}>fact_check</span>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1d2e' }}>متابعة إدخال الغياب</div>
+          </div>
+          {(() => {
+            const absData = data.absenceByClass || [];
+            const lookup: Record<string, number> = {};
+            absData.forEach(a => { lookup[`${a.stage}|${a.grade}|${a.className}`] = a.count; });
+            const SECTION_NAMES = CLASS_LETTERS;
+            const targetStages = stageFilter ? enabledStages.filter(s => s.stage === stageFilter) : enabledStages;
+            if (targetStages.length === 0) {
+              return <div style={{ textAlign: 'center', padding: 16, color: '#9da3b8', fontSize: 12 }}>لا توجد مراحل مفعّلة</div>;
+            }
+            const rows: { stageId: string; stageName: string; gradeName: string; sections: { name: string; count: number | null }[] }[] = [];
+            for (const st of targetStages) {
+              const stgName = STAGE_ABBR[st.stage] || st.stage;
+              for (const g of st.grades.filter(gr => gr.isEnabled && gr.classCount > 0)) {
+                const secs: { name: string; count: number | null }[] = [];
+                for (let c = 0; c < g.classCount; c++) {
+                  const secName = SECTION_NAMES[c] || String(c + 1);
+                  const key = `${st.stage}|${g.gradeName}|${secName}`;
+                  const found = lookup[key];
+                  secs.push({ name: secName, count: found !== undefined ? found : null });
+                }
+                rows.push({ stageId: st.stage, stageName: stgName, gradeName: g.gradeName, sections: secs });
+              }
+            }
+            if (rows.length === 0) {
+              return <div style={{ textAlign: 'center', padding: 16, color: '#9da3b8', fontSize: 12 }}>لا توجد بيانات</div>;
+            }
+            const maxSections = Math.max(...rows.map(r => r.sections.length));
+            let lastStage = '';
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {/* Header row */}
+                <div style={{ display: 'grid', gridTemplateColumns: `80px repeat(${maxSections}, 1fr)`, gap: 4, padding: '0 4px', marginBottom: 2 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: '#9da3b8', textAlign: 'right' }}>الصف</div>
+                  {SECTION_NAMES.slice(0, maxSections).map(s => (
+                    <div key={s} style={{ fontSize: 11, fontWeight: 800, color: '#9da3b8', textAlign: 'center' }}>{s}</div>
+                  ))}
+                </div>
+                {rows.map((r, ri) => {
+                  const isNewStage = r.stageName !== lastStage;
+                  lastStage = r.stageName;
+                  return (
+                    <React.Fragment key={ri}>
+                      {isNewStage && ri > 0 && (
+                        <div style={{ height: 1, background: '#e5e7eb', margin: '4px 0' }} />
+                      )}
+                      <div style={{
+                        display: 'grid', gridTemplateColumns: `80px repeat(${maxSections}, 1fr)`, gap: 4, alignItems: 'center',
+                        padding: '6px 8px', borderRadius: 10,
+                        background: ri % 2 === 0 ? '#fafbfc' : '#fff',
+                        border: '1px solid #f0f2f7',
+                      }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#1a1d2e', display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <span style={{
+                            fontSize: 9, fontWeight: 800, padding: '1px 5px', borderRadius: 4,
+                            background: r.stageId === 'Secondary' ? '#eef2ff' : r.stageId === 'Intermediate' ? '#f0fdf4' : '#fffbeb',
+                            color: r.stageId === 'Secondary' ? '#4f46e5' : r.stageId === 'Intermediate' ? '#16a34a' : '#d97706',
+                          }}>{r.stageName}</span>
+                          <span>{r.gradeName}</span>
+                        </div>
+                        {r.sections.map((s, si) => {
+                          const isNull = s.count === null;
+                          const isZero = s.count === 0;
+                          const hasAbsence = s.count !== null && s.count > 0;
+                          return (
+                            <div key={si} style={{
+                              textAlign: 'center', padding: '5px 0', borderRadius: 8,
+                              background: isNull ? '#f1f5f9' : isZero ? '#ecfdf5' : '#fef2f2',
+                              border: `1px solid ${isNull ? '#e2e8f0' : isZero ? '#bbf7d0' : '#fecaca'}`,
+                              fontSize: 13, fontWeight: 800,
+                              color: isNull ? '#cbd5e1' : isZero ? '#16a34a' : '#dc2626',
+                              transition: 'all .15s ease',
+                            }}>
+                              {hasAbsence ? s.count : isZero ? '0' : '—'}
+                            </div>
+                          );
+                        })}
+                        {Array.from({ length: maxSections - r.sections.length }).map((_, i) => (
+                          <div key={`e${i}`} />
+                        ))}
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            );
+          })()}
+          {(() => {
+            const totalStudents = data.students?.total || 0;
+            const todayAbsence = curStageStats ? (curStageStats.absence ?? 0) : (data.today?.absence ?? 0);
+            const attendPct = totalStudents > 0 ? Math.round(((totalStudents - todayAbsence) / totalStudents) * 100) : 100;
+            const pctColor = attendPct >= 95 ? '#22c55e' : attendPct >= 90 ? '#f59e0b' : '#ef4444';
+            return (
+              <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 10, background: attendPct >= 95 ? '#ecfdf5' : attendPct >= 90 ? '#fffbeb' : '#fef2f2', border: `1px solid ${attendPct >= 95 ? '#bbf7d0' : attendPct >= 90 ? '#fef3c7' : '#fecaca'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>نسبة الحضور</span>
+                <span style={{ fontSize: 18, fontWeight: 900, color: pctColor }}>{attendPct}%</span>
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* ═══════ Row 5: التقويم + تحويلات المعلمين ═══════ */}
       <div className="dash-row5" style={{ marginBottom: 20 }}>
         <CalendarCard />
-
         {/* تحويلات المعلمين */}
         <div style={{ background: '#fff', borderRadius: 16, padding: 16, border: '1px solid #f0f2f7', display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1d2e', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -483,91 +602,12 @@ const DashboardPage: React.FC = () => {
             })}
           </div>
         </div>
-
-        {/* متابعة إدخال الغياب */}
-        <div style={cardStyle}>
-          <h3 style={{ ...cardTitleStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f97316' }}>fact_check</span> متابعة إدخال الغياب
-          </h3>
-          {(() => {
-            const absData = data.absenceByClass || [];
-            const lookup: Record<string, number> = {};
-            absData.forEach(a => { lookup[`${a.stage}|${a.grade}|${a.className}`] = a.count; });
-            const SECTION_NAMES = ['أ', 'ب', 'ج', 'د'];
-            const targetStages = stageFilter ? enabledStages.filter(s => s.stage === stageFilter) : enabledStages;
-            if (targetStages.length === 0) {
-              return <div style={{ textAlign: 'center', padding: 16, color: '#9da3b8', fontSize: 12 }}>لا توجد مراحل مفعّلة</div>;
-            }
-            const rows: { stageId: string; stageName: string; gradeName: string; sections: { name: string; count: number | null }[] }[] = [];
-            for (const st of targetStages) {
-              const stgName = STAGE_ABBR[st.stage] || st.stage;
-              for (const g of st.grades.filter(gr => gr.isEnabled && gr.classCount > 0)) {
-                const secs: { name: string; count: number | null }[] = [];
-                for (let c = 0; c < g.classCount; c++) {
-                  const secName = SECTION_NAMES[c] || String(c + 1);
-                  const key = `${st.stage}|${g.gradeName}|${secName}`;
-                  const found = lookup[key];
-                  secs.push({ name: secName, count: found !== undefined ? found : null });
-                }
-                rows.push({ stageId: st.stage, stageName: stgName, gradeName: g.gradeName, sections: secs });
-              }
-            }
-            if (rows.length === 0) {
-              return <div style={{ textAlign: 'center', padding: 16, color: '#9da3b8', fontSize: 12 }}>لا توجد بيانات</div>;
-            }
-            const maxSections = Math.max(...rows.map(r => r.sections.length));
-            return (
-              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 3px' }}>
-                <thead>
-                  <tr>
-                    <th style={{ fontSize: 10, fontWeight: 800, color: '#9da3b8', padding: '2px 4px', textAlign: 'right', width: 70 }}></th>
-                    {SECTION_NAMES.slice(0, maxSections).map(s => (
-                      <th key={s} style={{ fontSize: 11, fontWeight: 800, color: '#9da3b8', padding: '2px 4px', textAlign: 'center' }}>{s}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, ri) => (
-                    <tr key={ri}>
-                      <td style={{ fontSize: 10, fontWeight: 700, color: '#475569', padding: '3px 4px' }}>
-                        <span style={{ fontSize: 8, fontWeight: 800, color: '#9da3b8', marginLeft: 2 }}>{r.stageName}</span> {r.gradeName}
-                      </td>
-                      {r.sections.map((s, si) => {
-                        const bg = s.count === null ? '#f8fafc' : s.count === 0 ? '#f0fdf4' : '#fef2f2';
-                        const clr = s.count === null ? '#d1d5db' : s.count === 0 ? '#22c55e' : '#dc2626';
-                        return (
-                          <td key={si} style={{ textAlign: 'center', padding: '4px 2px' }}>
-                            <div style={{ background: bg, borderRadius: 6, padding: '3px 0', fontSize: 12, fontWeight: 800, color: clr }}>
-                              {s.count !== null ? s.count : '—'}
-                            </div>
-                          </td>
-                        );
-                      })}
-                      {Array.from({ length: maxSections - r.sections.length }).map((_, i) => (
-                        <td key={`e${i}`} />
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            );
-          })()}
-          {(() => {
-            const totalStudents = data.students?.total || 0;
-            const todayAbsence = curStageStats ? (curStageStats.absence ?? 0) : (data.today?.absence ?? 0);
-            const attendPct = totalStudents > 0 ? Math.round(((totalStudents - todayAbsence) / totalStudents) * 100) : 100;
-            const pctColor = attendPct >= 95 ? '#22c55e' : attendPct >= 90 ? '#f59e0b' : '#ef4444';
-            return (
-              <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 10, fontWeight: 600, color: '#9da3b8' }}>نسبة الحضور</span>
-                <span style={{ fontSize: 16, fontWeight: 900, color: pctColor }}>{attendPct}%</span>
-              </div>
-            );
-          })()}
-        </div>
       </div>
 
-      {/* ═══════ Row 6: يحتاج توثيق (يظهر دائماً) ═══════ */}
+      {/* ═══════ Row 6: الخط الزمني ═══════ */}
+      <SemesterTimeline semIdx={timelineSem} onSwitch={setTimelineSem} />
+
+      {/* ═══════ Row 7: يحتاج توثيق ═══════ */}
       <div style={cardStyle}>
         <h3 style={{ ...cardTitleStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ef4444' }}>print</span>
@@ -630,6 +670,7 @@ const AttentionCard: React.FC<{ icon: string; title: string; count: number; colo
 );
 
 const SemesterTimeline: React.FC<{ semIdx: number; onSwitch: (idx: number) => void }> = ({ semIdx, onSwitch }) => {
+  const [hoveredEvent, setHoveredEvent] = useState<number | null>(null);
   const sem = SEMESTER_DATES[semIdx];
   const now = new Date();
   const start = new Date(sem.start[0], sem.start[1], sem.start[2]);
@@ -640,112 +681,136 @@ const SemesterTimeline: React.FC<{ semIdx: number; onSwitch: (idx: number) => vo
   const remaining = isCurrent ? Math.ceil((end.getTime() - now.getTime()) / 86400000) : 0;
   const holidayWeeks = new Set(sem.events.filter(e => e.type === 'holiday').map(e => e.week));
   const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-
   const nextEvt = isCurrent ? sem.events.find(e => e.week >= curWeek) : null;
+  const isHol = (type: string) => type === 'holiday';
 
   return (
-    <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', border: '1px solid #f0f2f7', boxShadow: '0 1px 3px rgba(0,0,0,.05)', marginBottom: 20 }}>
+    <div style={{ background: '#fff', borderRadius: 16, padding: '20px 24px', border: '1px solid #f0f2f7', boxShadow: '0 1px 3px rgba(0,0,0,.05)', marginBottom: 20 }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1d2e', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#4f46e5' }}>timeline</span> الخط الزمني
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'white' }}>timeline</span>
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1d2e' }}>الخط الزمني</div>
+            <div style={{ fontSize: 10, color: '#9da3b8', fontWeight: 600 }}>{sem.name}</div>
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 600, color: '#9da3b8' }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />وطنية</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 600, color: '#9da3b8' }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444' }} />إجازة</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 600, color: '#9da3b8' }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6366f1' }} />مناسبة</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: '#64748b' }}>
+              <span style={{ width: 8, height: 8, borderRadius: 3, background: '#ef4444' }} /> إجازة
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: '#64748b' }}>
+              <span style={{ width: 8, height: 8, borderRadius: 3, background: '#4f46e5' }} /> مناسبة
+            </span>
           </div>
           <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 8, padding: 3 }}>
             {[0, 1].map(idx => (
               <button key={idx} onClick={() => onSwitch(idx)} style={{
-                padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none',
+                padding: '5px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none',
                 background: semIdx === idx ? '#4f46e5' : 'transparent',
                 color: semIdx === idx ? 'white' : '#64748b',
                 boxShadow: semIdx === idx ? '0 2px 6px rgba(79,70,229,.25)' : 'none',
+                transition: 'all .2s ease',
               }}>{idx === 0 ? 'الأول' : 'الثاني'}</button>
             ))}
           </div>
         </div>
       </div>
 
+      {/* Stats pills */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 10, background: '#f0f0ff', border: '1px solid #e0e0ff' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#6366f1' }}>الأسبوع</span>
+          <span style={{ fontSize: 13, fontWeight: 900, color: '#4f46e5' }}>{curWeek}/{sem.weeks}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 10, background: '#ecfdf5', border: '1px solid #d1fae5' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#059669' }}>مضى</span>
+          <span style={{ fontSize: 13, fontWeight: 900, color: '#059669' }}>{pct}%</span>
+        </div>
+        {remaining > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 10, background: '#fffbeb', border: '1px solid #fef3c7' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#d97706' }}>باقي</span>
+            <span style={{ fontSize: 13, fontWeight: 900, color: '#d97706' }}>{remaining} يوم</span>
+          </div>
+        )}
+        {nextEvt && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 10, background: isHol(nextEvt.type) ? '#fef2f2' : '#f0f0ff', border: `1px solid ${isHol(nextEvt.type) ? '#fecaca' : '#e0e0ff'}` }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: isHol(nextEvt.type) ? '#dc2626' : '#4f46e5' }}>القادم</span>
+            <span style={{ fontSize: 13, fontWeight: 900, color: isHol(nextEvt.type) ? '#dc2626' : '#4f46e5' }}>{nextEvt.label}</span>
+          </div>
+        )}
+      </div>
+
       {/* Timeline bar */}
-      <div style={{ position: 'relative', paddingTop: 40 }}>
-        {/* Needle */}
+      <div style={{ position: 'relative', paddingTop: 44 }}>
+        {/* Current week needle */}
         {isCurrent && (
-          <div style={{ position: 'absolute', top: -2, right: `${((curWeek - 0.5) / sem.weeks) * 100}%`, transform: 'translateX(50%)', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'right .6s ease' }}>
-            <div style={{ background: '#4f46e5', color: 'white', padding: '3px 10px', borderRadius: 8, fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap', boxShadow: '0 3px 10px rgba(79,70,229,.35)', position: 'relative' }}>
+          <div style={{ position: 'absolute', top: 0, right: `${((curWeek - 0.5) / sem.weeks) * 100}%`, transform: 'translateX(50%)', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'right .6s ease' }}>
+            <div style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', padding: '4px 12px', borderRadius: 10, fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(79,70,229,.35)', position: 'relative' }}>
               الأسبوع {curWeek} · {dayNames[now.getDay()]}
-              <div style={{ position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 8, height: 8, background: '#4f46e5', borderRadius: 1 }} />
+              <div style={{ position: 'absolute', bottom: -5, left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 10, height: 10, background: '#5b52e8', borderRadius: 2 }} />
             </div>
-            <div style={{ width: 2, height: 34, background: '#4f46e5', marginTop: 2, borderRadius: 1, boxShadow: '0 0 6px rgba(79,70,229,.3)' }} />
-            <div style={{ width: 8, height: 8, background: '#4f46e5', border: '2px solid white', borderRadius: '50%', boxShadow: '0 0 6px rgba(79,70,229,.4)', marginTop: -1 }} />
+            <div style={{ width: 2, height: 30, background: 'linear-gradient(to bottom, #4f46e5, #7c3aed)', marginTop: 3, borderRadius: 1 }} />
+            <div style={{ width: 10, height: 10, background: '#4f46e5', border: '3px solid white', borderRadius: '50%', boxShadow: '0 0 0 2px #4f46e5, 0 2px 8px rgba(79,70,229,.4)', marginTop: -1 }} />
           </div>
         )}
 
         {/* Progress bar */}
-        <div style={{ position: 'relative', height: 30, background: '#f1f5f9', borderRadius: 15, overflow: 'visible' }}>
-          <div style={{ height: '100%', background: 'linear-gradient(90deg,#4f46e5,#8b5cf6)', borderRadius: 15, position: 'absolute', top: 0, right: 0, width: `${pct}%`, transition: 'width .6s ease', zIndex: 1 }} />
+        <div style={{ position: 'relative', height: 36, background: '#f1f5f9', borderRadius: 18, overflow: 'visible' }}>
+          <div style={{ height: '100%', background: 'linear-gradient(90deg, #4f46e5, #7c3aed, #8b5cf6)', borderRadius: 18, position: 'absolute', top: 0, right: 0, width: `${pct}%`, transition: 'width .8s cubic-bezier(.4,0,.2,1)', zIndex: 1 }} />
           <div style={{ display: 'flex', width: '100%', position: 'relative', zIndex: 2 }}>
             {Array.from({ length: sem.weeks }, (_, i) => i + 1).map(w => {
               const cls = isCurrent ? (w > curWeek ? 'future' : w === curWeek ? 'current' : 'passed') : (now < start ? 'future' : 'passed');
-              const isHol = holidayWeeks.has(w);
-              let clr = cls === 'current' ? 'white' : cls === 'passed' ? 'rgba(255,255,255,.7)' : '#94a3b8';
-              let bg = isHol ? (cls === 'future' ? 'rgba(239,68,68,.1)' : 'rgba(239,68,68,.2)') : 'transparent';
-              let rad = w === 1 ? '0 15px 15px 0' : (w === sem.weeks ? '15px 0 0 15px' : undefined);
+              const wIsHol = holidayWeeks.has(w);
+              const clr = cls === 'current' ? 'white' : cls === 'passed' ? 'rgba(255,255,255,.8)' : '#94a3b8';
+              const bg = wIsHol ? (cls === 'future' ? '#fef2f2' : 'rgba(239,68,68,.15)') : 'transparent';
+              const rad = w === 1 ? '0 18px 18px 0' : (w === sem.weeks ? '18px 0 0 18px' : undefined);
               return (
                 <div key={w} style={{
-                  flex: 1, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 9, fontWeight: cls === 'current' ? 900 : 700, color: clr, background: bg,
-                  borderLeft: w < sem.weeks ? `1px solid ${cls === 'future' ? '#e2e8f0' : 'rgba(255,255,255,.12)'}` : undefined,
-                  borderRadius: rad,
+                  flex: 1, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: cls === 'current' ? 900 : 600, color: clr, background: bg,
+                  borderLeft: w < sem.weeks ? `1px solid ${cls === 'future' ? '#e2e8f0' : 'rgba(255,255,255,.15)'}` : undefined,
+                  borderRadius: rad, transition: 'background .3s ease',
                 }}>{w}</div>
               );
             })}
           </div>
         </div>
-
-        {/* Events dots */}
-        <div style={{ position: 'relative', height: 24, marginTop: 4 }}>
-          {sem.events.map((ev, i) => {
-            const ePct = ((ev.week - 0.5) / sem.weeks) * 100;
-            const ec = ev.type === 'national' ? '#10b981' : ev.type === 'holiday' ? '#ef4444' : '#6366f1';
-            return (
-              <div key={i} style={{ position: 'absolute', top: 2, right: `${ePct}%`, transform: 'translateX(50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 3 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: ec, boxShadow: `0 0 0 2px ${ec}33`, flexShrink: 0 }} />
-                <div style={{ fontSize: 7, fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap', marginTop: 1, maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.label}</div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Week labels */}
-        <div style={{ display: 'flex', width: '100%' }}>
-          {Array.from({ length: sem.weeks }, (_, i) => i + 1).map(w => (
-            <div key={w} style={{ flex: 1, textAlign: 'center', fontSize: 8, fontWeight: w === curWeek && isCurrent ? 800 : 600, color: w === curWeek && isCurrent ? '#4f46e5' : '#94a3b8' }}>
-              س{w}
-            </div>
-          ))}
-        </div>
       </div>
 
-      {/* Summary */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTop: '1px solid #f0f2f7', flexWrap: 'wrap', gap: 6 }}>
-        <SumItem color="#4f46e5" label="الأسبوع" value={`${curWeek} / ${sem.weeks}`} />
-        <SumItem color="#10b981" label="مضى" value={`${pct}%`} />
-        <SumItem color="#f59e0b" label="باقي" value={`${remaining} يوم`} />
-        {nextEvt && <SumItem color={nextEvt.type === 'national' ? '#10b981' : nextEvt.type === 'holiday' ? '#ef4444' : '#6366f1'} label="القادم" value={nextEvt.label} />}
+      {/* Events as labeled pills */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 14, justifyContent: 'center' }}>
+        {sem.events.map((ev, i) => {
+          const evIsHol = isHol(ev.type);
+          const hovered = hoveredEvent === i;
+          return (
+            <div
+              key={i}
+              onMouseEnter={() => setHoveredEvent(i)}
+              onMouseLeave={() => setHoveredEvent(null)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '5px 12px', borderRadius: 8,
+                background: hovered ? (evIsHol ? '#fef2f2' : '#f0f0ff') : (evIsHol ? '#fff5f5' : '#fafaff'),
+                border: `1px solid ${evIsHol ? '#fecaca' : '#e8e8ff'}`,
+                cursor: 'default', transition: 'all .2s ease',
+                transform: hovered ? 'translateY(-1px)' : 'none',
+                boxShadow: hovered ? `0 4px 12px ${evIsHol ? 'rgba(239,68,68,.12)' : 'rgba(79,70,229,.12)'}` : 'none',
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: evIsHol ? '#ef4444' : '#4f46e5', flexShrink: 0 }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: evIsHol ? '#dc2626' : '#4338ca', whiteSpace: 'nowrap' }}>{ev.label}</span>
+              <span style={{ fontSize: 9, fontWeight: 600, color: '#9da3b8', whiteSpace: 'nowrap' }}>س{ev.week}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 };
-
-const SumItem: React.FC<{ color: string; label: string; value: string }> = ({ color, label, value }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: '#64748b' }}>
-    <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
-    {label}: <span style={{ fontWeight: 800, color: '#1a1d2e' }}>{value}</span>
-  </div>
-);
 
 const CalendarCard: React.FC = () => {
   const now = new Date();
@@ -826,7 +891,7 @@ const PrintItem: React.FC<{ item: NeedsPrintItem; onDismiss?: () => void }> = ({
       {expanded && (
         <div style={{ padding: '6px 10px 8px', borderTop: '1px solid #e8ebf2', fontSize: 10, color: '#475569' }}>
           <div style={{ marginBottom: 4 }}><strong>التفاصيل:</strong> {item.detail}</div>
-          <div style={{ marginBottom: 4 }}><strong>الفصل:</strong> {item.grade} {item.cls}</div>
+          <div style={{ marginBottom: 4 }}><strong>الفصل:</strong> {item.grade} {classToLetter(item.cls)}</div>
           {item.date && <div style={{ marginBottom: 4 }}><strong>التاريخ:</strong> {item.date}</div>}
           {item.neededForms && item.neededForms.length > 0 && (
             <div style={{ marginBottom: 4, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -873,27 +938,39 @@ const PeriodCard: React.FC<{ stageFilter: string }> = ({ stageFilter }) => {
   const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
   const effectiveStageFilter = showStage || (stageFilter === 'Secondary' ? 'ث' : stageFilter === 'Intermediate' ? 'م' : '');
-  const scheduleRows = isSchoolDay ? getScheduleForPeriod(dayIdx, activePeriod, effectiveStageFilter || undefined) : [];
+  const scheduleRows = isSchoolDay ? getScheduleForPeriod(dayIdx, activePeriod, effectiveStageFilter || undefined).sort((a, b) => {
+    const stageOrder: Record<string, number> = { 'م': 0, 'ث': 1 };
+    const sA = stageOrder[a[3]] ?? 2, sB = stageOrder[b[3]] ?? 2;
+    if (sA !== sB) return sA - sB;
+    const gA = parseInt(a[1]) || 0, gB = parseInt(b[1]) || 0;
+    if (gA !== gB) return gA - gB;
+    const secA = a[1].split('-')[1] || '', secB = b[1].split('-')[1] || '';
+    return secA.localeCompare(secB, 'ar');
+  }) : [];
 
   const nextEvt = getNextEvent();
   const ramadan = isRamadan();
 
   return (
-    <div style={{ background: '#fff', borderRadius: 16, padding: 16, border: '1px solid #f0f2f7', boxShadow: '0 1px 3px rgba(0,0,0,.05)' }}>
+    <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', border: '1px solid #f0f2f7', boxShadow: '0 1px 3px rgba(0,0,0,.05)' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1d2e', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#4f46e5' }}>schedule</span>
-          الحصة الحالية — {dayNames[dayIdx]}
-          {ramadan && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 100, background: '#fffbeb', color: '#d97706' }}><span className="material-symbols-outlined" style={{ fontSize: '11px', verticalAlign: 'middle' }}>dark_mode</span> رمضان</span>}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'white' }}>schedule</span>
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1d2e' }}>الحصة الحالية — {dayNames[dayIdx]}</div>
+            {ramadan && <div style={{ fontSize: 9, fontWeight: 700, color: '#d97706', display: 'flex', alignItems: 'center', gap: 2, marginTop: 1 }}><span className="material-symbols-outlined" style={{ fontSize: 11 }}>dark_mode</span> توقيت رمضان</div>}
+          </div>
         </div>
-        {/* Stage toggle */}
         <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 8, padding: 3 }}>
           {['', 'م', 'ث'].map(s => (
             <button key={s} onClick={() => setShowStage(s)} style={{
-              padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', border: 'none',
+              padding: '5px 12px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', border: 'none',
               background: showStage === s ? '#4f46e5' : 'transparent',
               color: showStage === s ? 'white' : '#64748b',
+              transition: 'all .2s ease',
             }}>{s === '' ? 'الكل' : s === 'م' ? 'متوسط' : 'ثانوي'}</button>
           ))}
         </div>
@@ -907,60 +984,62 @@ const PeriodCard: React.FC<{ stageFilter: string }> = ({ stageFilter }) => {
         </div>
       ) : (
         <>
-          {/* Period selector */}
-          <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
+          {/* Period selector - full-width grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${periods.length}, 1fr)`, gap: 4, marginBottom: 14 }}>
             {periods.map(p => {
               const isCur = currentPeriod?.p === p.p && selectedPeriod === null;
               const isSelected = activePeriod === p.p;
               return (
                 <button key={p.p} onClick={() => setSelectedPeriod(p.p === selectedPeriod ? null : p.p)} style={{
-                  padding: '5px 10px', borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: 'pointer',
-                  border: isSelected ? '2px solid #4f46e5' : '1px solid #e2e8f0',
-                  background: isCur ? 'linear-gradient(135deg,#4f46e5,#8b5cf6)' : isSelected ? '#eef2ff' : '#fff',
+                  padding: '8px 4px', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: 'pointer',
+                  border: isSelected && !isCur ? '2px solid #4f46e5' : '1px solid #e2e8f0',
+                  background: isCur ? 'linear-gradient(135deg,#4f46e5,#8b5cf6)' : isSelected ? '#eef2ff' : '#fafbfc',
                   color: isCur ? 'white' : isSelected ? '#4f46e5' : '#475569',
-                  position: 'relative',
+                  transition: 'all .2s ease',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
                 }}>
                   {p.p}
-                  <div style={{ fontSize: 8, color: isCur ? 'rgba(255,255,255,.8)' : '#94a3b8', marginTop: 1 }}>{p.s}</div>
-                  {isCur && <div style={{ fontSize: 8, marginTop: 1 }}>{getTimeRemaining(p)}</div>}
+                  <div style={{ fontSize: 9, color: isCur ? 'rgba(255,255,255,.7)' : '#94a3b8', fontWeight: 600 }}>{p.s}</div>
+                  {isCur && <div style={{ fontSize: 8, fontWeight: 700 }}>{getTimeRemaining(p)}</div>}
                 </button>
               );
             })}
           </div>
 
-          {/* Schedule table */}
+          {/* Schedule - card rows */}
           {scheduleRows.length > 0 ? (
-            <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                    <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 800, color: '#64748b', fontSize: 10 }}>المعلم</th>
-                    <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 800, color: '#64748b', fontSize: 10 }}>الفصل</th>
-                    <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 800, color: '#64748b', fontSize: 10 }}>المادة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scheduleRows.map((row, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '5px 6px', fontWeight: 600, color: '#1a1d2e' }}>{row[0]}</td>
-                      <td style={{ padding: '5px 6px', textAlign: 'center' }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 100, background: row[3] === 'ث' ? '#eef2ff' : '#f0fdf4', color: row[3] === 'ث' ? '#4f46e5' : '#16a34a' }}>{row[1]}</span>
-                      </td>
-                      <td style={{ padding: '5px 6px', color: '#475569' }}>{row[2]}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {scheduleRows.map((row, i) => {
+                const isSec = row[3] === 'ث';
+                return (
+                  <div key={i} style={{
+                    display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8,
+                    padding: '8px 12px', borderRadius: 10,
+                    background: i % 2 === 0 ? '#fafbfc' : '#fff',
+                    border: '1px solid #f0f2f7',
+                    transition: 'background .15s ease',
+                  }}>
+                    <div style={{ fontWeight: 700, fontSize: 12, color: '#1a1d2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row[0]}</div>
+                    <span style={{
+                      fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 8,
+                      background: isSec ? '#eef2ff' : '#f0fdf4',
+                      color: isSec ? '#4f46e5' : '#16a34a',
+                      whiteSpace: 'nowrap', textAlign: 'center',
+                    }}>{row[1]}</span>
+                    <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row[2]}</div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div style={{ textAlign: 'center', padding: 16, color: '#9da3b8', fontSize: 11 }}>لا توجد حصص</div>
           )}
 
-          {/* Current period info */}
+          {/* Current period footer */}
           {currentPeriod && (
-            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f2f7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: '#64748b' }}>
-              <span>الحصة {currentPeriod.p}: {currentPeriod.s} — {currentPeriod.e}</span>
-              <span style={{ fontWeight: 800, color: '#4f46e5' }}>{getTimeRemaining(currentPeriod)}</span>
+            <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: '#f8f7ff', border: '1px solid #ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: '#64748b' }}>
+              <span style={{ fontWeight: 600 }}>الحصة {currentPeriod.p}: {currentPeriod.s} — {currentPeriod.e}</span>
+              <span style={{ fontWeight: 800, color: '#4f46e5', fontSize: 12 }}>{getTimeRemaining(currentPeriod)}</span>
             </div>
           )}
         </>
@@ -969,20 +1048,8 @@ const PeriodCard: React.FC<{ stageFilter: string }> = ({ stageFilter }) => {
   );
 };
 
-const MiniStat: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => (
-  <div style={{ background: '#fff', borderRadius: 16, padding: 16, border: '1px solid #e5e7eb', textAlign: 'center' }}>
-    <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{label}</div>
-    <div style={{ fontSize: 24, fontWeight: 800, color }}>{value}</div>
-  </div>
-);
-
 // ═══════ Styles ═══════
 const cardStyle: React.CSSProperties = { background: '#fff', borderRadius: 16, padding: 20, border: '1px solid #e5e7eb' };
 const cardTitleStyle: React.CSSProperties = { fontSize: 14, fontWeight: 800, color: '#111', margin: '0 0 12px' };
-const filterBtn = (active: boolean): React.CSSProperties => ({
-  padding: '6px 14px', borderRadius: 12, border: active ? '2px solid #4f46e5' : '2px solid #e8ebf2',
-  background: active ? '#eef2ff' : '#fff', color: active ? '#4f46e5' : '#374151',
-  fontWeight: active ? 700 : 400, fontSize: 12, cursor: 'pointer',
-});
 
 export default DashboardPage;

@@ -14,7 +14,8 @@ public class StaffInputController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IHijriDateService _hijri;
-    public StaffInputController(AppDbContext db, IHijriDateService hijri) { _db = db; _hijri = hijri; }
+    private readonly ISemesterService _semesterSvc;
+    public StaffInputController(AppDbContext db, IHijriDateService hijri, ISemesterService semesterSvc) { _db = db; _hijri = hijri; _semesterSvc = semesterSvc; }
 
     // ── 1. Verify staff token ──
     [HttpGet("public/verify")]
@@ -23,13 +24,19 @@ public class StaffInputController : ControllerBase
         if (string.IsNullOrEmpty(token))
             return BadRequest(ApiResponse<object>.Fail("الرمز مطلوب"));
 
-        var user = await _db.Users
+        // ★ تجاوز فلتر TenantId — الرابط العام ليس فيه JWT
+        var user = await _db.Users.IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.TokenLink == token && u.IsActive);
 
         if (user == null)
             return NotFound(ApiResponse<object>.Fail("رابط غير صالح أو المستخدم غير فعال"));
 
-        var schoolSettings = await _db.SchoolSettings.FirstOrDefaultAsync();
+        // ★ تعيين TenantId للسجلات الجديدة
+        var userTenantId = user.TenantId;
+        HttpContext.Items["OverrideTenantId"] = userTenantId;
+
+        var schoolSettings = await _db.SchoolSettings.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(s => s.TenantId == userTenantId);
 
         // Determine staff permissions based on role
         var role = user.Role.ToString();
@@ -37,9 +44,9 @@ public class StaffInputController : ControllerBase
         var permissions = GetStaffPermissions(user.Role);
 
         // ★ gradeMap: مطابق للأصلي — كل مرحلة → قائمة أسماء الصفوف
-        var stageConfigs = await _db.StageConfigs
+        var stageConfigs = await _db.StageConfigs.IgnoreQueryFilters()
             .Include(sc => sc.Grades)
-            .Where(sc => sc.IsEnabled)
+            .Where(sc => sc.TenantId == userTenantId && sc.IsEnabled)
             .ToListAsync();
 
         // ★ فلترة بحسب المرحلة المسندة للمستخدم
@@ -89,16 +96,20 @@ public class StaffInputController : ControllerBase
         if (string.IsNullOrEmpty(token))
             return BadRequest(ApiResponse<object>.Fail("الرمز مطلوب"));
 
-        var user = await _db.Users
+        // ★ تجاوز فلتر TenantId — الرابط العام ليس فيه JWT
+        var user = await _db.Users.IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.TokenLink == token && u.IsActive);
 
         if (user == null)
             return NotFound(ApiResponse<object>.Fail("رابط غير صالح"));
 
+        var userTenantId = user.TenantId;
+        HttpContext.Items["OverrideTenantId"] = userTenantId;
+
         // Get enabled stages from config
-        var stageConfigs = await _db.StageConfigs
+        var stageConfigs = await _db.StageConfigs.IgnoreQueryFilters()
             .Include(sc => sc.Grades)
-            .Where(sc => sc.IsEnabled)
+            .Where(sc => sc.TenantId == userTenantId && sc.IsEnabled)
             .ToListAsync();
 
         // ★ فلترة بحسب المرحلة المسندة للمستخدم
@@ -120,9 +131,9 @@ public class StaffInputController : ControllerBase
             var enabledGrades = new HashSet<string>(
                 sc.Grades.Where(g => g.IsEnabled && g.ClassCount > 0).Select(g => g.GradeName));
 
-            // Get students for this stage
-            var students = await _db.Students
-                .Where(s => s.Stage == stage)
+            // ★ Get students for this stage — تجاوز فلتر TenantId
+            var students = await _db.Students.IgnoreQueryFilters()
+                .Where(s => s.TenantId == userTenantId && s.Stage == stage)
                 .OrderBy(s => s.Grade).ThenBy(s => s.Class).ThenBy(s => s.Name)
                 .Select(s => new { s.Id, s.StudentNumber, s.Name, s.Grade, s.Class, s.Mobile })
                 .ToListAsync();
@@ -162,25 +173,28 @@ public class StaffInputController : ControllerBase
         if (string.IsNullOrEmpty(request.Token))
             return BadRequest(ApiResponse<object>.Fail("الرمز مطلوب"));
 
-        var user = await _db.Users
+        // ★ تجاوز فلتر TenantId
+        var user = await _db.Users.IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.TokenLink == request.Token && u.IsActive);
 
         if (user == null)
             return NotFound(ApiResponse<object>.Fail("رابط غير صالح"));
 
+        HttpContext.Items["OverrideTenantId"] = user.TenantId;
+
         if (request.StudentIds == null || request.StudentIds.Count == 0)
             return BadRequest(ApiResponse<object>.Fail("لم يتم اختيار طلاب"));
 
         var hijriDate = _hijri.GetHijriDate();
-        var students = await _db.Students
-            .Where(s => request.StudentIds.Contains(s.Id))
+        var students = await _db.Students.IgnoreQueryFilters()
+            .Where(s => s.TenantId == user.TenantId && request.StudentIds.Contains(s.Id))
             .ToListAsync();
 
         int saved = 0;
 
         foreach (var student in students)
         {
-            _db.PermissionRecords.Add(new PermissionRecord
+            var permRecord = new PermissionRecord
             {
                 StudentId = student.Id,
                 StudentNumber = student.StudentNumber,
@@ -196,7 +210,11 @@ public class StaffInputController : ControllerBase
                 HijriDate = hijriDate,
                 RecordedBy = user.Name,
                 RecordedAt = DateTime.UtcNow
-            });
+            };
+            var (sem, yr) = await _semesterSvc.GetCurrentAsync();
+            permRecord.Semester = sem;
+            permRecord.AcademicYear = yr;
+            _db.PermissionRecords.Add(permRecord);
             saved++;
         }
 
@@ -222,25 +240,28 @@ public class StaffInputController : ControllerBase
         if (string.IsNullOrEmpty(request.Token))
             return BadRequest(ApiResponse<object>.Fail("الرمز مطلوب"));
 
-        var user = await _db.Users
+        // ★ تجاوز فلتر TenantId
+        var user = await _db.Users.IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.TokenLink == request.Token && u.IsActive);
 
         if (user == null)
             return NotFound(ApiResponse<object>.Fail("رابط غير صالح"));
 
+        HttpContext.Items["OverrideTenantId"] = user.TenantId;
+
         if (request.StudentIds == null || request.StudentIds.Count == 0)
             return BadRequest(ApiResponse<object>.Fail("لم يتم اختيار طلاب"));
 
         var hijriDate = _hijri.GetHijriDate();
-        var students = await _db.Students
-            .Where(s => request.StudentIds.Contains(s.Id))
+        var students = await _db.Students.IgnoreQueryFilters()
+            .Where(s => s.TenantId == user.TenantId && request.StudentIds.Contains(s.Id))
             .ToListAsync();
 
         int saved = 0;
 
         foreach (var student in students)
         {
-            _db.TardinessRecords.Add(new TardinessRecord
+            var tardRecord = new TardinessRecord
             {
                 StudentId = student.Id,
                 StudentNumber = student.StudentNumber,
@@ -254,7 +275,11 @@ public class StaffInputController : ControllerBase
                 HijriDate = hijriDate,
                 RecordedBy = user.Name,
                 RecordedAt = DateTime.UtcNow
-            });
+            };
+            var (sem2, yr2) = await _semesterSvc.GetCurrentAsync();
+            tardRecord.Semester = sem2;
+            tardRecord.AcademicYear = yr2;
+            _db.TardinessRecords.Add(tardRecord);
             saved++;
         }
 
@@ -281,14 +306,18 @@ public class StaffInputController : ControllerBase
         if (string.IsNullOrEmpty(token))
             return BadRequest(ApiResponse<object>.Fail("الرمز مطلوب"));
 
-        var user = await _db.Users
+        // ★ تجاوز فلتر TenantId
+        var user = await _db.Users.IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.TokenLink == token && u.IsActive && u.Role == UserRole.Guard);
 
         if (user == null)
             return NotFound(ApiResponse<object>.Fail("رابط غير صالح أو ليس حارساً"));
 
+        HttpContext.Items["OverrideTenantId"] = user.TenantId;
+
         var today = DateTime.UtcNow.Date;
-        var query = _db.PermissionRecords.Where(r => r.RecordedAt >= today);
+        var query = _db.PermissionRecords.IgnoreQueryFilters()
+            .Where(r => r.TenantId == user.TenantId && r.RecordedAt >= today);
 
         // ★ فلترة بحسب المرحلة المسندة للحارس
         if (!string.IsNullOrEmpty(user.ScopeValue) && user.ScopeType != "all")
@@ -330,13 +359,17 @@ public class StaffInputController : ControllerBase
         if (string.IsNullOrEmpty(token))
             return BadRequest(ApiResponse<object>.Fail("الرمز مطلوب"));
 
-        var user = await _db.Users
+        // ★ تجاوز فلتر TenantId
+        var user = await _db.Users.IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.TokenLink == token && u.IsActive && u.Role == UserRole.Guard);
 
         if (user == null)
             return NotFound(ApiResponse<object>.Fail("رابط غير صالح أو ليس حارساً"));
 
-        var record = await _db.PermissionRecords.FindAsync(id);
+        HttpContext.Items["OverrideTenantId"] = user.TenantId;
+
+        var record = await _db.PermissionRecords.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(r => r.TenantId == user.TenantId && r.Id == id);
         if (record == null)
             return NotFound(ApiResponse<object>.Fail("السجل غير موجود"));
 
@@ -358,19 +391,23 @@ public class StaffInputController : ControllerBase
         if (string.IsNullOrEmpty(token))
             return BadRequest(ApiResponse<object>.Fail("الرمز مطلوب"));
 
-        var user = await _db.Users
+        // ★ تجاوز فلتر TenantId
+        var user = await _db.Users.IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.TokenLink == token && u.IsActive);
 
         if (user == null)
             return NotFound(ApiResponse<object>.Fail("رابط غير صالح"));
+
+        HttpContext.Items["OverrideTenantId"] = user.TenantId;
 
         var today = DateTime.UtcNow.Date;
 
         // ★ تجميع حسب المرحلة — مطابق للأصلي
         var grouped = new Dictionary<string, List<object>>();
 
-        var permissions = await _db.PermissionRecords
-            .Where(r => r.RecordedAt >= today)
+        var tid = user.TenantId;
+        var permissions = await _db.PermissionRecords.IgnoreQueryFilters()
+            .Where(r => r.TenantId == tid && r.RecordedAt >= today)
             .OrderByDescending(r => r.RecordedAt)
             .Select(r => new { r.StudentName, r.ExitTime, r.Stage })
             .ToListAsync();
@@ -382,8 +419,8 @@ public class StaffInputController : ControllerBase
             grouped[stageArabic].Add(new { name = r.StudentName, type = "استئذان", time = r.ExitTime ?? "" });
         }
 
-        var tardiness = await _db.TardinessRecords
-            .Where(r => r.RecordedAt >= today)
+        var tardiness = await _db.TardinessRecords.IgnoreQueryFilters()
+            .Where(r => r.TenantId == tid && r.RecordedAt >= today)
             .OrderByDescending(r => r.RecordedAt)
             .Select(r => new { r.StudentName, r.Stage })
             .ToListAsync();

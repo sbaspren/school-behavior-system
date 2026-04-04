@@ -194,6 +194,10 @@ export function printDailyReport(
     'ثانوي': 'المرحلة الثانوية',
     'ابتدائي': 'المرحلة الابتدائية',
     'طفولة مبكرة': 'مرحلة الطفولة المبكرة',
+    'Intermediate': 'المرحلة المتوسطة',
+    'Secondary': 'المرحلة الثانوية',
+    'Primary': 'المرحلة الابتدائية',
+    'Kindergarten': 'مرحلة الطفولة المبكرة',
   };
   const stageName = stage ? (STAGE_NAMES[stage] || stage) : '';
 

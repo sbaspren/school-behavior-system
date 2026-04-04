@@ -33,6 +33,7 @@ const TabBar: React.FC<Props> = ({ tabs, activeTab, onTabChange, sectionColor })
     }}>
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
+        const hasBadge = tab.badge !== undefined && tab.badge > 0;
         return (
           <button
             key={tab.id}
@@ -54,7 +55,6 @@ const TabBar: React.FC<Props> = ({ tabs, activeTab, onTabChange, sectionColor })
               border: 'none',
               transition: 'all 0.25s',
               whiteSpace: 'nowrap',
-              position: 'relative',
               fontFamily: 'inherit',
             }}
           >
@@ -69,21 +69,17 @@ const TabBar: React.FC<Props> = ({ tabs, activeTab, onTabChange, sectionColor })
               {tab.icon}
             </span>
             {tab.label}
-            {tab.badge !== undefined && tab.badge > 0 && (
+            {hasBadge && (
               <span style={{
-                position: 'absolute',
-                top: 2,
-                left: 6,
-                background: '#ef4444',
+                background: isActive ? 'rgba(255,255,255,.25)' : '#ef4444',
                 color: '#fff',
-                borderRadius: '50%',
-                width: 18,
-                height: 18,
-                fontSize: 10,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                borderRadius: 8,
+                padding: '2px 8px',
+                fontSize: 11,
+                fontWeight: 800,
+                lineHeight: 1.2,
+                minWidth: 20,
+                textAlign: 'center',
               }}>
                 {tab.badge}
               </span>

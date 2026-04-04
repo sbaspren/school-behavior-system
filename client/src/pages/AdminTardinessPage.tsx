@@ -172,7 +172,7 @@ const AdminTardinessPage: React.FC = () => {
                     <div key={s.id} onClick={() => toggleStudent(s)}
                       style={{ ...S.si, background: on ? '#fff7ed' : '#fff' }}>
                       <div style={{ ...S.ck, background: on ? '#ea580c' : '#fff', borderColor: on ? '#ea580c' : '#d1d5db' }}>
-                        {on && <span style={{ color: '#fff', fontSize: '13px' }}>✓</span>}
+                        {on && <span style={{ color: '#fff', fontSize: '13px' }}><span className="material-symbols-outlined" style={{ fontSize: '13px' }}>check</span></span>}
                       </div>
                       <span style={S.sn}>{s.name}</span>
                       <span style={S.ct}>{s.sec}</span>
@@ -187,7 +187,7 @@ const AdminTardinessPage: React.FC = () => {
               {selected.map(s => (
                 <span key={s.id} style={S.chip}>
                   {shortenName(s.name)} <span style={S.chipC}>({s.sec})</span>
-                  <span style={S.chipX} onClick={e => { e.stopPropagation(); removeStudent(s.id); }}>✕</span>
+                  <span style={S.chipX} onClick={e => { e.stopPropagation(); removeStudent(s.id); }}><span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span></span>
                 </span>
               ))}
             </div>

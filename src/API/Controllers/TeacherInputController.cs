@@ -23,6 +23,7 @@ public class TeacherInputController : ControllerBase
     private readonly IHijriDateService _hijri;
     private readonly IMemoryCache _cache;
     private readonly IConfiguration _config;
+    private readonly ISemesterService _semesterSvc;
 
     public TeacherInputController(
         AppDbContext db,
@@ -30,7 +31,8 @@ public class TeacherInputController : ControllerBase
         IWhatsAppServerService whatsApp,
         IHijriDateService hijri,
         IMemoryCache cache,
-        IConfiguration config)
+        IConfiguration config,
+        ISemesterService semesterSvc)
     {
         _db = db;
         _audit = audit;
@@ -38,6 +40,7 @@ public class TeacherInputController : ControllerBase
         _hijri = hijri;
         _cache = cache;
         _config = config;
+        _semesterSvc = semesterSvc;
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -54,13 +57,17 @@ public class TeacherInputController : ControllerBase
         if (_cache.TryGetValue(cacheKey, out object? cached) && cached != null)
             return Ok(ApiResponse<object>.Ok(cached));
 
-        var teacher = await _db.Teachers
+        // ★ تجاوز فلتر TenantId — الرابط العام ليس فيه JWT
+        var teacher = await _db.Teachers.IgnoreQueryFilters()
             .FirstOrDefaultAsync(t => t.TokenLink == token && t.IsActive);
 
         if (teacher == null)
             return NotFound(ApiResponse<object>.Fail("رابط غير صالح أو منتهي الصلاحية"));
 
-        var schoolSettings = await _db.SchoolSettings.FirstOrDefaultAsync();
+        // ★ جلب إعدادات المدرسة بـ TenantId المعلم (بدون الاعتماد على JWT)
+        var teacherTenantId = teacher.TenantId;
+        var schoolSettings = await _db.SchoolSettings.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(s => s.TenantId == teacherTenantId);
 
         // ★ تحليل فصول المعلم مع دعم التنسيق الجديد "classKey:مادة"
         // مطابق لـ buildTeacherPageData_ سطر 44-59
@@ -124,8 +131,9 @@ public class TeacherInputController : ControllerBase
 
             // ★ جلب طلاب الفصل (مطابق لسطر 120-122)
             // البحث بالحرف الأصلي (أ/ب/ج) أو الرقم (1/2/3) لدعم كلا التنسيقين
-            var students = await _db.Students
-                .Where(s => s.Stage == stage && s.Grade == grade && (s.Class == classNum || s.Class == section))
+            // ★ تجاوز فلتر TenantId + فلتر يدوي بـ TenantId المعلم
+            var students = await _db.Students.IgnoreQueryFilters()
+                .Where(s => s.TenantId == teacherTenantId && s.Stage == stage && s.Grade == grade && (s.Class == classNum || s.Class == section))
                 .OrderBy(s => s.Name)
                 .Select(s => new { i = s.StudentNumber, n = s.Name, p = s.Mobile })
                 .ToListAsync();
@@ -158,28 +166,33 @@ public class TeacherInputController : ControllerBase
         if (string.IsNullOrEmpty(request.Token))
             return BadRequest(ApiResponse<object>.Fail("الرمز مطلوب"));
 
-        var teacher = await _db.Teachers
+        // ★ تجاوز فلتر TenantId — الرابط العام ليس فيه JWT
+        var teacher = await _db.Teachers.IgnoreQueryFilters()
             .FirstOrDefaultAsync(t => t.TokenLink == request.Token && t.IsActive);
 
         // ★ إذا لم يُوجد في المعلمين، ابحث في المستخدمين (الوكيل/المرشد)
         if (teacher == null)
         {
-            var user = await _db.Users
+            var user = await _db.Users.IgnoreQueryFilters()
                 .FirstOrDefaultAsync(u => u.TokenLink == request.Token && u.IsActive);
             if (user == null)
                 return NotFound(ApiResponse<object>.Fail("رابط غير صالح"));
             // إنشاء كائن معلم وهمي للتوافق مع بقية الكود
-            teacher = new Teacher { Id = 0, Name = user.Name, TokenLink = user.TokenLink, IsActive = true };
+            teacher = new Teacher { Id = 0, Name = user.Name, TokenLink = user.TokenLink, IsActive = true, TenantId = user.TenantId };
         }
+
+        // ★ تعيين TenantId للسجلات الجديدة — بدون JWT، SaveChangesAsync يحتاج override
+        HttpContext.Items["OverrideTenantId"] = teacher.TenantId;
 
         var stage = DetectStage(request.ClassName);
         // ★ fallback: استخدام request.Stage إذا لم تُكشف من اسم الفصل (حالة الوكيل/المرشد)
         if (stage == null && !string.IsNullOrEmpty(request.Stage))
         {
-            if (request.Stage.Contains("متوسط")) stage = Stage.Intermediate;
-            else if (request.Stage.Contains("ثانوي")) stage = Stage.Secondary;
-            else if (request.Stage.Contains("ابتدائي")) stage = Stage.Primary;
-            else if (request.Stage.Contains("طفولة") || request.Stage.Contains("روضة")) stage = Stage.Kindergarten;
+            // ★ يدعم الأسماء العربية والإنجليزية + Enum parsing
+            if (request.Stage.Contains("متوسط") || request.Stage.Equals("Intermediate", StringComparison.OrdinalIgnoreCase)) stage = Stage.Intermediate;
+            else if (request.Stage.Contains("ثانوي") || request.Stage.Equals("Secondary", StringComparison.OrdinalIgnoreCase)) stage = Stage.Secondary;
+            else if (request.Stage.Contains("ابتدائي") || request.Stage.Equals("Primary", StringComparison.OrdinalIgnoreCase)) stage = Stage.Primary;
+            else if (request.Stage.Contains("طفولة") || request.Stage.Contains("روضة") || request.Stage.Equals("Kindergarten", StringComparison.OrdinalIgnoreCase)) stage = Stage.Kindergarten;
         }
         if (stage == null)
             return BadRequest(ApiResponse<object>.Fail("لم يتم تحديد المرحلة"));
@@ -197,6 +210,9 @@ public class TeacherInputController : ControllerBase
         var gradeName = classNameParts.Length > 1
             ? string.Join(" ", classNameParts[..^1])
             : request.ClassName ?? "";
+        // ★ إزالة اسم المرحلة من اسم الصف (مثال: "الأول متوسط" → "الأول")
+        gradeName = gradeName.Replace("متوسط", "").Replace("ثانوي", "")
+            .Replace("ابتدائي", "").Replace("طفولة مبكرة", "").Trim();
         var sectionNum = classNameParts.Length > 1
             ? classNameParts[^1]
             : "";
@@ -204,7 +220,7 @@ public class TeacherInputController : ControllerBase
         // ★ حالة "لا يوجد غائب" — تسجيل صف NO_ABSENCE (مطابق لسطر 673-710)
         if (request.NoAbsence && request.InputType == "absence")
         {
-            _db.DailyAbsences.Add(new DailyAbsence
+            var noAbsRecord = new DailyAbsence
             {
                 StudentId = 0,
                 StudentNumber = "NO_ABSENCE",               // ★ علامة خاصة
@@ -226,7 +242,11 @@ public class TeacherInputController : ControllerBase
                 ArrivalTime = "",
                 Notes = "",
                 NoorStatus = ""
-            });
+            };
+            var (sem0, yr0) = await _semesterSvc.GetCurrentAsync();
+            noAbsRecord.Semester = sem0;
+            noAbsRecord.AcademicYear = yr0;
+            _db.DailyAbsences.Add(noAbsRecord);
             await _db.SaveChangesAsync();
 
             // ★ تسجيل النشاط (مطابق لسطر 702)
@@ -249,8 +269,9 @@ public class TeacherInputController : ControllerBase
 
         foreach (var student in request.Students)
         {
-            var dbStudent = await _db.Students
-                .FirstOrDefaultAsync(s => s.StudentNumber == student.Id && s.Stage == stage.Value);
+            // ★ تجاوز فلتر TenantId + فلتر يدوي بـ TenantId المعلم
+            var dbStudent = await _db.Students.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(s => s.TenantId == teacher.TenantId && s.StudentNumber == student.Id && s.Stage == stage.Value);
 
             var studentId = dbStudent?.Id ?? 0;
             var studentPhone = student.Phone ?? dbStudent?.Mobile ?? "";
@@ -258,7 +279,7 @@ public class TeacherInputController : ControllerBase
             switch (request.InputType)
             {
                 case "absence":
-                    _db.DailyAbsences.Add(new DailyAbsence
+                    var absRecord = new DailyAbsence
                     {
                         StudentId = studentId,
                         StudentNumber = student.Id,
@@ -277,7 +298,9 @@ public class TeacherInputController : ControllerBase
                         ExcuseType = ExcuseType.Unexcused,
                         IsSent = false,
                         Notes = ""
-                    });
+                    };
+                    { var (s1, y1) = await _semesterSvc.GetCurrentAsync(); absRecord.Semester = s1; absRecord.AcademicYear = y1; }
+                    _db.DailyAbsences.Add(absRecord);
                     break;
 
                 case "violation":
@@ -295,7 +318,7 @@ public class TeacherInputController : ControllerBase
                             violDegree = violDef.DegreeForPrimary.Value;
                     }
 
-                    _db.Violations.Add(new Violation
+                    var violRecord = new Violation
                     {
                         StudentId = studentId,
                         StudentNumber = student.Id,
@@ -316,7 +339,9 @@ public class TeacherInputController : ControllerBase
                         RecordedAt = now,
                         IsSent = false,
                         Notes = ""
-                    });
+                    };
+                    { var (s2, y2) = await _semesterSvc.GetCurrentAsync(); violRecord.Semester = s2; violRecord.AcademicYear = y2; }
+                    _db.Violations.Add(violRecord);
                     break;
 
                 case "note":
@@ -325,7 +350,7 @@ public class TeacherInputController : ControllerBase
                     if (!string.IsNullOrEmpty(noteClass))
                         noteDetails = $"[{noteClass}] {noteDetails}";
 
-                    _db.EducationalNotes.Add(new EducationalNote
+                    var noteRecord = new EducationalNote
                     {
                         StudentId = studentId,
                         StudentNumber = student.Id,
@@ -340,11 +365,13 @@ public class TeacherInputController : ControllerBase
                         HijriDate = hijriDate,
                         RecordedAt = now,
                         IsSent = false
-                    });
+                    };
+                    { var (s3, y3) = await _semesterSvc.GetCurrentAsync(); noteRecord.Semester = s3; noteRecord.AcademicYear = y3; }
+                    _db.EducationalNotes.Add(noteRecord);
                     break;
 
                 case "positive":
-                    _db.PositiveBehaviors.Add(new PositiveBehavior
+                    var posRecord = new PositiveBehavior
                     {
                         StudentId = studentId,
                         StudentNumber = student.Id,
@@ -359,11 +386,13 @@ public class TeacherInputController : ControllerBase
                         RecordedBy = request.TeacherName,
                         RecordedAt = now,
                         IsSent = false
-                    });
+                    };
+                    { var (s4, y4) = await _semesterSvc.GetCurrentAsync(); posRecord.Semester = s4; posRecord.AcademicYear = y4; }
+                    _db.PositiveBehaviors.Add(posRecord);
                     break;
 
                 case "custom":
-                    _db.EducationalNotes.Add(new EducationalNote
+                    var customRecord = new EducationalNote
                     {
                         StudentId = studentId,
                         StudentNumber = student.Id,
@@ -378,7 +407,9 @@ public class TeacherInputController : ControllerBase
                         HijriDate = hijriDate,
                         RecordedAt = now,
                         IsSent = false
-                    });
+                    };
+                    { var (s5, y5) = await _semesterSvc.GetCurrentAsync(); customRecord.Semester = s5; customRecord.AcademicYear = y5; }
+                    _db.EducationalNotes.Add(customRecord);
                     break;
 
                 default:
@@ -414,7 +445,7 @@ public class TeacherInputController : ControllerBase
     // 3. جلب طلاب فصل — مطابق لـ getClassStudents() سطر 558-660
     // ════════════════════════════════════════════════════════════════
     [HttpGet("public/class-students")]
-    public async Task<ActionResult<ApiResponse<object>>> GetClassStudents([FromQuery] string className)
+    public async Task<ActionResult<ApiResponse<object>>> GetClassStudents([FromQuery] string className, [FromQuery] string? token = null)
     {
         if (string.IsNullOrEmpty(className))
             return BadRequest(ApiResponse<object>.Fail("اسم الفصل مطلوب"));
@@ -428,7 +459,24 @@ public class TeacherInputController : ControllerBase
             ? classNameParts[^1]
             : "";
 
-        var query = _db.Students.AsQueryable();
+        // ★ تحديد TenantId من token لتجاوز فلتر TenantId
+        int? tenantId = null;
+        if (!string.IsNullOrEmpty(token))
+        {
+            var teacher = await _db.Teachers.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(t => t.TokenLink == token && t.IsActive);
+            if (teacher != null) tenantId = teacher.TenantId;
+            else
+            {
+                var user = await _db.Users.IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(u => u.TokenLink == token && u.IsActive);
+                if (user != null) tenantId = user.TenantId;
+            }
+        }
+
+        var query = tenantId.HasValue
+            ? _db.Students.IgnoreQueryFilters().Where(s => s.TenantId == tenantId.Value)
+            : _db.Students.AsQueryable();
 
         if (stage != null)
             query = query.Where(s => s.Stage == stage.Value);
@@ -471,7 +519,8 @@ public class TeacherInputController : ControllerBase
         if (string.IsNullOrEmpty(token))
             return BadRequest(ApiResponse<object>.Fail("الرمز غير موجود"));
 
-        var teacher = await _db.Teachers
+        // ★ تجاوز فلتر TenantId — الرابط العام ليس فيه JWT
+        var teacher = await _db.Teachers.IgnoreQueryFilters()
             .FirstOrDefaultAsync(t => t.TokenLink == token && t.IsActive);
 
         if (teacher == null)
@@ -1156,7 +1205,7 @@ public class TeacherInputController : ControllerBase
             if (records.Count > 5)
                 message += $"... و {records.Count - 5} آخرين\n";
 
-            message += $"\n⏰ {DateTime.Now:HH:mm:ss}";
+            message += $"\n⏰ {TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh")):HH:mm:ss}";
 
             // ★ التوجيه الذكي: البحث عن الوكيل المسؤول (مطابق لسطر 827-838)
             var stageAr = stage.ToArabic();
@@ -1183,7 +1232,14 @@ public class TeacherInputController : ControllerBase
         var targetClassName = className.Trim();
         string? stageDeputyPhone = null;
 
-        var deputies = await _db.Users
+        // ★ تجاوز فلتر TenantId — قد يُستدعى من public endpoint بدون JWT
+        // يعتمد على HttpContext.Items["OverrideTenantId"] لتحديد الـ tenant
+        var overrideTid = HttpContext?.Items.TryGetValue("OverrideTenantId", out var tidObj) == true && tidObj is int t ? t : (int?)null;
+        var usersQuery = overrideTid.HasValue
+            ? _db.Users.IgnoreQueryFilters().Where(u => u.TenantId == overrideTid.Value)
+            : _db.Users.AsQueryable();
+
+        var deputies = await usersQuery
             .Where(u => u.IsActive &&
                 (u.Role == UserRole.Deputy || u.Role == UserRole.Admin))
             .ToListAsync();
@@ -1215,14 +1271,20 @@ public class TeacherInputController : ControllerBase
     /// </summary>
     private async Task<string?> GetWakilPhoneByStage(string stageArabic)
     {
+        // ★ تجاوز فلتر TenantId إذا override موجود
+        var overrideTid2 = HttpContext?.Items.TryGetValue("OverrideTenantId", out var tidObj2) == true && tidObj2 is int t2 ? t2 : (int?)null;
+        var sessionsQuery = overrideTid2.HasValue
+            ? _db.WhatsAppSessions.IgnoreQueryFilters().Where(s => s.TenantId == overrideTid2.Value)
+            : _db.WhatsAppSessions.AsQueryable();
+
         // ★ أولوية: الرقم الأساسي (IsPrimary) — مطابق لسطر 1777-1782
-        var primary = await _db.WhatsAppSessions
+        var primary = await sessionsQuery
             .FirstOrDefaultAsync(s => s.Stage == stageArabic && s.IsPrimary && s.ConnectionStatus == "connected");
         if (primary != null)
             return FormatPhone(primary.PhoneNumber);
 
         // ★ بديل: أي رقم متصل — مطابق لسطر 1785-1789
-        var any = await _db.WhatsAppSessions
+        var any = await sessionsQuery
             .FirstOrDefaultAsync(s => s.Stage == stageArabic && s.ConnectionStatus == "connected");
         return any != null ? FormatPhone(any.PhoneNumber) : null;
     }
@@ -1234,7 +1296,11 @@ public class TeacherInputController : ControllerBase
     {
         try
         {
-            var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+            // ★ تجاوز فلتر TenantId إذا override موجود
+            var overrideTid3 = HttpContext?.Items.TryGetValue("OverrideTenantId", out var tidObj3) == true && tidObj3 is int t3 ? t3 : (int?)null;
+            var settings = overrideTid3.HasValue
+                ? await _db.WhatsAppSettings.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.TenantId == overrideTid3.Value)
+                : await _db.WhatsAppSettings.FirstOrDefaultAsync();
             if (settings == null || string.IsNullOrEmpty(settings.ServerUrl))
                 return false;
 

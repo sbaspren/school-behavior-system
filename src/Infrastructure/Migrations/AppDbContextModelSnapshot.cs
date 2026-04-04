@@ -412,6 +412,9 @@ namespace SchoolBehaviorSystem.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<DateTime?>("NoorDocumentedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("NoorStatus")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -456,6 +459,8 @@ namespace SchoolBehaviorSystem.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RecordedAt");
 
                     b.HasIndex("StudentId");
 
@@ -502,6 +507,10 @@ namespace SchoolBehaviorSystem.Infrastructure.Migrations
                     b.Property<DateTime>("RecordedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("RecordedBy")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<int>("Stage")
                         .HasColumnType("int");
 
@@ -524,6 +533,8 @@ namespace SchoolBehaviorSystem.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RecordedAt");
 
                     b.HasIndex("StudentId");
 
@@ -844,6 +855,8 @@ namespace SchoolBehaviorSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("RecordedAt");
+
                     b.HasIndex("StudentId");
 
                     b.HasIndex("Stage", "HijriDate");
@@ -889,6 +902,9 @@ namespace SchoolBehaviorSystem.Infrastructure.Migrations
                     b.Property<int?>("LinkedViolationId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("NoorDocumentedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("NoorStatus")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -920,6 +936,8 @@ namespace SchoolBehaviorSystem.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("LinkedViolationId");
+
+                    b.HasIndex("RecordedAt");
 
                     b.HasIndex("StudentId");
 
@@ -1130,6 +1148,9 @@ namespace SchoolBehaviorSystem.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<DateTime?>("NoorDocumentedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("NoorStatus")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -1166,6 +1187,8 @@ namespace SchoolBehaviorSystem.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RecordedAt");
 
                     b.HasIndex("StudentId");
 
@@ -1419,6 +1442,9 @@ namespace SchoolBehaviorSystem.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<DateTime?>("NoorDocumentedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("NoorStatus")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -1463,6 +1489,8 @@ namespace SchoolBehaviorSystem.Infrastructure.Migrations
                         .HasColumnType("longtext");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RecordedAt");
 
                     b.HasIndex("StudentId");
 

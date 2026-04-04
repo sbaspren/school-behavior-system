@@ -31,7 +31,7 @@ public class ExtensionController : ControllerBase
     {
         // تاريخ اليوم هجري — مطابق للفلترة بالتاريخ في الأصل (سطر 69-100)
         var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
-            TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time"));
+            TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh"));
         var todayStart = now.Date;
 
         // جلب غياب اليوم لكل المراحل

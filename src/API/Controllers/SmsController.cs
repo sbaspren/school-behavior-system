@@ -104,7 +104,7 @@ public class SmsController : ControllerBase
 
         var type = request.Type ?? "تأخر";
         var template = templates.GetValueOrDefault(type, templates["تأخر"]);
-        var date = DateTime.Now.ToString("d", new CultureInfo("ar-SA"));
+        var date = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh")).ToString("d", new CultureInfo("ar-SA"));
 
         var message = template
             .Replace("{student_name}", request.StudentName ?? "")

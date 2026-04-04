@@ -1,6 +1,8 @@
 # WhatsApp Per-Wakeel Linking Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **ملاحظة:** هذه الخطة تم استبدالها بخطة أشمل: `2026-03-26-whatsapp-scope-redesign.md` التي تدعم 4 سيناريوهات + فلترة بالمرحلة. الأجزاء المشتركة (scope filtering, sidebar visibility, stage teachers) تم تنفيذها في الخطة الجديدة.
+
+> **Status:** SUPERSEDED by `2026-03-26-whatsapp-scope-redesign.md`
 
 **Goal:** Enable each deputy (wakeel) to link their own WhatsApp phone from the WhatsApp tools page, with role-based visibility and admin-controlled fallback to admin's number.
 

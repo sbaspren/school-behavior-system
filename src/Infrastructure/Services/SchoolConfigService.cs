@@ -58,6 +58,11 @@ public class SchoolConfigService : ISchoolConfigService
             existing.CommitteeName = settings.CommitteeName;
             existing.WakeelName = settings.WakeelName;
             existing.WakeelSignature = settings.WakeelSignature;
+            // ★ الفصل الدراسي — يُحفظ فقط إذا مُعيّن (لا يُصفّر من SaveSettings العادي)
+            if (settings.CurrentSemester is 1 or 2)
+                existing.CurrentSemester = settings.CurrentSemester;
+            if (!string.IsNullOrEmpty(settings.CurrentAcademicYear))
+                existing.CurrentAcademicYear = settings.CurrentAcademicYear;
             existing.UpdatedAt = DateTime.UtcNow;
         }
 

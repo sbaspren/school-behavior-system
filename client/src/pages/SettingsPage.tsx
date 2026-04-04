@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import MI from '../components/shared/MI';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { settingsApi, SchoolSettingsData, StageConfigData, StructureData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { SETTINGS_STAGES, SECONDARY_TRACKS, CLASS_LETTERS } from '../utils/constants';
+import { useAppContext } from '../hooks/useAppContext';
 import AdminsTab from '../components/settings/AdminsTab';
 import TeachersTab from '../components/settings/TeachersTab';
 import StudentsTab from '../components/settings/StudentsTab';
 import LinksTab from '../components/settings/LinksTab';
 import DeputiesSection from '../components/settings/DeputiesSection';
+import LoadingSpinner from '../components/shared/LoadingSpinner';
 
 type Tab = 'school' | 'structure' | 'admins' | 'teachers' | 'students' | 'links';
 
@@ -21,6 +22,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 ];
 
 const SettingsPage: React.FC = () => {
+  const appCtx = useAppContext();
   const [currentTab, setCurrentTab] = useState<Tab>('school');
   const [loading, setLoading] = useState(true);
   const [schoolData, setSchoolData] = useState<SchoolSettingsData>({
@@ -31,8 +33,65 @@ const SettingsPage: React.FC = () => {
   });
   const [structureData, setStructureData] = useState<StageConfigData[]>([]);
 
+  const mergeStages = useCallback((savedStages: StageConfigData[]) => {
+    if (savedStages.length > 0) {
+      // خريطة الأسماء القديمة (إنجليزي أو عربي مختصر) → الاسم الكامل الجديد
+      const LEGACY: Record<string, Record<string, string>> = {
+        Kindergarten: {
+          'first': 'الأول طفولة مبكرة', 'second': 'الثاني طفولة مبكرة', 'third': 'الثالث طفولة مبكرة',
+          'الأول': 'الأول طفولة مبكرة', 'الثاني': 'الثاني طفولة مبكرة', 'الثالث': 'الثالث طفولة مبكرة',
+        },
+        Primary: {
+          'first': 'الأول الابتدائي', 'second': 'الثاني الابتدائي', 'third': 'الثالث الابتدائي',
+          'fourth': 'الرابع الابتدائي', 'fifth': 'الخامس الابتدائي', 'sixth': 'السادس الابتدائي',
+          'الأول': 'الأول الابتدائي', 'الثاني': 'الثاني الابتدائي', 'الثالث': 'الثالث الابتدائي',
+          'الرابع': 'الرابع الابتدائي', 'الخامس': 'الخامس الابتدائي', 'السادس': 'السادس الابتدائي',
+        },
+        Intermediate: {
+          'first': 'الأول المتوسط', 'second': 'الثاني المتوسط', 'third': 'الثالث المتوسط',
+          'الأول': 'الأول المتوسط', 'الثاني': 'الثاني المتوسط', 'الثالث': 'الثالث المتوسط',
+        },
+        Secondary: {
+          'first': 'الأول الثانوي', 'second': 'الثاني الثانوي', 'third': 'الثالث الثانوي',
+          'الأول': 'الأول الثانوي', 'الثاني': 'الثاني الثانوي', 'الثالث': 'الثالث الثانوي',
+        },
+      };
+
+      const merged = SETTINGS_STAGES.map((stageDef) => {
+        const saved = savedStages.find((s: any) => s.stage === stageDef.id);
+        if (!saved) {
+          return {
+            stage: stageDef.id,
+            isEnabled: false,
+            grades: stageDef.grades.map((name: string) => ({
+              gradeName: name, classCount: 0, isEnabled: false,
+            })),
+          };
+        }
+
+        const stageAliases = LEGACY[stageDef.id] || {};
+        const mergedGrades = stageDef.grades.map((defName) => {
+          const savedGrade = saved.grades.find((g: any) => {
+            if (g.gradeName === defName) return true;
+            // دعم الأسماء القديمة (إنجليزي أو عربي مختصر)
+            const canonical = stageAliases[g.gradeName] || stageAliases[g.gradeName?.toLowerCase()];
+            return canonical === defName;
+          });
+          if (savedGrade) return { ...savedGrade, gradeName: defName };
+          return { gradeName: defName, classCount: 0, isEnabled: false };
+        });
+
+        return { ...saved, grades: mergedGrades };
+      });
+      setStructureData(merged);
+    } else {
+      setStructureData(buildInitialStages());
+    }
+  }, []);
+
+  const initialLoadDone = useRef(false);
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const [settingsRes, structureRes] = await Promise.all([
         settingsApi.getSettings(),
@@ -41,46 +100,36 @@ const SettingsPage: React.FC = () => {
       if (settingsRes.data?.data) {
         setSchoolData(settingsRes.data.data);
       }
-      if (structureRes.data?.data?.stages && Array.isArray(structureRes.data.data.stages) && structureRes.data.data.stages.length > 0) {
-        // دمج المراحل المحفوظة مع القائمة الكاملة لضمان ظهور جميع المراحل (ابتدائي، طفولة مبكرة، إلخ)
-        const savedStages = structureRes.data.data.stages;
-        const merged = SETTINGS_STAGES.map((stageDef) => {
-          const saved = savedStages.find((s: any) => s.stage === stageDef.id);
-          if (saved) return saved;
-          return {
-            stage: stageDef.id,
-            isEnabled: false,
-            grades: stageDef.grades.map((name: string) => ({
-              gradeName: name,
-              classCount: 0,
-              isEnabled: false,
-            })),
-          };
-        });
-        setStructureData(merged);
+      if (structureRes.data?.data?.stages && Array.isArray(structureRes.data.data.stages)) {
+        mergeStages(structureRes.data.data.stages);
       } else {
-        // Build initial stages if none exist
         setStructureData(buildInitialStages());
       }
+      // Refresh the app context so other pages see the new settings
+      await appCtx.refresh();
     } catch {
       // First-time: no data yet, use defaults
       setStructureData(buildInitialStages());
     } finally {
       setLoading(false);
+      initialLoadDone.current = true;
     }
-  }, []);
+  }, [appCtx, mergeStages]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // Initial load from context data
+  useEffect(() => {
+    if (!appCtx.loading) {
+      // Populate from context for initial render
+      if (Object.keys(appCtx.schoolSettings).length > 0) {
+        setSchoolData(appCtx.schoolSettings as unknown as SchoolSettingsData);
+      }
+      mergeStages(appCtx.stages);
+      setLoading(false);
+    }
+  }, [appCtx.loading, appCtx.schoolSettings, appCtx.stages, mergeStages]);
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div className="spinner" />
-          <p style={{ color: '#666', marginTop: '16px' }}>جاري التحميل...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
@@ -211,7 +260,7 @@ const SchoolTab: React.FC<SchoolTabProps> = ({ data, onChange, onSaved }) => {
             background: hasSavedData ? '#dcfce7' : '#f3f4f6',
             color: hasSavedData ? '#15803d' : '#6b7280', fontWeight: 700,
           }}>
-            {hasSavedData ? '✓ محفوظة' : 'لم تُحفظ بعد'}
+            {hasSavedData ? <><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>check</span> محفوظة</> : 'لم تُحفظ بعد'}
           </span>
         </div>
         <div style={{

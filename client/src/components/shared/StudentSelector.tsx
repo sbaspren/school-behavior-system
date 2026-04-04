@@ -1,15 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { studentsApi } from '../../api/students';
-
-export interface StudentOption {
-  id: number;
-  studentNumber: string;
-  name: string;
-  stage: string;
-  grade: string;
-  className: string;
-  mobile?: string;
-}
+import { classToLetter } from '../../utils/printUtils';
+import type { StudentOption } from '../../types';
+export type { StudentOption };
 
 interface StudentSelectorProps {
   /** Filter students by stage id (optional) */
@@ -43,7 +36,7 @@ const StudentSelector: React.FC<StudentSelectorProps> = ({
     setLoading(true);
     studentsApi.getAll().then((res) => {
       if (res.data?.data) setAllStudents(res.data.data);
-    }).finally(() => setLoading(false));
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   // Filter by stage if provided
@@ -230,7 +223,7 @@ const StudentSelector: React.FC<StudentSelectorProps> = ({
                   <span style={{
                     marginRight: 'auto', fontSize: 11, color: '#9ca3af',
                   }}>
-                    {s.grade} ({s.className})
+                    {s.grade} ({classToLetter(s.className)})
                   </span>
                 </label>
               );

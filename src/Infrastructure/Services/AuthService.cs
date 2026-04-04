@@ -23,7 +23,9 @@ public class AuthService : IAuthService
 
     public async Task<AuthResult> LoginAsync(string mobile, string password)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Mobile == mobile && u.IsActive);
+        // ★ تجاوز فلتر TenantId — عند تسجيل الدخول لا نعرف Tenant المستخدم بعد
+        var user = await _db.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Mobile == mobile && u.IsActive);
         if (user == null)
             return AuthResult.Fail("رقم الجوال غير مسجل");
 
@@ -36,8 +38,9 @@ public class AuthService : IAuthService
 
     public async Task<AuthResult> ValidateTokenLinkAsync(string token)
     {
-        // البحث في المستخدمين
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.TokenLink == token && u.IsActive);
+        // ★ تجاوز فلتر TenantId — TokenLink يجب أن يعمل عبر كل المدارس
+        var user = await _db.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.TokenLink == token && u.IsActive);
         if (user != null)
         {
             var jwt = GenerateJwtToken(user);
@@ -45,7 +48,8 @@ public class AuthService : IAuthService
         }
 
         // البحث في المعلمين
-        var teacher = await _db.Teachers.FirstOrDefaultAsync(t => t.TokenLink == token && t.IsActive);
+        var teacher = await _db.Teachers.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.TokenLink == token && t.IsActive);
         if (teacher != null)
         {
             // إنشاء user وهمي من بيانات المعلم
@@ -66,8 +70,9 @@ public class AuthService : IAuthService
 
     public string GenerateJwtToken(User user)
     {
-        var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_config["Jwt:Key"] ?? "SchoolBehaviorSystemDefaultKey2024!@#$%"));
+        var jwtKeyValue = _config["Jwt:Key"]
+            ?? throw new InvalidOperationException("مفتاح JWT غير مُعيَّن في الإعدادات.");
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKeyValue));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var claims = new[]
@@ -76,8 +81,8 @@ public class AuthService : IAuthService
             new Claim(ClaimTypes.Name, user.Name),
             new Claim(ClaimTypes.Role, user.Role.ToString()),
             new Claim("mobile", user.Mobile),
-            new Claim("scope_type", user.ScopeType),
-            new Claim("scope_value", user.ScopeValue),
+            new Claim("scope_type", user.ScopeType ?? ""),
+            new Claim("scope_value", user.ScopeValue ?? ""),
             new Claim("tenant_id", user.TenantId.ToString())
         };
 

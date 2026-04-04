@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usersApi } from '../../api/users';
 import { teachersApi } from '../../api/teachers';
 import { showSuccess, showError } from '../shared/Toast';
+import LoadingSpinner from '../shared/LoadingSpinner';
 
 interface PersonLink {
   id: number;
@@ -208,12 +209,7 @@ const LinksTab: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '60px' }}>
-        <div className="spinner" />
-        <p style={{ color: '#666', marginTop: '16px' }}>جاري تحميل بيانات الروابط...</p>
-      </div>
-    );
+    return <LoadingSpinner text="جاري تحميل بيانات الروابط..." />;
   }
 
   return (
@@ -524,7 +520,7 @@ const PersonSection: React.FC<PersonSectionProps> = ({
                     <div style={{ fontSize: '11px', color: '#6366f1' }}>{person.role}</div>
                   )}
                   {isLinked && (
-                    <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>✓ مربوط</div>
+                    <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>check</span> مربوط</div>
                   )}
                 </div>
               </div>
@@ -536,7 +532,7 @@ const PersonSection: React.FC<PersonSectionProps> = ({
                       color: isCopied ? '#15803d' : '#4338ca',
                       borderRadius: '8px', fontWeight: 700, border: 'none', cursor: 'pointer', fontSize: '13px',
                     }}>
-                      {isCopied ? '✓ تم' : <><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>content_copy</span> نسخ</>}
+                      {isCopied ? <><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>check</span> تم</> : <><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>content_copy</span> نسخ</>}
                     </button>
                     {/* ★ زر واتساب — مطابق للأصلي sendLinkToPersonDirect */}
                     <button onClick={() => onSendWhatsApp(person)} title={person.mobile ? `إرسال لـ ${person.mobile}` : 'لا يوجد جوال'} style={{

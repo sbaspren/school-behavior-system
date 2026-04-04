@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { studentsApi } from '../api/students';
 import { violationsApi } from '../api/violations';
-import { settingsApi, StageConfigData } from '../api/settings';
 import { printForm, FormId, PrintFormData, FORM_NAMES } from '../utils/printTemplates';
 import { showSuccess, showError } from '../components/shared/Toast';
+import { getHijriDate } from '../hooks/usePageData';
 import { SETTINGS_STAGES } from '../utils/constants';
+import { useAppContext } from '../hooks/useAppContext';
+import { classToLetter } from '../utils/printUtils';
+import type { StudentOption } from '../types';
 
 // ===== Types =====
 interface FormCardDef {
@@ -43,12 +46,10 @@ const FORM_CATEGORIES: FormCategory[] = [
   ]},
 ];
 
-interface StudentOption { id: number; studentNumber: string; name: string; stage: string; grade: string; className: string; }
 interface ViolationOption { id: number; description: string; degree: number; hijriDate: string; procedures: string; deduction: number; }
 interface SchoolSettingsData { schoolName: string; eduAdmin: string; eduDept: string; letterheadMode: string; letterheadImageUrl: string; }
 
 // ===== Utilities =====
-const getHijriDate = () => { try { return new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' }) + ' هـ'; } catch { return ''; } };
 const getDayName = (d?: Date) => ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][(d || new Date()).getDay()];
 const getTodayStr = () => new Date().toISOString().split('T')[0];
 const hijriFromDate = (dateStr: string) => { try { return new Date(dateStr).toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { return dateStr; } };
@@ -64,7 +65,7 @@ const PB: React.CSSProperties = { width: '100%', padding: '12px', background: 'l
 const MH: React.FC<{ title: string; subtitle?: string; gradient: string; onClose: () => void }> = ({ title, subtitle, gradient, onClose }) => (
   <div style={{ background: `linear-gradient(135deg,${gradient})`, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
     <div style={{ flex: 1 }}><div style={{ color: '#fff', fontSize: '16px', fontWeight: 800 }}>{title}</div>{subtitle && <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: '12px' }}>{subtitle}</div>}</div>
-    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '20px' }}>✕</button>
+    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '20px' }}><span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span></button>
   </div>
 );
 
@@ -76,7 +77,7 @@ const SP: React.FC<{ students: StudentOption[]; stage: string; onPick: (s: any) 
   const cs = useMemo(() => g ? Array.from(new Set(ss.filter(s => s.grade === g).map(s => s.className))).sort() : [], [ss, g]);
   const fs = useMemo(() => (g && c) ? ss.filter(s => s.grade === g && s.className === c).sort((a, b) => a.name.localeCompare(b.name, 'ar')) : [], [ss, g, c]);
   const sx: React.CSSProperties = { padding: '8px', border: '1.5px solid #d1d5db', borderRadius: '10px', fontSize: '12px', fontFamily: 'inherit', background: '#fff', width: '100%' };
-  useEffect(() => { if (!sid) return; const st = fs.find(s => String(s.id) === sid); if (st) onPick({ studentName: st.name, grade: st.grade, class: st.className, violationDate: getHijriDate(), violationDay: getDayName() }); }, [sid]);
+  useEffect(() => { if (!sid) return; const st = fs.find(s => String(s.id) === sid); if (st) onPick({ studentName: st.name, grade: st.grade, class: classToLetter(st.className), violationDate: getHijriDate(), violationDay: getDayName() }); }, [sid]);
   return (
     <div style={{ border: '1.5px solid #e5e7eb', borderRadius: '12px', padding: '12px', background: '#f9fafb', marginBottom: '12px' }}>
       <label style={{ fontSize: '12px', fontWeight: 700, color: '#1a1d2e', marginBottom: '8px', display: 'block' }}>اختيار الطالب</label>
@@ -91,10 +92,12 @@ const SP: React.FC<{ students: StudentOption[]; stage: string; onPick: (s: any) 
 
 // ===== MAIN PAGE =====
 const GeneralFormsPage: React.FC = () => {
+  const appCtx = useAppContext();
+  const stages = appCtx.stages;
+  const enabledStages = appCtx.enabledStages;
+  const schoolSettings = appCtx.schoolSettings as unknown as SchoolSettingsData;
   const [allStudents, setAllStudents] = useState<StudentOption[]>([]);
-  const [stages, setStages] = useState<StageConfigData[]>([]);
   const [currentStage, setCurrentStage] = useState('');
-  const [schoolSettings, setSchoolSettings] = useState<SchoolSettingsData>({ schoolName: '', eduAdmin: '', eduDept: '', letterheadMode: 'Text', letterheadImageUrl: '' });
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedForm, setSelectedForm] = useState<FormCardDef | null>(null);
@@ -107,13 +110,15 @@ const GeneralFormsPage: React.FC = () => {
   const [iltizamMode, setIltizamMode] = useState<'pick' | null>(null);
 
   useEffect(() => { (async () => { try {
-    const [sR, stR, seR] = await Promise.all([studentsApi.getAll(), settingsApi.getStructure(), settingsApi.getSettings()]);
+    const sR = await studentsApi.getAll();
     if (sR.data?.data) setAllStudents(sR.data.data);
-    if (stR.data?.data?.stages) { setStages(stR.data.data.stages); const en = (stR.data.data.stages as StageConfigData[]).filter(s => s.isEnabled && s.grades.some(g => g.isEnabled && g.classCount > 0)); if (en.length > 0) setCurrentStage(en[0].stage); }
-    if (seR.data?.data) { const s = seR.data.data; setSchoolSettings({ schoolName: s.schoolName||'', eduAdmin: s.eduAdmin||'', eduDept: s.eduDept||'', letterheadMode: s.letterheadMode||'Text', letterheadImageUrl: s.letterheadImageUrl||'' }); }
   } catch {} finally { setLoading(false); } })(); }, []);
 
-  const enabledStages = useMemo(() => stages.filter(s => s.isEnabled && s.grades.some(g => g.isEnabled && g.classCount > 0)), [stages]);
+  useEffect(() => {
+    if (enabledStages.length > 0 && !currentStage) {
+      setCurrentStage(enabledStages[0].stage);
+    }
+  }, [enabledStages, currentStage]);
   const grades = useMemo(() => Array.from(new Set(allStudents.filter(s => !currentStage || s.stage === currentStage).map(s => s.grade))).sort((a, b) => a.localeCompare(b, 'ar')), [allStudents, currentStage]);
   const classes = useMemo(() => modalGrade ? Array.from(new Set(allStudents.filter(s => s.grade === modalGrade && (!currentStage || s.stage === currentStage)).map(s => s.className))).sort() : [], [allStudents, modalGrade, currentStage]);
   const filteredStudents = useMemo(() => (modalGrade && modalClass) ? allStudents.filter(s => s.grade === modalGrade && s.className === modalClass && (!currentStage || s.stage === currentStage)).sort((a, b) => a.name.localeCompare(b.name, 'ar')) : [], [allStudents, modalGrade, modalClass, currentStage]);
@@ -132,7 +137,7 @@ const GeneralFormsPage: React.FC = () => {
 
   const handlePrint = useCallback(() => {
     if (!selectedForm || !modalStudent) return;
-    const data: PrintFormData = { studentName: modalStudent.name, grade: modalStudent.grade, class: modalStudent.className };
+    const data: PrintFormData = { studentName: modalStudent.name, grade: modalStudent.grade, class: classToLetter(modalStudent.className) };
     try { data.violationDate = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura'); data.violationDay = new Date().toLocaleDateString('ar-SA', { weekday: 'long' }); } catch {}
     if (selectedForm.requiresViolation && selectedViolation) { data.violationInfo = { name: selectedViolation.description, degree: String(selectedViolation.degree), date: selectedViolation.hijriDate, points: String(selectedViolation.deduction) }; data.violationText = selectedViolation.description; data.violationDegree = selectedViolation.degree; data.violationDate = selectedViolation.hijriDate; }
     if (selectedForm.id === 'rasd_slooki') data.violationsList = studentViolations.map(v => ({ description: v.description, degree: v.degree, date: v.hijriDate, procedures: v.procedures }));
@@ -185,7 +190,7 @@ const GeneralFormsPage: React.FC = () => {
         <div style={{ padding: '16px 20px', background: 'linear-gradient(to left, #eef2ff, #e0e7ff)', borderBottom: '2px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ width: '40px', height: '40px', background: '#eef2ff', borderRadius: '10px', border: '2px solid #c7d2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}><span className="material-symbols-outlined" style={{ fontSize: '20px' }}>{selectedForm.icon}</span></div>
           <div style={{ flex: 1 }}><h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>{selectedForm.title}</h3><p style={{ margin: 0, fontSize: '12px', color: '#9ca3af' }}>حدد بيانات الطالب للطباعة</p></div>
-          <button onClick={() => setModalOpen(false)} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}>✕</button>
+          <button onClick={() => setModalOpen(false)} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span></button>
         </div>
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ border: '2px solid #e5e7eb', borderRadius: '16px', padding: '12px', background: '#f9fafb' }}>
@@ -232,9 +237,9 @@ type MP = { sts: StudentOption[]; stg: string; onP: (id: FormId, d: any) => void
 const DawatM: React.FC<MP> = ({ sts, stg, onP, onC }) => {
   const nd = getNextWorkday(); const [pk, setPk] = useState<any>(null);
   const [dy, setDy] = useState(getDayName(nd)); const [dt, setDt] = useState(nd.toISOString().split('T')[0]);
-  const [hp, setHp] = useState(hijriFromDate(nd.toISOString().split('T')[0]) + ' هـ');
+  const [hp, setHp] = useState(hijriFromDate(nd.toISOString().split('T')[0]));
   const [tm, setTm] = useState('٩:٠٠'); const [mt, setMt] = useState('وكيل المدرسة'); const [rs, setRs] = useState('لمناقشة المستوى السلوكي للطالب');
-  const hdc = (v: string) => { setDt(v); const d = new Date(v); if (!isNaN(d.getTime())) { setDy(getDayName(d)); setHp(hijriFromDate(v) + ' هـ'); } };
+  const hdc = (v: string) => { setDt(v); const d = new Date(v); if (!isNaN(d.getTime())) { setDy(getDayName(d)); setHp(hijriFromDate(v)); } };
   return <div style={OV} onClick={e => { if (e.target === e.currentTarget) onC(); }}><div style={MB('440px')} onClick={e => e.stopPropagation()}>
     <MH title="دعوة ولي أمر طالب" gradient="#f59e0b,#d97706" onClose={onC} />
     <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -441,7 +446,7 @@ const MashajaraM: React.FC<MP> = ({ sts, stg, onP, onC }) => {
   const mcs = useMemo(() => mg ? Array.from(new Set(ss.filter(s => s.grade === mg).map(s => s.className))).sort() : [], [ss, mg]);
   const mfs = useMemo(() => (mg && mc) ? ss.filter(s => s.grade === mg && s.className === mc).sort((a, b) => a.name.localeCompare(b.name, 'ar')) : [], [ss, mg, mc]);
   const sx2: React.CSSProperties = { padding: '8px', border: '1.5px solid #d1d5db', borderRadius: '10px', fontSize: '12px', background: '#fff', width: '100%' };
-  const addS = () => { if (!ms) return; if (as2.find(s => s.id === ms)) { showError('مضاف مسبقاً'); return; } if (as2.length >= 12) { showError('الحد ١٢'); return; } const st = mfs.find(s => String(s.id) === ms); if (st) { setAs2([...as2, { id: ms, name: st.name, grade: st.grade + '/' + st.className }]); setMs(''); } };
+  const addS = () => { if (!ms) return; if (as2.find(s => s.id === ms)) { showError('مضاف مسبقاً'); return; } if (as2.length >= 12) { showError('الحد ١٢'); return; } const st = mfs.find(s => String(s.id) === ms); if (st) { setAs2([...as2, { id: ms, name: st.name, grade: st.grade + '/' + classToLetter(st.className) }]); setMs(''); } };
   const roles = ['','مدير المدرسة','وكيل الشؤون التعليمية','وكيل شؤون الطلاب','الموجه الطلابي','المعلم','الإداري'];
   return <div style={OV} onClick={e => { if (e.target === e.currentTarget) onC(); }}><div style={MB('560px')} onClick={e => e.stopPropagation()}>
     <MH title="محضر إثبات واقعة (مشاجرة)" gradient="#dc2626,#ef4444" onClose={onC} />
@@ -460,7 +465,7 @@ const MashajaraM: React.FC<MP> = ({ sts, stg, onP, onC }) => {
           <select value={ms} onChange={e => setMs(e.target.value)} disabled={!mc} style={{ ...sx2, opacity: mc ? 1 : 0.5 }}><option value="">الطالب</option>{mfs.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
         </div>
         <button onClick={addS} style={{ padding: '6px 14px', border: '1.5px dashed #6366f1', borderRadius: '10px', background: '#fff', color: '#4f46e5', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>+ إضافة طالب</button>
-        <div style={{ marginTop: '8px' }}>{as2.map((s, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', marginBottom: '4px', fontSize: '12px' }}><span style={{ fontWeight: 700, color: '#4f46e5' }}>{i + 1}</span> {s.name} <span style={{ color: '#6b7280' }}>({s.grade})</span><button onClick={() => setAs2(as2.filter((_, j) => j !== i))} style={{ marginRight: 'auto', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px' }}>✕</button></div>)}</div>
+        <div style={{ marginTop: '8px' }}>{as2.map((s, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', marginBottom: '4px', fontSize: '12px' }}><span style={{ fontWeight: 700, color: '#4f46e5' }}>{i + 1}</span> {s.name} <span style={{ color: '#6b7280' }}>({s.grade})</span><button onClick={() => setAs2(as2.filter((_, j) => j !== i))} style={{ marginRight: 'auto', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px' }}><span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span></button></div>)}</div>
       </div>
       <select value={ini} onChange={e => setIni(e.target.value)} style={FI}><option value="">اختر المبادر</option>{as2.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}</select>
       <div><label style={FL}>وصف الواقعة</label><textarea value={ds} onChange={e => setDs(e.target.value)} rows={2} style={{ ...FI, resize: 'vertical' }} /></div>
@@ -505,7 +510,7 @@ const RasdM: React.FC<{ onP: (id: FormId, d: any) => void; onC: () => void }> = 
           <input type="text" value={v.violation} onChange={e => { const n = [...vs]; n[i] = { ...n[i], violation: e.target.value }; setVs(n); }} placeholder="المخالفة" style={vI} />
           <input type="text" value={v.action} onChange={e => { const n = [...vs]; n[i] = { ...n[i], action: e.target.value }; setVs(n); }} placeholder="الإجراء" style={vI} />
           <input type="text" value={v.date} onChange={e => { const n = [...vs]; n[i] = { ...n[i], date: e.target.value }; setVs(n); }} placeholder="التاريخ" style={vI} />
-          <button onClick={() => setVs(vs.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+          <button onClick={() => setVs(vs.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px' }}><span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span></button>
         </div>)}
         <button onClick={() => { if (vs.length >= 12) { showError('الحد ١٢'); return; } setVs([...vs, { studentName: '', violation: '', action: '', date: '' }]); }} style={{ padding: '6px 14px', border: '1.5px dashed #7c3aed', borderRadius: '10px', background: '#fff', color: '#6d28d9', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>+ إضافة مخالفة</button>
       </div>}

@@ -29,6 +29,7 @@ builder.Services.AddScoped<ITenantService, TenantService>();
 builder.Services.AddScoped<ISchoolConfigService, SchoolConfigService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<IHijriDateService, HijriDateService>();
+builder.Services.AddScoped<ISemesterService, SemesterService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddHttpClient<IWhatsAppServerService, WhatsAppServerService>();
 builder.Services.AddHttpClient<ISmsService, SmsService>();
@@ -43,7 +44,8 @@ builder.Services.AddHostedService<TeacherDataBakeService>();
 builder.Services.AddHostedService<AbsenceArchiveService>();
 
 // JWT Authentication
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "SchoolBehaviorSystemDefaultKey2024!@#$%";
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException("مفتاح JWT غير مُعيَّن. أضف Jwt:Key في appsettings.json أو متغيرات البيئة.");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -79,6 +81,16 @@ builder.Services.AddCors(options =>
               .AllowCredentials());
 });
 
+// ★ Startup validation — placeholders must be changed before production deployment
+if (!builder.Environment.IsDevelopment())
+{
+    if (jwtKey.Contains("CHANGE_THIS"))
+        throw new InvalidOperationException("مفتاح JWT لا يزال بالقيمة الافتراضية. غيّره في appsettings.json قبل النشر.");
+    var masterKeyVal = builder.Configuration["MasterKey"] ?? "";
+    if (masterKeyVal.Contains("CHANGE_THIS"))
+        throw new InvalidOperationException("مفتاح MasterKey لا يزال بالقيمة الافتراضية. غيّره في appsettings.json قبل النشر.");
+}
+
 var app = builder.Build();
 
 // Auto-migrate database + seed data
@@ -96,6 +108,23 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowReact");
+
+// معالج أخطاء عام — يلتقط أي استثناء غير مُعالج ويرجع JSON منظم
+// ★ يجب أن يكون بعد UseCors حتى تحتوي استجابات 500 على ترويسات CORS
+app.UseExceptionHandler(error =>
+{
+    error.Run(async context =>
+    {
+        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("GlobalErrorHandler");
+        var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+        logger.LogError(exception, "خطأ غير مُعالج: {Path}", context.Request.Path);
+
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        var response = SchoolBehaviorSystem.Application.DTOs.Responses.ApiResponse<object>.Fail("حدث خطأ في الخادم. يرجى المحاولة لاحقاً.");
+        await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response));
+    });
+});
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<LicenseMiddleware>();

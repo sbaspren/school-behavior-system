@@ -25,6 +25,10 @@ public class SchoolSettings : ITenantEntity
     public string WakeelName { get; set; } = "";
     public string WakeelSignature { get; set; } = "";
 
+    // ── الفصل الدراسي الحالي ──
+    public int CurrentSemester { get; set; } = 1;            // 1 أو 2
+    public string CurrentAcademicYear { get; set; } = "";    // السنة الهجرية مثل "1447"
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

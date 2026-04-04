@@ -8,7 +8,7 @@ interface Notification {
 }
 
 const HUB_URL = process.env.NODE_ENV === 'development'
-  ? 'http://localhost:5085/hub/notifications'
+  ? 'http://localhost:5000/hub/notifications'
   : '/hub/notifications';
 
 export function useSignalR() {

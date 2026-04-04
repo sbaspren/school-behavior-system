@@ -78,19 +78,45 @@
 - الوكيل يشوف فقط المعلمين المربوطين بمرحلته
 - يرسل لهم الروابط من رقمه الخاص عبر الواتساب
 
-## الوضع الحالي (ما هو موجود)
+## حالة التنفيذ (2026-03-26)
 
-### موجود:
-- حقول `scopeType` و `scopeValue` في جدول Users
-- DeputiesSection لتوزيع المراحل على الوكلاء
-- TeachersTab لربط المعلمين بالفصول
-- روابط التوكن (LinksTab)
-- واجهات الجوال لكل دور (TeacherForm, WakeelForm, CounselorForm, StaffForm, GuardDisplay)
+### تم تنفيذه ✅:
+- حقول `scopeType` و `scopeValue` في جدول Users (كان موجوداً)
+- DeputiesSection لتوزيع المراحل على الوكلاء (كان موجوداً)
+- TeachersTab لربط المعلمين بالفصول (كان موجوداً)
+- روابط التوكن (LinksTab) (كان موجوداً)
+- واجهات الجوال لكل دور (كان موجوداً)
+- **فلترة الطلاب في الباك اند بحسب scopeValue** — `StaffInputController.Verify` + `GetStudents` + `GetGuardPermissions`
+- **كشف السيناريو تلقائياً** — `WhatsAppController.DetectScenario()` يرجع 1-4
+- **endpoint لمعلمين المرحلة** — `GET /whatsapp/stage-teachers` مع فلترة بالـ scope
+- **endpoint لمعلومات السيناريو** — `GET /whatsapp/scenario` يرجع السيناريو + قائمة الوكلاء
+- **حقل scenario في GetStatus** — يرجع مع كل استعلام حالة
+- **Frontend API** — `getScenario()` + `getStageTeachers()` في whatsapp.ts
+- **Sidebar + MobileNav** — الوكيل يشوف صفحة الواتساب في كل الأنماط
+- **WhatsAppPage** — إعادة تصميم كاملة تدعم 4 سيناريوهات:
+  - سيناريو 1: ربط QR للمدير فقط
+  - سيناريو 2: الوكيل يشوف "متصل برقم المدرسة"
+  - سيناريو 3: الوكيل يختار (رقم المدرسة / رقمه الخاص)
+  - سيناريو 4: ربط مستقل لكل وكيل
+- **StageTeachersSection** — قسم معلمين المرحلة مع حالة الربط وزر إرسال الرابط عبر واتساب
+- **محدد المرحلة** — دائماً ظاهر + خيار "الكل" للمدير
 
-### غير موجود:
-- فلترة الطلاب في الباك اند بحسب scopeValue (StaffInputController يرجع كل الطلاب)
-- ربط المعلم بالوكيل المسؤول عن مرحلته
-- واجهة الوكيل لرؤية معلمين مرحلته
-- إرسال الروابط من الوكيل لمعلمين مرحلته عبر الواتساب
-- صفحة الواتساب المعدّلة لدعم السيناريوهات الأربعة
-- صلاحية إرسال الواتساب للمعلم والموجه
+### لم يُنفذ بعد (مستقبلي):
+- صلاحية إرسال الواتساب للمعلم والموجه (تفعيل/تعطيل من الإعدادات)
+- واجهة الموجه في الواتساب (مؤجلة حسب طلب المستخدم)
+
+## الملفات المعدّلة
+
+### Backend:
+| الملف | التعديل |
+|-------|---------|
+| `src/API/Controllers/StaffInputController.cs` | فلترة scopeValue في Verify + GetStudents + GetGuardPermissions |
+| `src/API/Controllers/WhatsAppController.cs` | DetectScenario() + GET /scenario + GET /stage-teachers + scenario في GetStatus |
+
+### Frontend:
+| الملف | التعديل |
+|-------|---------|
+| `client/src/api/whatsapp.ts` | getScenario() + getStageTeachers() |
+| `client/src/components/Sidebar.tsx` | إزالة فلتر Unified للوكيل |
+| `client/src/components/MobileNav.tsx` | إزالة فلتر Unified للوكيل |
+| `client/src/pages/WhatsAppPage.tsx` | إعادة تصميم كاملة — 4 سيناريوهات + StageTeachersSection |

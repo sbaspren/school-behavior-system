@@ -3,7 +3,7 @@ using SchoolBehaviorSystem.Domain.Interfaces;
 
 namespace SchoolBehaviorSystem.Domain.Entities;
 
-public class EducationalNote : ITenantEntity
+public class EducationalNote : ITenantEntity, IStudentRecord
 {
     public int Id { get; set; }
     public int TenantId { get; set; } = 1;
@@ -18,8 +18,11 @@ public class EducationalNote : ITenantEntity
     public string Details { get; set; } = "";
     public string TeacherName { get; set; } = "";
     public string HijriDate { get; set; } = "";
+    public string RecordedBy { get; set; } = "";
     public DateTime RecordedAt { get; set; } = DateTime.UtcNow;
     public bool IsSent { get; set; }
+    public int Semester { get; set; } = 1;               // الفصل الدراسي
+    public string AcademicYear { get; set; } = "";       // السنة الهجرية
 
     public Student Student { get; set; } = null!;
 }

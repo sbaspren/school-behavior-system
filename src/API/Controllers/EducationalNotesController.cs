@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
-using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using SchoolBehaviorSystem.Application.DTOs.Responses;
 using SchoolBehaviorSystem.Application.Interfaces;
+using SchoolBehaviorSystem.API.Controllers.Base;
 using SchoolBehaviorSystem.Domain.Entities;
 using SchoolBehaviorSystem.Domain.Enums;
 using SchoolBehaviorSystem.Infrastructure.Data;
@@ -14,16 +15,10 @@ namespace SchoolBehaviorSystem.API.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class EducationalNotesController : ControllerBase
+public class EducationalNotesController : RecordControllerBase
 {
-    private readonly AppDbContext _db;
-    private readonly IWhatsAppServerService _whatsApp;
-
-    public EducationalNotesController(AppDbContext db, IWhatsAppServerService whatsApp)
-    {
-        _db = db;
-        _whatsApp = whatsApp;
-    }
+    public EducationalNotesController(AppDbContext db, IWhatsAppServerService whatsApp, IHijriDateService hijri, ISemesterService semesterSvc, IMemoryCache cache)
+        : base(db, whatsApp, hijri, semesterSvc, cache) { }
 
     // ─── GET ALL with filters ───
     [HttpGet]
@@ -37,22 +32,16 @@ public class EducationalNotesController : ControllerBase
         [FromQuery] bool? isSent = null,
         [FromQuery] string? search = null)
     {
-        var query = _db.EducationalNotes.AsQueryable();
+        var query = ApplyCommonFilters(
+            Db.EducationalNotes.AsQueryable(),
+            stage, grade, className, studentId, isSent: isSent);
 
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
-        if (!string.IsNullOrEmpty(grade))
-            query = query.Where(r => r.Grade == grade);
-        if (!string.IsNullOrEmpty(className))
-            query = query.Where(r => r.Class == className);
-        if (studentId.HasValue)
-            query = query.Where(r => r.StudentId == studentId.Value);
+        // Entity-specific filters
         if (!string.IsNullOrEmpty(noteType))
             query = query.Where(r => r.NoteType == noteType);
         if (!string.IsNullOrEmpty(hijriDate))
             query = query.Where(r => r.HijriDate == hijriDate);
-        if (isSent.HasValue)
-            query = query.Where(r => r.IsSent == isSent.Value);
+        // Search includes TeacherName (entity-specific), so applied separately
         if (!string.IsNullOrEmpty(search))
             query = query.Where(r => r.StudentName.Contains(search) || r.StudentNumber.Contains(search) || r.TeacherName.Contains(search));
 
@@ -76,31 +65,29 @@ public class EducationalNotesController : ControllerBase
     [HttpGet("daily-stats")]
     public async Task<ActionResult<ApiResponse<object>>> GetDailyStats([FromQuery] string? stage = null)
     {
-        var baseQuery = _db.EducationalNotes.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            baseQuery = baseQuery.Where(r => r.Stage == stageEnum);
+        var baseQuery = ApplyStageFilter(Db.EducationalNotes.AsQueryable(), stage);
 
-        var allRecords = await baseQuery.ToListAsync();
-
-        var total = allRecords.Count;
-        var sent = allRecords.Count(r => r.IsSent);
+        // إحصائيات مجمّعة على مستوى قاعدة البيانات (بدون تحميل كامل الجدول)
+        var total = await baseQuery.CountAsync();
+        var sent = await baseQuery.CountAsync(r => r.IsSent);
         var notSent = total - sent;
 
-        // byType
-        var byType = allRecords
-            .GroupBy(r => string.IsNullOrEmpty(r.NoteType) ? "غير محدد" : r.NoteType)
-            .ToDictionary(g => g.Key, g => g.Count());
+        var byType = await baseQuery
+            .GroupBy(r => r.NoteType == null || r.NoteType == "" ? "غير محدد" : r.NoteType)
+            .Select(g => new { key = g.Key, count = g.Count() })
+            .ToDictionaryAsync(x => x.key, x => x.count);
 
-        // byGrade
-        var byGrade = allRecords
-            .GroupBy(r => string.IsNullOrEmpty(r.Grade) ? "غير محدد" : r.Grade)
-            .ToDictionary(g => g.Key, g => g.Count());
+        var byGrade = await baseQuery
+            .GroupBy(r => r.Grade == null || r.Grade == "" ? "غير محدد" : r.Grade)
+            .Select(g => new { key = g.Key, count = g.Count() })
+            .ToDictionaryAsync(x => x.key, x => x.count);
 
-        // سجلات اليوم
+        // سجلات اليوم فقط
         var today = DateTime.UtcNow.Date;
-        var todayRecords = allRecords.Where(r => r.RecordedAt >= today).ToList();
+        var todayQuery = baseQuery.Where(r => r.RecordedAt >= today);
+        var todayCount = await todayQuery.CountAsync();
 
-        var todayList = todayRecords
+        var todayList = await todayQuery
             .OrderByDescending(r => r.RecordedAt)
             .Select(r => new
             {
@@ -110,20 +97,17 @@ public class EducationalNotesController : ControllerBase
                 r.Mobile, r.NoteType, r.Details,
                 r.TeacherName, r.HijriDate,
                 r.RecordedAt, r.IsSent
-            }).ToList();
+            }).ToListAsync();
 
         return Ok(ApiResponse<object>.Ok(new
         {
-            total,
-            sent,
-            notSent,
+            totalCount = total,
+            sentCount = sent,
+            unsentCount = notSent,
             byType,
             byGrade,
-            todayCount = todayRecords.Count,
-            today = todayList,
-            totalCount = total,
-            unsentCount = notSent,
-            sentCount = sent
+            todayCount,
+            today = todayList
         }));
     }
 
@@ -136,17 +120,13 @@ public class EducationalNotesController : ControllerBase
         if (string.IsNullOrEmpty(request.NoteType))
             return Ok(ApiResponse.Fail("نوع الملاحظة مطلوب"));
 
-        var student = await _db.Students.FindAsync(request.StudentId);
+        var student = await Db.Students.FindAsync(request.StudentId);
         if (student == null)
             return Ok(ApiResponse.Fail("الطالب غير موجود"));
 
         var hijriDate = request.HijriDate;
         if (string.IsNullOrEmpty(hijriDate))
-        {
-            var cal = new UmAlQuraCalendar();
-            var now = DateTime.Now;
-            hijriDate = $"{cal.GetYear(now)}/{cal.GetMonth(now):D2}/{cal.GetDayOfMonth(now):D2}";
-        }
+            hijriDate = Hijri.GetHijriDate();
 
         var record = new EducationalNote
         {
@@ -164,8 +144,9 @@ public class EducationalNotesController : ControllerBase
             RecordedAt = DateTime.UtcNow
         };
 
-        _db.EducationalNotes.Add(record);
-        await _db.SaveChangesAsync();
+        await StampSemesterAsync(record);
+        Db.EducationalNotes.Add(record);
+        await Db.SaveChangesAsync();
 
         return Ok(ApiResponse<object>.Ok(new { id = record.Id, message = "تم تسجيل الملاحظة بنجاح" }));
     }
@@ -179,32 +160,36 @@ public class EducationalNotesController : ControllerBase
         if (string.IsNullOrEmpty(request.NoteType))
             return Ok(ApiResponse.Fail("نوع الملاحظة مطلوب"));
 
-        var students = await _db.Students
+        var students = await Db.Students
             .Where(s => request.StudentIds.Contains(s.Id))
             .ToListAsync();
 
-        var cal = new UmAlQuraCalendar();
-        var now = DateTime.Now;
-        var hijriDate = request.HijriDate ?? $"{cal.GetYear(now)}/{cal.GetMonth(now):D2}/{cal.GetDayOfMonth(now):D2}";
+        var hijriDate = request.HijriDate ?? Hijri.GetHijriDate();
 
-        var records = students.Select(s => new EducationalNote
+        var records = new List<EducationalNote>();
+        foreach (var s in students)
         {
-            StudentId = s.Id,
-            StudentNumber = s.StudentNumber,
-            StudentName = s.Name,
-            Grade = s.Grade,
-            Class = s.Class,
-            Stage = s.Stage,
-            Mobile = s.Mobile,
-            NoteType = request.NoteType,
-            Details = request.Details ?? "",
-            TeacherName = request.TeacherName ?? "الوكيل",
-            HijriDate = hijriDate,
-            RecordedAt = DateTime.UtcNow
-        }).ToList();
+            var note = new EducationalNote
+            {
+                StudentId = s.Id,
+                StudentNumber = s.StudentNumber,
+                StudentName = s.Name,
+                Grade = s.Grade,
+                Class = s.Class,
+                Stage = s.Stage,
+                Mobile = s.Mobile,
+                NoteType = request.NoteType,
+                Details = request.Details ?? "",
+                TeacherName = request.TeacherName ?? "الوكيل",
+                HijriDate = hijriDate,
+                RecordedAt = DateTime.UtcNow
+            };
+            await StampSemesterAsync(note);
+            records.Add(note);
+        }
 
-        _db.EducationalNotes.AddRange(records);
-        await _db.SaveChangesAsync();
+        Db.EducationalNotes.AddRange(records);
+        await Db.SaveChangesAsync();
 
         return Ok(ApiResponse<object>.Ok(new { message = $"تم حفظ {records.Count} ملاحظة بنجاح", count = records.Count }));
     }
@@ -213,7 +198,7 @@ public class EducationalNotesController : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse>> Update(int id, [FromBody] EducationalNoteRequest request)
     {
-        var record = await _db.EducationalNotes.FindAsync(id);
+        var record = await Db.EducationalNotes.FindAsync(id);
         if (record == null)
             return Ok(ApiResponse.Fail("السجل غير موجود"));
 
@@ -226,50 +211,34 @@ public class EducationalNotesController : ControllerBase
         if (request.HijriDate != null)
             record.HijriDate = request.HijriDate;
 
-        await _db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
         return Ok(ApiResponse.Ok("تم تحديث الملاحظة بنجاح"));
     }
 
     // ─── UPDATE SENT STATUS ───
     [HttpPut("{id}/sent")]
-    public async Task<ActionResult<ApiResponse>> UpdateSentStatus(int id, [FromBody] UpdateSentRequest request)
+    public async Task<ActionResult<ApiResponse>> UpdateSentStatus(int id, [FromBody] CommonUpdateSentRequest request)
     {
-        var record = await _db.EducationalNotes.FindAsync(id);
-        if (record == null)
-            return Ok(ApiResponse.Fail("السجل غير موجود"));
-
-        record.IsSent = request.IsSent;
-        await _db.SaveChangesAsync();
-        return Ok(ApiResponse.Ok("تم تحديث حالة الإرسال"));
+        return await UpdateSentStatusAsync(Db.EducationalNotes, id, request.IsSent);
     }
 
     // ─── BATCH UPDATE SENT STATUS ───
     [HttpPut("sent-batch")]
-    public async Task<ActionResult<ApiResponse<object>>> UpdateSentStatusBatch([FromBody] BulkIdsRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> UpdateSentStatusBatch([FromBody] CommonBulkIdsRequest request)
     {
-        if (request.Ids == null || request.Ids.Count == 0)
-            return Ok(ApiResponse<object>.Fail("لا توجد سجلات محددة"));
-
-        var records = await _db.EducationalNotes
-            .Where(r => request.Ids.Contains(r.Id))
-            .ToListAsync();
-
-        foreach (var r in records) r.IsSent = true;
-        await _db.SaveChangesAsync();
-
-        return Ok(ApiResponse<object>.Ok(new { updatedCount = records.Count }));
+        return await UpdateSentBatchAsync(Db.EducationalNotes, request.Ids);
     }
 
     // ─── MARK ALL STUDENT NOTES AS SENT (مطابق للأصلي: updateEduNoteSentStatus بمعرف الطالب) ───
     [HttpPut("sent-by-student/{studentId}")]
     public async Task<ActionResult<ApiResponse>> UpdateSentByStudent(int studentId)
     {
-        var records = await _db.EducationalNotes
+        var records = await Db.EducationalNotes
             .Where(r => r.StudentId == studentId && !r.IsSent)
             .ToListAsync();
 
         foreach (var r in records) r.IsSent = true;
-        await _db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
 
         return Ok(ApiResponse.Ok($"تم تحديث {records.Count} ملاحظة للطالب"));
     }
@@ -279,134 +248,61 @@ public class EducationalNotesController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> SendWhatsApp(int id,
         [FromBody] SendEduWhatsAppRequest? request = null)
     {
-        var record = await _db.EducationalNotes.FindAsync(id);
+        var record = await Db.EducationalNotes.FindAsync(id);
         if (record == null)
-            return Ok(ApiResponse.Fail("السجل غير موجود"));
-
-        var phone = record.Mobile;
-        if (string.IsNullOrEmpty(phone))
-            return Ok(ApiResponse.Fail("لا يوجد رقم جوال لولي أمر الطالب"));
-
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
-        if (settings == null || string.IsNullOrEmpty(settings.ServerUrl))
-            return Ok(ApiResponse<object>.Fail("إعدادات الواتساب غير مكتملة"));
-
-        var senderPhone = request?.SenderPhone;
-        if (string.IsNullOrEmpty(senderPhone))
-        {
-            var session = await _db.WhatsAppSessions
-                .Where(s => s.IsPrimary && s.Stage == record.Stage.ToString())
-                .FirstOrDefaultAsync();
-            session ??= await _db.WhatsAppSessions.Where(s => s.IsPrimary).FirstOrDefaultAsync();
-            senderPhone = session?.PhoneNumber ?? "";
-        }
-        if (string.IsNullOrEmpty(senderPhone))
-            return Ok(ApiResponse<object>.Fail("لا يوجد رقم مرسل"));
+            return Ok(ApiResponse<object>.Fail("السجل غير موجود"));
 
         var message = request?.Message ?? BuildEduWhatsAppMessage(record);
 
-        var sent = await _whatsApp.SendMessageAsync(settings.ServerUrl, senderPhone, phone, message);
-
-        if (sent)
-        {
-            record.IsSent = true;
-            _db.CommunicationLogs.Add(new CommunicationLog
-            {
-                StudentId = record.StudentId, StudentNumber = record.StudentNumber,
-                StudentName = record.StudentName, Grade = record.Grade, Class = record.Class,
-                Stage = record.Stage, Mobile = phone,
-                MessageType = "ملاحظة تربوية", MessageTitle = "إشعار ملاحظة تربوية",
-                MessageBody = message, SendStatus = "تم",
-                MiladiDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
-                SentBy = request?.SentBy ?? "الوكيل"
-            });
-            await _db.SaveChangesAsync();
-        }
-
-        return Ok(ApiResponse<object>.Ok(new { success = sent }));
+        return await SendWhatsAppSingleAsync(
+            record, record.Mobile, message,
+            request?.SenderPhone,
+            "ملاحظة تربوية",
+            "إشعار ملاحظة تربوية",
+            request?.SentBy ?? "الوكيل");
     }
 
     // ─── SEND WHATSAPP BULK ───
     [HttpPost("send-whatsapp-bulk")]
-    public async Task<ActionResult<ApiResponse<object>>> SendWhatsAppBulk([FromBody] BulkSendWhatsAppRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> SendWhatsAppBulk([FromBody] CommonBulkSendWhatsAppRequest request)
     {
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
-        if (settings == null || string.IsNullOrEmpty(settings.ServerUrl))
-            return Ok(ApiResponse<object>.Fail("إعدادات الواتساب غير مكتملة"));
-
-        var records = await _db.EducationalNotes
+        var records = await Db.EducationalNotes
             .Where(r => request.Ids.Contains(r.Id))
             .ToListAsync();
 
-        var senderPhone = request.SenderPhone;
-        if (string.IsNullOrEmpty(senderPhone))
-        {
-            var session = await _db.WhatsAppSessions.Where(s => s.IsPrimary).FirstOrDefaultAsync();
-            senderPhone = session?.PhoneNumber ?? "";
-        }
+        var (sentCount, failedCount, total) = await SendWhatsAppBulkCoreAsync(
+            records,
+            r => r.Mobile,
+            r => Task.FromResult(BuildEduWhatsAppMessage(r)),
+            request.SenderPhone,
+            "ملاحظة تربوية",
+            _ => "إشعار ملاحظة تربوية",
+            request.SentBy ?? "الوكيل",
+            speed: request.Speed,
+            customDelaySeconds: request.CustomDelaySeconds);
 
-        int successCount = 0, failCount = 0;
-        foreach (var record in records)
-        {
-            if (string.IsNullOrEmpty(record.Mobile)) { failCount++; continue; }
-
-            var message = BuildEduWhatsAppMessage(record);
-            var sent = await _whatsApp.SendMessageAsync(settings.ServerUrl, senderPhone, record.Mobile, message);
-
-            if (sent)
-            {
-                record.IsSent = true;
-                _db.CommunicationLogs.Add(new CommunicationLog
-                {
-                    StudentId = record.StudentId, StudentNumber = record.StudentNumber,
-                    StudentName = record.StudentName, Grade = record.Grade, Class = record.Class,
-                    Stage = record.Stage, Mobile = record.Mobile,
-                    MessageType = "ملاحظة تربوية", MessageTitle = "إشعار ملاحظة تربوية",
-                    MessageBody = message, SendStatus = "تم",
-                    MiladiDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
-                    SentBy = request.SentBy ?? "الوكيل"
-                });
-                successCount++;
-            }
-            else { failCount++; }
-            await Task.Delay(100);
-        }
-
-        await _db.SaveChangesAsync();
-        return Ok(ApiResponse<object>.Ok(new { success = successCount, fail = failCount, total = records.Count }));
+        return Ok(ApiResponse<object>.Ok(new { success = sentCount, fail = failedCount, total }));
     }
 
     // ─── DELETE ───
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse>> Delete(int id)
     {
-        var record = await _db.EducationalNotes.FindAsync(id);
-        if (record == null)
-            return Ok(ApiResponse.Fail("السجل غير موجود"));
-
-        _db.EducationalNotes.Remove(record);
-        await _db.SaveChangesAsync();
-        return Ok(ApiResponse.Ok("تم حذف الملاحظة بنجاح"));
+        return await DeleteRecordAsync(Db.EducationalNotes, id, successMessage: "تم حذف الملاحظة بنجاح");
     }
 
     // ─── BULK DELETE ───
     [HttpPost("delete-bulk")]
-    public async Task<ActionResult<ApiResponse<object>>> DeleteBulk([FromBody] BulkIdsRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> DeleteBulk([FromBody] CommonBulkIdsRequest request)
     {
-        var records = await _db.EducationalNotes
-            .Where(r => request.Ids.Contains(r.Id))
-            .ToListAsync();
-
-        _db.EducationalNotes.RemoveRange(records);
-        await _db.SaveChangesAsync();
-        return Ok(ApiResponse<object>.Ok(new { deleted = records.Count }));
+        return await DeleteBulkAsync(Db.EducationalNotes, request.Ids);
     }
 
     // ─── STUDENT SUMMARY ───
     [HttpGet("student-summary/{studentId}")]
     public async Task<ActionResult<ApiResponse<object>>> GetStudentSummary(int studentId)
     {
-        var records = await _db.EducationalNotes
+        var records = await Db.EducationalNotes
             .Where(r => r.StudentId == studentId)
             .OrderByDescending(r => r.RecordedAt)
             .ToListAsync();
@@ -431,7 +327,7 @@ public class EducationalNotesController : ControllerBase
     [HttpGet("student-count/{studentId}")]
     public async Task<ActionResult<ApiResponse<object>>> GetStudentCount(int studentId)
     {
-        var count = await _db.EducationalNotes.CountAsync(r => r.StudentId == studentId);
+        var count = await Db.EducationalNotes.CountAsync(r => r.StudentId == studentId);
         return Ok(ApiResponse<object>.Ok(new { studentId, count }));
     }
 
@@ -439,9 +335,7 @@ public class EducationalNotesController : ControllerBase
     [HttpGet("report")]
     public async Task<ActionResult<ApiResponse<object>>> GetReport([FromQuery] string? stage = null)
     {
-        var query = _db.EducationalNotes.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
+        var query = ApplyStageFilter(Db.EducationalNotes.AsQueryable(), stage);
 
         var records = await query.ToListAsync();
 
@@ -487,7 +381,7 @@ public class EducationalNotesController : ControllerBase
     [HttpGet("types")]
     public async Task<ActionResult<ApiResponse<List<string>>>> GetTypes([FromQuery] string? stage = null)
     {
-        var query = _db.NoteTypeDefs.AsQueryable();
+        var query = Db.NoteTypeDefs.AsQueryable();
         if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
             query = query.Where(t => t.Stage == stageEnum);
 
@@ -507,12 +401,12 @@ public class EducationalNotesController : ControllerBase
         if (string.IsNullOrEmpty(request.Stage) || !Enum.TryParse<Stage>(request.Stage, true, out var stageEnum))
             return Ok(ApiResponse.Fail("المرحلة مطلوبة"));
 
-        var existing = await _db.NoteTypeDefs.Where(t => t.Stage == stageEnum).ToListAsync();
-        _db.NoteTypeDefs.RemoveRange(existing);
+        var existing = await Db.NoteTypeDefs.Where(t => t.Stage == stageEnum).ToListAsync();
+        Db.NoteTypeDefs.RemoveRange(existing);
 
         foreach (var type in request.Types ?? new List<string>())
         {
-            _db.NoteTypeDefs.Add(new NoteTypeDef
+            Db.NoteTypeDefs.Add(new NoteTypeDef
             {
                 Stage = stageEnum,
                 NoteType = type,
@@ -520,7 +414,7 @@ public class EducationalNotesController : ControllerBase
             });
         }
 
-        await _db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
         return Ok(ApiResponse.Ok("تم حفظ الأنواع بنجاح"));
     }
 
@@ -528,9 +422,7 @@ public class EducationalNotesController : ControllerBase
     [HttpGet("export")]
     public async Task<IActionResult> ExportCsv([FromQuery] string? stage = null)
     {
-        var query = _db.EducationalNotes.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
+        var query = ApplyStageFilter(Db.EducationalNotes.AsQueryable(), stage);
 
         var records = await query.OrderByDescending(r => r.RecordedAt).ToListAsync();
 

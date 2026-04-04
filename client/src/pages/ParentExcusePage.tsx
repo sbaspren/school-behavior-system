@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import FilterBtn from '../components/shared/FilterBtn';
 import { parentExcuseApi, ParentExcuseRow } from '../api/parentExcuse';
-import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { SETTINGS_STAGES } from '../utils/constants';
+import { useAppContext } from '../hooks/useAppContext';
+import { classToLetter } from '../utils/printUtils';
 
 const STATUS_OPTIONS = ['معلق', 'مقبول', 'مرفوض'];
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -12,7 +14,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
 };
 
 const ParentExcusePage: React.FC = () => {
-  const [stages, setStages] = useState<StageConfigData[]>([]);
+  const { enabledStages } = useAppContext();
   const [currentStage, setCurrentStage] = useState('');
   const [excuses, setExcuses] = useState<ParentExcuseRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,30 +23,21 @@ const ParentExcusePage: React.FC = () => {
   const [actionNotes, setActionNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  const enabledStages = useMemo(() =>
-    stages.filter(s => s.isEnabled && s.grades.some(g => g.isEnabled && g.classCount > 0)),
-    [stages]
-  );
-
   useEffect(() => {
-    settingsApi.getStructure().then(res => {
-      if (res.data?.data?.stages) {
-        const st = Array.isArray(res.data.data.stages) ? res.data.data.stages : [];
-        setStages(st);
-        const enabled = st.filter((s: StageConfigData) => s.isEnabled && s.grades.some((g: { isEnabled: boolean; classCount: number }) => g.isEnabled && g.classCount > 0));
-        if (enabled.length > 0) setCurrentStage(enabled[0].stage);
-      }
-    });
-  }, []);
+    if (enabledStages.length > 0 && !currentStage) {
+      setCurrentStage(enabledStages[0].stage);
+    }
+  }, [enabledStages, currentStage]);
 
+  const initialLoadDone = useRef(false);
   const loadData = useCallback(async () => {
     if (!currentStage) return;
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const res = await parentExcuseApi.getAll(currentStage, statusFilter || undefined);
       if (res.data?.data) setExcuses(res.data.data);
     } catch { /* empty */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone.current = true; }
   }, [currentStage, statusFilter]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -95,11 +88,7 @@ const ParentExcusePage: React.FC = () => {
               {enabledStages.map(s => {
                 const info = SETTINGS_STAGES.find(x => x.id === s.stage);
                 return (
-                  <button key={s.stage} onClick={() => setCurrentStage(s.stage)}
-                    className={`text-xs px-3 py-1 rounded-full font-bold transition-all ${currentStage === s.stage
-                      ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                    {info?.name || s.stage}
-                  </button>
+                  <FilterBtn key={s.stage} label={info?.name || s.stage} active={currentStage === s.stage} onClick={() => setCurrentStage(s.stage)} color="#8b5cf6" />
                 );
               })}
             </div>
@@ -157,7 +146,7 @@ const ParentExcusePage: React.FC = () => {
                     <span className="material-symbols-outlined text-purple-400">person</span>
                     <div>
                       <span className="font-bold text-gray-800">{excuse.studentName}</span>
-                      <span className="text-xs text-gray-400 mr-2">{excuse.grade} / فصل {excuse.class}</span>
+                      <span className="text-xs text-gray-400 mr-2">{excuse.grade} / {classToLetter(excuse.class)}</span>
                     </div>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-bold ${sc.bg} ${sc.text} border ${sc.border}`}>
@@ -188,7 +177,7 @@ const ParentExcusePage: React.FC = () => {
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-lg font-extrabold text-gray-900">{selectedExcuse.studentName}</h3>
-                  <p className="text-sm text-gray-500">{selectedExcuse.grade} / فصل {selectedExcuse.class} | رقم: {selectedExcuse.studentNumber}</p>
+                  <p className="text-sm text-gray-500">{selectedExcuse.grade} / {classToLetter(selectedExcuse.class)} | رقم: {selectedExcuse.studentNumber}</p>
                 </div>
                 <button onClick={() => setSelectedExcuse(null)} className="text-gray-400 hover:text-gray-600">
                   <span className="material-symbols-outlined">close</span>

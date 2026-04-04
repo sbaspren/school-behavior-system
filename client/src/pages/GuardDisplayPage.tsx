@@ -3,12 +3,14 @@ import { useSearchParams } from 'react-router-dom';
 import {
   staffInputApi, StaffVerifyData, GuardPermissionRecord,
 } from '../api/staffInput';
+import { classToLetter } from '../utils/printUtils';
+import { MF, ROLE_THEME, SEC_COLORS } from '../utils/mobileFormStyles';
 
-const STAGE_ICONS: Record<string, string> = {
-  'طفولة مبكرة': '\u{1F7E3}',
-  'ابتدائي': '\u{1F7E2}',
-  'متوسط': '\u{1F537}',
-  'ثانوي': '\u{1F536}',
+const STAGE_MATERIAL_ICONS: Record<string, string> = {
+  'طفولة مبكرة': 'child_care',
+  'ابتدائي': 'school',
+  'متوسط': 'menu_book',
+  'ثانوي': 'history_edu',
 };
 
 const GuardDisplayPage: React.FC = () => {
@@ -54,7 +56,7 @@ const GuardDisplayPage: React.FC = () => {
       const res = await staffInputApi.getGuardPermissions(token, stage);
       setRecords(Array.isArray(res.data?.data) ? res.data.data : []);
     } catch {
-      showToast('\u274C \u062E\u0637\u0623 \u0641\u064A \u062C\u0644\u0628 \u0627\u0644\u0633\u062C\u0644\u0627\u062A', 'te');
+      showToast('خطأ في جلب السجلات', 'te');
     } finally {
       setRecordsLoading(false);
     }
@@ -75,12 +77,12 @@ const GuardDisplayPage: React.FC = () => {
         setRecords(prev => prev.map(r =>
           r.id === id ? { ...r, confirmed: true, confirmationTime: d.confirmationTime || '' } : r
         ));
-        showToast('\u2705 \u062A\u0645 \u062A\u0623\u0643\u064A\u062F \u0627\u0644\u062E\u0631\u0648\u062C', 'ts');
+        showToast('تم تأكيد الخروج', 'ts');
       } else {
-        showToast('\u274C \u0641\u0634\u0644 \u062A\u0623\u0643\u064A\u062F \u0627\u0644\u062E\u0631\u0648\u062C', 'te');
+        showToast('فشل تأكيد الخروج', 'te');
       }
     } catch {
-      showToast('\u274C \u062D\u062F\u062B \u062E\u0637\u0623', 'te');
+      showToast('حدث خطأ', 'te');
     }
   }, [token, showToast]);
 
@@ -93,109 +95,174 @@ const GuardDisplayPage: React.FC = () => {
 
   // ── Render: Loading ──
   if (loading) return (
-    <div style={S.center}>
-      <div style={{ fontSize: '18px', color: '#6b7280' }}>جاري التحميل...</div>
+    <div style={MF.loadingPage}>
+      <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#9da3b8' }}>hourglass_empty</span>
+      <div style={MF.loadingText}>جاري التحميل...</div>
     </div>
   );
 
   // ── Render: Error ──
   if (error || !pageData) return (
-    <div style={S.center}>
-      <div style={S.errScreen}>
-        <div style={S.errIcon}>{'\uD83D\uDD12'}</div>
-        <div style={S.errTitle}>رابط غير صالح</div>
-        <div style={S.errMsg}>{error || 'تأكد من صحة الرابط'}</div>
-      </div>
+    <div style={MF.errorPage}>
+      <span className="material-symbols-outlined" style={MF.errorIcon}>lock</span>
+      <div style={MF.errorTitle}>رابط غير صالح</div>
+      <div style={MF.errorMsg}>{error || 'تأكد من صحة الرابط'}</div>
     </div>
   );
 
   return (
-    <div style={S.page}>
+    <div style={MF.page}>
       {/* Toast */}
       {toast && (
         <div style={{
-          ...S.toast,
-          background: toast.cls === 'ts' ? '#16a34a' : toast.cls === 'te' ? '#dc2626' : '#3b82f6',
-          opacity: 1, transform: 'translateX(-50%) translateY(0)',
+          ...MF.toast,
+          ...(toast.cls === 'ts' ? MF.toastSuccess : MF.toastError),
+          opacity: 1,
+          transform: 'translateX(-50%) translateY(0)',
         }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+            {toast.cls === 'ts' ? 'check_circle' : 'error'}
+          </span>
           {toast.msg}
         </div>
       )}
 
+      {/* Accent Strip */}
+      <div style={{ ...MF.accentStrip, background: ROLE_THEME.guard.color }} />
+
       {/* Header — sticky */}
-      <div style={S.header}>
-        <div style={S.hdrRow}>
-          <div>
-            <h1 style={S.hdrTitle}>{'\uD83D\uDEE1\uFE0F'} سجل المستأذنين</h1>
-            <div style={S.hdrSub}>{'\uD83D\uDC64'} {pageData.staff.name}</div>
+      <div style={MF.header}>
+        <div style={MF.headerRow}>
+          <div style={MF.headerInfo}>
+            <div style={{ ...MF.headerIcon, background: ROLE_THEME.guard.bg }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '22px', color: ROLE_THEME.guard.color }}>security</span>
+            </div>
+            <div>
+              <h1 style={MF.headerTitle}>سجل المستأذنين</h1>
+              <div style={MF.headerSub}>{pageData.staff.name}</div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Stage Tabs */}
       {stages.length > 0 && (
-        <div style={S.tabs}>
+        <div style={MF.tabsBar}>
           {stages.map(stage => (
             <button
               key={stage}
               onClick={() => setCurStage(stage)}
               style={{
-                ...S.tab,
-                ...(curStage === stage ? S.tabActive : {}),
+                ...MF.tab,
+                ...(curStage === stage ? { ...MF.tabActive, background: ROLE_THEME.guard.color } : {}),
               }}
             >
-              {STAGE_ICONS[stage] || '\uD83D\uDD39'} {stage}
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                {STAGE_MATERIAL_ICONS[stage] || 'category'}
+              </span>
+              {stage}
             </button>
           ))}
         </div>
       )}
 
       {/* Main content */}
-      <div style={S.main}>
+      <div style={MF.content}>
         {/* Summary */}
-        <div style={S.summary}>
-          <div style={S.sumCard}>
-            <div style={{ ...S.sumNum, color: '#f59e0b' }}>{waitingCount}</div>
-            <div style={S.sumLabel}>{'\u23F3'} بانتظار الخروج</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+          <div style={MF.card}>
+            <div style={{ ...MF.cardAccent, background: '#f59e0b' }} />
+            <div style={{ ...MF.cardBody, textAlign: 'center' }}>
+              <div style={{ fontSize: '28px', fontWeight: 800, lineHeight: 1, color: '#f59e0b' }}>{waitingCount}</div>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#5c6178', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>hourglass_empty</span>
+                بانتظار الخروج
+              </div>
+            </div>
           </div>
-          <div style={S.sumCard}>
-            <div style={{ ...S.sumNum, color: '#16a34a' }}>{doneCount}</div>
-            <div style={S.sumLabel}>{'\u2705'} تم تأكيد خروجهم</div>
+          <div style={MF.card}>
+            <div style={{ ...MF.cardAccent, background: '#16a34a' }} />
+            <div style={{ ...MF.cardBody, textAlign: 'center' }}>
+              <div style={{ fontSize: '28px', fontWeight: 800, lineHeight: 1, color: '#16a34a' }}>{doneCount}</div>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#5c6178', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+                تم تأكيد خروجهم
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Records */}
         {recordsLoading ? (
-          <div style={S.empty}>{'\u23F3'} جاري التحميل...</div>
+          <div style={MF.empty}>
+            <span className="material-symbols-outlined" style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>hourglass_empty</span>
+            جاري التحميل...
+          </div>
         ) : records.length === 0 ? (
-          <div style={S.empty}>
-            <div style={S.emptyIcon}>{'\uD83D\uDCED'}</div>
+          <div style={MF.empty}>
+            <span className="material-symbols-outlined" style={{ fontSize: '48px', display: 'block', marginBottom: '12px' }}>inbox</span>
             لا يوجد مستأذنين اليوم
           </div>
         ) : (
           <div style={{ display: 'grid', gap: '12px' }}>
             {records.map(r => (
               <div key={r.id} style={{
-                ...S.sCard,
-                ...(r.confirmed ? S.sCardConfirmed : {}),
+                ...MF.card,
+                borderRight: r.confirmed ? '5px solid #16a34a' : '5px solid #f59e0b',
+                background: r.confirmed ? '#f0fdf4' : '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                marginBottom: 0,
               }}>
-                <div style={S.sInfo}>
-                  <div style={S.sName}>{r.studentName}</div>
-                  <div style={S.sDetail}>
-                    <span>{'\uD83C\uDFEB'} {r.className}</span>
-                    {r.reason && <span>{'\uD83D\uDCDD'} {r.reason}</span>}
-                    {r.exitTime && <span>{'\uD83D\uDD50'} {r.exitTime}</span>}
-                    {r.confirmed && <span>{'\u2705'} خرج: {r.confirmationTime}</span>}
+                <div style={{ flex: 1, padding: '16px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#1a1d2e', marginBottom: '4px' }}>{r.studentName}</div>
+                  <div style={{ fontSize: '12px', color: '#5c6178', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>apartment</span>
+                      {classToLetter(r.className)}
+                    </span>
+                    {r.reason && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>description</span>
+                        {r.reason}
+                      </span>
+                    )}
+                    {r.exitTime && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>schedule</span>
+                        {r.exitTime}
+                      </span>
+                    )}
+                    {r.confirmed && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+                        خرج: {r.confirmationTime}
+                      </span>
+                    )}
                   </div>
                 </div>
                 {r.confirmed ? (
-                  <div style={S.sBtnDone}>{'\u2705'}</div>
+                  <div style={{
+                    width: '56px', height: '56px', borderRadius: '50%',
+                    background: '#16a34a', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', flexShrink: 0, marginLeft: '16px',
+                  }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '24px', color: '#fff' }}>check</span>
+                  </div>
                 ) : (
                   <button
                     onClick={() => handleConfirmExit(r.id)}
-                    style={S.sBtnWaiting}
+                    style={{
+                      width: '56px', height: '56px', borderRadius: '50%',
+                      border: 'none', color: '#fff', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, marginLeft: '16px',
+                      background: '#f59e0b',
+                      boxShadow: '0 4px 12px rgba(245,158,11,.3)',
+                      fontFamily: 'inherit',
+                    }}
                   >
-                    {'\uD83D\uDEAA'}
+                    <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>meeting_room</span>
                   </button>
                 )}
               </div>
@@ -205,150 +272,35 @@ const GuardDisplayPage: React.FC = () => {
       </div>
 
       {/* FAB Refresh */}
-      <button onClick={doRefresh} style={S.fab}>
-        <span style={refreshSpin ? { display: 'inline-block', animation: 'spin 0.8s linear infinite' } : {}}>
-          {'\uD83D\uDD04'}
-        </span>
-        {' '}تحديث
+      <button onClick={doRefresh} style={{
+        ...MF.refreshBtn,
+        position: 'fixed',
+        bottom: '20px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        padding: '16px 40px',
+        borderRadius: '100px',
+        background: ROLE_THEME.guard.color,
+        color: '#fff',
+        fontSize: '16px',
+        fontWeight: 800,
+        border: 'none',
+        boxShadow: '0 6px 20px rgba(30,58,95,.3)',
+        zIndex: 30,
+      }}>
+        <span
+          className="material-symbols-outlined"
+          style={{
+            fontSize: '20px',
+            ...(refreshSpin ? { display: 'inline-block', animation: 'spin 0.8s linear infinite' } : {}),
+          }}
+        >sync</span>
+        تحديث
       </button>
 
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
-};
-
-// ── Styles matching GuardDisplay.html exactly ──
-const S: Record<string, React.CSSProperties> = {
-  page: {
-    direction: 'rtl',
-    fontFamily: "'Segoe UI', 'Tahoma', 'Arial', sans-serif",
-    background: '#f0f2f5',
-    minHeight: '100vh',
-    color: '#1f2937',
-  },
-  center: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    minHeight: '100vh', direction: 'rtl',
-    fontFamily: "'Segoe UI', 'Tahoma', 'Arial', sans-serif",
-  },
-  header: {
-    background: 'linear-gradient(135deg, #1e3a5f, #2c5282)',
-    padding: '16px 20px',
-    position: 'sticky',
-    top: 0,
-    zIndex: 40,
-    boxShadow: '0 2px 12px rgba(30,58,95,.3)',
-  },
-  hdrRow: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    maxWidth: '600px', margin: '0 auto',
-  },
-  hdrTitle: {
-    fontSize: '20px', fontWeight: 800, color: '#fff', margin: 0,
-  },
-  hdrSub: {
-    fontSize: '12px', color: 'rgba(255,255,255,.8)', marginTop: '2px',
-  },
-  tabs: {
-    display: 'flex', background: '#fff', margin: '16px 16px 0',
-    borderRadius: '14px', overflow: 'hidden',
-    boxShadow: '0 2px 8px rgba(0,0,0,.06)',
-    maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto',
-  },
-  tab: {
-    flex: 1, padding: '14px', textAlign: 'center',
-    fontSize: '15px', fontWeight: 700, border: 'none',
-    background: '#fff', color: '#6b7280', cursor: 'pointer',
-    transition: 'all .25s',
-    fontFamily: 'inherit',
-  },
-  tabActive: {
-    color: '#fff',
-    background: 'linear-gradient(135deg, #1e3a5f, #2c5282)',
-  },
-  main: {
-    maxWidth: '600px', margin: '0 auto',
-    padding: '16px 16px 100px',
-  },
-  summary: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr',
-    gap: '10px', marginBottom: '16px',
-  },
-  sumCard: {
-    background: '#fff', borderRadius: '14px', padding: '14px',
-    textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,.05)',
-  },
-  sumNum: {
-    fontSize: '28px', fontWeight: 800, lineHeight: 1,
-  },
-  sumLabel: {
-    fontSize: '12px', fontWeight: 700, color: '#6b7280', marginTop: '4px',
-  },
-  sCard: {
-    background: '#fff', borderRadius: '16px', padding: '16px',
-    boxShadow: '0 2px 8px rgba(0,0,0,.05)',
-    display: 'flex', alignItems: 'center', gap: '14px',
-    borderRight: '5px solid #f59e0b',
-    transition: 'all .3s',
-  },
-  sCardConfirmed: {
-    borderRightColor: '#16a34a',
-    background: '#f0fdf4',
-  },
-  sInfo: { flex: 1 },
-  sName: {
-    fontSize: '16px', fontWeight: 700, color: '#1f2937', marginBottom: '4px',
-  },
-  sDetail: {
-    fontSize: '12px', color: '#6b7280',
-    display: 'flex', flexWrap: 'wrap', gap: '8px',
-  },
-  sBtnWaiting: {
-    width: '56px', height: '56px', borderRadius: '50%',
-    border: 'none', color: '#fff', fontSize: '24px',
-    cursor: 'pointer', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', flexShrink: 0,
-    background: 'linear-gradient(135deg, #d97706, #f59e0b)',
-    boxShadow: '0 4px 12px rgba(245,158,11,.3)',
-    fontFamily: 'inherit',
-  },
-  sBtnDone: {
-    width: '56px', height: '56px', borderRadius: '50%',
-    background: '#16a34a', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', fontSize: '24px', flexShrink: 0,
-    color: '#fff',
-  },
-  empty: {
-    textAlign: 'center', padding: '60px 20px', color: '#9ca3af', fontSize: '15px',
-  },
-  emptyIcon: { fontSize: '48px', marginBottom: '12px' },
-  fab: {
-    position: 'fixed', bottom: '20px', left: '50%',
-    transform: 'translateX(-50%)',
-    padding: '16px 40px', border: 'none', borderRadius: '100px',
-    background: 'linear-gradient(135deg, #1e3a5f, #2c5282)',
-    color: '#fff', fontSize: '16px', fontWeight: 800,
-    fontFamily: 'inherit', cursor: 'pointer',
-    boxShadow: '0 6px 20px rgba(30,58,95,.3)', zIndex: 30,
-    display: 'flex', alignItems: 'center', gap: '8px',
-  },
-  toast: {
-    position: 'fixed', top: '80px', left: '50%',
-    transform: 'translateX(-50%) translateY(-20px)',
-    padding: '14px 24px', borderRadius: '14px', color: '#fff',
-    fontSize: '15px', fontWeight: 700, zIndex: 60,
-    opacity: 0, transition: 'all .3s', pointerEvents: 'none',
-    textAlign: 'center', minWidth: '200px',
-    boxShadow: '0 8px 24px rgba(0,0,0,.2)',
-  },
-  errScreen: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center',
-    justifyContent: 'center', minHeight: '60vh',
-    textAlign: 'center', padding: '32px',
-  },
-  errIcon: { fontSize: '64px', marginBottom: '16px' },
-  errTitle: { fontSize: '20px', fontWeight: 800, marginBottom: '8px' },
-  errMsg: { color: '#6b7280', fontSize: '14px' },
 };
 
 export default GuardDisplayPage;

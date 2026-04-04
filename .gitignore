@@ -16,6 +16,10 @@ client/dist/
 .env.local
 .env.*.local
 appsettings.Development.json
+appsettings.json
+
+# Build artifacts (React output)
+src/API/wwwroot/
 
 # IDE
 .idea/

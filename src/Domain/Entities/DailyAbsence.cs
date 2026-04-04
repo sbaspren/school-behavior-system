@@ -3,7 +3,7 @@ using SchoolBehaviorSystem.Domain.Interfaces;
 
 namespace SchoolBehaviorSystem.Domain.Entities;
 
-public class DailyAbsence : ITenantEntity
+public class DailyAbsence : ITenantEntity, IStudentRecord
 {
     public int Id { get; set; }
     public int TenantId { get; set; } = 1;
@@ -23,10 +23,13 @@ public class DailyAbsence : ITenantEntity
     public AbsenceStatus Status { get; set; } = AbsenceStatus.Pending;
     public ExcuseType ExcuseType { get; set; }
     public bool IsSent { get; set; }
+    public int Semester { get; set; } = 1;               // الفصل الدراسي
+    public string AcademicYear { get; set; } = "";       // السنة الهجرية
     public string TardinessStatus { get; set; } = "";    // حالة التأخر
     public string ArrivalTime { get; set; } = "";        // وقت الحضور
     public string Notes { get; set; } = "";
     public string NoorStatus { get; set; } = "";         // حالة نور
+    public DateTime? NoorDocumentedAt { get; set; }      // تاريخ التوثيق في نور
 
     public Student Student { get; set; } = null!;
 }

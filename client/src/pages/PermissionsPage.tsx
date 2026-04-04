@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import MI from '../components/shared/MI';
 import PageHero from '../components/shared/PageHero';
 import TabBar from '../components/shared/TabBar';
@@ -8,75 +8,43 @@ import EmptyState from '../components/shared/EmptyState';
 import ActionIcon from '../components/shared/ActionIcon';
 import InputModal from '../components/shared/InputModal';
 import StudentSelector from '../components/shared/StudentSelector';
+import FilterBtn from '../components/shared/FilterBtn';
+import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { permissionsApi, PermissionData } from '../api/permissions';
-import { settingsApi, StageConfigData } from '../api/settings';
+import { StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
-import { SETTINGS_STAGES } from '../utils/constants';
+import { SETTINGS_STAGES, PERMISSION_REASONS } from '../utils/constants';
 import { printForm, printListReport, ListReportRow } from '../utils/printTemplates';
 import { printDailyReport } from '../utils/printDaily';
-import { toIndic, escapeHtml, getTodayDates } from '../utils/printUtils';
+import { toIndic, escapeHtml, getTodayDates, classToLetter } from '../utils/printUtils';
 import { templatesApi } from '../api/templates';
+import { usePageData, getHijriDate } from '../hooks/usePageData';
+import type { PermissionRow, StudentOption } from '../types';
 
-interface PermissionRow {
-  id: number; studentId: number; studentNumber: string; studentName: string;
-  grade: string; className: string; stage: string; mobile: string;
-  exitTime: string; reason: string; receiver: string; supervisor: string;
-  hijriDate: string; recordedBy: string; recordedAt: string;
-  confirmationTime: string; isSent: boolean;
-}
-
-interface StudentOption { id: number; studentNumber: string; name: string; stage: string; grade: string; className: string; }
-
-type TabType = 'today' | 'approved' | 'reports';
+type TabType = 'today' | 'approved';
 
 const PermissionsPage: React.FC = () => {
-  const [records, setRecords] = useState<PermissionRow[]>([]);
-  const [stages, setStages] = useState<StageConfigData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [stageFilter, setStageFilter] = useState('__all__');
+  const {
+    records, setRecords, stages, loading, schoolSettings,
+    stageFilter, setStageFilter, enabledStages,
+    filteredByStage, todayRecords, refresh,
+  } = usePageData<PermissionRow>({ fetchRecords: () => permissionsApi.getAll() });
+
   const [activeTab, setActiveTab] = useState<TabType>('today');
   const [modalOpen, setModalOpen] = useState(false);
-  const [schoolSettings, setSchoolSettings] = useState<Record<string, string>>({});
-
-  const enabledStages = useMemo(() =>
-    stages.filter((s) => s.isEnabled && s.grades.some((g) => g.isEnabled && g.classCount > 0)), [stages]);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [rRes, sRes, seRes] = await Promise.all([permissionsApi.getAll(), settingsApi.getStructure(), settingsApi.getSettings()]);
-      if (rRes.data?.data) setRecords(rRes.data.data);
-      if (sRes.data?.data?.stages) setStages(Array.isArray(sRes.data.data.stages) ? sRes.data.data.stages : []);
-      if (seRes.data?.data) setSchoolSettings(seRes.data.data);
-    } catch { /* empty */ }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  const filteredByStage = useMemo(() => {
-    if (stageFilter === '__all__') return records;
-    const stageId = SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter;
-    return records.filter((r) => r.stage === stageId);
-  }, [records, stageFilter]);
-
-  const todayDate = new Date().toISOString().split('T')[0];
-  const todayRecords = useMemo(() =>
-    filteredByStage.filter((r) => r.recordedAt?.startsWith(todayDate)), [filteredByStage, todayDate]);
 
   if (loading) {
-    return (<div style={{ textAlign: 'center', padding: '60px' }}><div className="spinner" /><p style={{ color: '#666', marginTop: '16px' }}>جاري التحميل...</p></div>);
+    return <LoadingSpinner />;
   }
 
   const stageLabel = stageFilter !== '__all__' ? (SETTINGS_STAGES.find((s) => s.name === stageFilter)?.name || stageFilter) : '';
-  const hijriNow = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
     <div className="sec-permissions">
       {/* Hero Banner — مطابق لـ .page-hero: gradient سماوي + عدادات */}
       <PageHero
         title={stageLabel ? `الاستئذان — ${stageLabel}` : 'الاستئذان'}
-        subtitle={hijriNow}
+        subtitle={getHijriDate()}
         gradient="linear-gradient(135deg, #0891b2, #06b6d4)"
         stats={[
           { icon: 'exit_to_app', label: 'مستأذنو اليوم', value: todayRecords.length, color: '#fbbf24' },
@@ -90,7 +58,6 @@ const PermissionsPage: React.FC = () => {
         tabs={[
           { id: 'today', label: 'اليومي', icon: 'today' },
           { id: 'approved', label: 'المعتمد', icon: 'verified' },
-          { id: 'reports', label: 'التقارير', icon: 'bar_chart' },
         ]}
         activeTab={activeTab}
         onTabChange={(id) => setActiveTab(id as TabType)}
@@ -110,11 +77,9 @@ const PermissionsPage: React.FC = () => {
         </div>
       </div>
 
-      {activeTab === 'today' && <TodayTab records={todayRecords} onRefresh={loadData} stageFilter={stageFilter} schoolSettings={schoolSettings} onAdd={() => setModalOpen(true)} />}
-      {activeTab === 'approved' && <ApprovedTab records={filteredByStage} onRefresh={loadData} schoolSettings={schoolSettings} />}
-      {activeTab === 'reports' && <ReportsTab records={filteredByStage} schoolSettings={schoolSettings} />}
-
-      {modalOpen && <AddPermissionModal stages={enabledStages} onClose={() => setModalOpen(false)} onSaved={() => { setModalOpen(false); loadData(); }} />}
+      {activeTab === 'today' && <TodayTab records={todayRecords} onRefresh={refresh} stageFilter={stageFilter} schoolSettings={schoolSettings} onAdd={() => setModalOpen(true)} />}
+      {activeTab === 'approved' && <ApprovedTab records={filteredByStage} onRefresh={refresh} schoolSettings={schoolSettings} />}
+      {modalOpen && <AddPermissionModal stages={enabledStages} onClose={() => setModalOpen(false)} onSaved={() => { setModalOpen(false); refresh(); }} />}
     </div>
   );
 };
@@ -219,7 +184,7 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
           <button onClick={handlePrint} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
           <button onClick={handleSendBulk} style={{ background: 'none', border: 'none', color: '#a7f3d0', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال</button>
           <button onClick={handleDeleteBulk} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>delete</span> حذف</button>
-          <button onClick={() => setSelected(new Set())} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+          <button onClick={() => setSelected(new Set())} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '16px' }}><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span></button>
         </div>
       )}
 
@@ -238,7 +203,7 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
                   <tr key={r.id} style={{ background: selected.has(r.id) ? '#f5f3ff' : undefined }}>
                     <td><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
                     <td><div style={{ fontWeight: 700 }}>{r.studentName}</div><div style={{ fontSize: '12px', color: '#9ca3af' }}>{r.studentNumber}</div></td>
-                    <td style={{ fontSize: '13px' }}>{r.grade} ({r.className})</td>
+                    <td style={{ fontSize: '13px' }}>{r.grade} ({classToLetter(r.className)})</td>
                     <td style={{ fontSize: '13px' }}>{r.exitTime || '-'}</td>
                     <td><span style={{ padding: '4px 10px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700, background: '#f5f3ff', color: '#7c3aed' }}>{r.reason || '-'}</span></td>
                     <td style={{ fontSize: '13px' }}>{r.receiver || '-'}</td>
@@ -256,7 +221,7 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                         <button onClick={() => handleSendWhatsApp(r)} disabled={sendingId === r.id} title="إرسال واتساب" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: sendingId === r.id ? 'not-allowed' : 'pointer', fontSize: '14px', opacity: sendingId === r.id ? 0.5 : 1 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span></button>
-                        <button onClick={() => { printForm('tawtheeq_tawasol', { studentName: r.studentName, grade: r.grade + ' / ' + r.className, contactType: 'استئذان', contactReason: 'استئذان: ' + (r.reason || ''), violationDate: r.hijriDate || '', contactResult: r.isSent ? 'تم التواصل' : 'لم يتم الإرسال' }, schoolSettings as any); }} title="توثيق تواصل" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>contact_phone</span></button>
+                        <button onClick={() => { printForm('tawtheeq_tawasol', { studentName: r.studentName, grade: r.grade + ' / ' + classToLetter(r.className), contactType: 'استئذان', contactReason: 'استئذان: ' + (r.reason || ''), violationDate: r.hijriDate || '', contactResult: r.isSent ? 'تم التواصل' : 'لم يتم الإرسال' }, schoolSettings as any); }} title="توثيق تواصل" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>contact_phone</span></button>
                         <button onClick={() => setConfirmDelete(r)} title="حذف" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>delete</span></button>
                       </div>
                     </td>
@@ -318,7 +283,7 @@ const PermMsgEditorModal: React.FC<{ record: PermissionRow; onSend: (message: st
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#15803d' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال رسالة واتساب</h3>
             <span style={{ fontSize: '13px', color: '#4b5563' }}>{record.studentName} - {record.mobile || 'لا يوجد رقم'}</span>
           </div>
-          <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}>✕</button>
+          <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span></button>
         </div>
         <div style={{ padding: '20px 24px' }}>
           <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>نص الرسالة</label>
@@ -327,7 +292,7 @@ const PermMsgEditorModal: React.FC<{ record: PermissionRow; onSend: (message: st
           <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
             <button onClick={handleSaveAsTemplate} style={{ padding: '4px 12px', background: '#eef2ff', color: '#4f46e5', borderRadius: '6px', border: '1px solid #c7d2fe', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>save</span> حفظ كقالب</button>
             <button onClick={handleResetTemplate} style={{ padding: '4px 12px', background: '#f3f4f6', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '12px', color: '#6b7280' }}>إعادة تعيين</button>
-            {templateLoaded && <span style={{ fontSize: '11px', color: '#059669', alignSelf: 'center' }}>✓ قالب محفوظ</span>}
+            {templateLoaded && <span style={{ fontSize: '11px', color: '#059669', alignSelf: 'center' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>check</span> قالب محفوظ</span>}
           </div>
         </div>
         <div style={{ padding: '16px 24px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
@@ -466,7 +431,7 @@ const ApprovedTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; s
                   {badge && <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '9999px', background: badgeBg, color: badgeColor }}>{badge}</span>}
                 </div>
                 <div style={{ fontWeight: 700, fontSize: '14px', lineHeight: 1.3 }}>{student.studentName}</div>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px', marginBottom: '10px' }}>{student.grade} / {student.className}</div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px', marginBottom: '10px' }}>{student.grade} / {classToLetter(student.className)}</div>
                 {/* أسباب */}
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '10px' }}>
                   {Object.entries(reasons).map(([reason, count]) => {
@@ -490,7 +455,7 @@ const ApprovedTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; s
               {studentGroups.map(({ student, records: rList }) => (
                 <tr key={student.studentId}>
                   <td style={{ fontWeight: 700 }}>{student.studentName}</td>
-                  <td>{student.grade} ({student.className})</td>
+                  <td>{student.grade} ({classToLetter(student.className)})</td>
                   <td style={{ fontWeight: 700, color: '#7c3aed' }}>{rList.length}</td>
                   <td>{rList.filter((r) => r.confirmationTime).length}</td>
                   <td>{rList.filter((r) => !r.confirmationTime).length}</td>
@@ -554,7 +519,7 @@ const StudentDetailModal: React.FC<{ studentName: string; records: PermissionRow
           <div style={{ display: 'flex', gap: '8px' }}>
             <button onClick={handleSendAll} style={{ padding: '6px 12px', background: '#25d366', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '12px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال الكل</button>
             <button onClick={handlePrint} style={{ padding: '6px 12px', background: '#4f46e5', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '12px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
-            <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}>✕</button>
+            <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span></button>
           </div>
         </div>
         <div style={{ padding: '16px 24px', overflowY: 'auto', flex: 1 }}>
@@ -600,7 +565,7 @@ const ReportsTab: React.FC<{ records: PermissionRow[]; schoolSettings: Record<st
 
   const topStudents = useMemo(() => {
     const g = new Map<number, { name: string; grade: string; cls: string; count: number }>();
-    for (const r of filtered) { const x = g.get(r.studentId) || { name: r.studentName, grade: r.grade, cls: r.className, count: 0 }; x.count++; g.set(r.studentId, x); }
+    for (const r of filtered) { const x = g.get(r.studentId) || { name: r.studentName, grade: r.grade, cls: classToLetter(r.className), count: 0 }; x.count++; g.set(r.studentId, x); }
     return Array.from(g.entries()).map(([id, x]) => ({ id, ...x })).sort((a, b) => b.count - a.count).slice(0, 10);
   }, [filtered]);
 
@@ -612,7 +577,7 @@ const ReportsTab: React.FC<{ records: PermissionRow[]; schoolSettings: Record<st
 
   const byClass = useMemo(() => {
     const g = new Map<string, number>();
-    for (const r of filtered) { const key = `${r.grade} (${r.className})`; g.set(key, (g.get(key) || 0) + 1); }
+    for (const r of filtered) { const key = `${r.grade} (${classToLetter(r.className)})`; g.set(key, (g.get(key) || 0) + 1); }
     return Array.from(g.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
   }, [filtered]);
 
@@ -723,11 +688,6 @@ const ReportsTab: React.FC<{ records: PermissionRow[]; schoolSettings: Record<st
 // Shared Components
 // ============================================================
 
-const FilterBtn: React.FC<{ label: string; count: number; active: boolean; onClick: () => void; color: string }> = ({ label, count, active, onClick, color }) => (
-  <button onClick={onClick} style={{ padding: '6px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 700, background: active ? '#fff' : 'transparent', color: active ? color : '#6b7280', boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', border: 'none', cursor: 'pointer' }}>
-    {label} <span style={{ fontSize: '12px', color: active ? color : '#9ca3af' }}>({count})</span>
-  </button>
-);
 
 const ConfirmModal: React.FC<{ title: string; message: string; onConfirm: () => void; onCancel: () => void }> = ({ title, message, onConfirm, onCancel }) => (
   <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.6)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
@@ -745,12 +705,11 @@ const ConfirmModal: React.FC<{ title: string; message: string; onConfirm: () => 
 // ============================================================
 // Add Permission Modal
 // ============================================================
-const REASONS = ['ظرف صحي', 'ظرف أسري', 'موعد حكومي', 'طلب ولي الأمر'];
 const RECEIVERS = ['الأب', 'الأخ', 'الأم', 'الجد', 'العم', 'آخر'];
 const RESPONSIBLES = ['الموجه الطلابي', 'الوكيل', 'المدير'];
 
 const AddPermissionModal: React.FC<{ stages: StageConfigData[]; onClose: () => void; onSaved: () => void }> = ({ onClose, onSaved }) => {
-  const [selectedStudents, setSelectedStudents] = useState<import('../components/shared/StudentSelector').StudentOption[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<StudentOption[]>([]);
   const [exitTime, setExitTime] = useState('');
   const [reason, setReason] = useState('');
   const [receiver, setReceiver] = useState('');
@@ -807,7 +766,7 @@ const AddPermissionModal: React.FC<{ stages: StageConfigData[]; onClose: () => v
           <label style={fldLabel}>السبب *</label>
           <select value={reason} onChange={(e) => setReason(e.target.value)} style={fldStyle}>
             <option value="">اختر السبب</option>
-            {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+            {PERMISSION_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
       </div>

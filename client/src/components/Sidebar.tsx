@@ -45,8 +45,9 @@ const NAV_ITEMS: NavGroup[] = [
     { path: '/absence', label: 'الغياب', icon: 'event_busy', iconColor: '#f97316', roles: ['Admin', 'Deputy', 'Counselor'] },
   ]},
 
-  // ── 4. الخدمات العامة ──
-  { section: 'الخدمات العامة', items: [
+  // ── 4. ملف الإنجاز ──
+  { section: 'ملف الإنجاز', items: [
+    { path: '/portfolio', label: 'ملف الإنجاز واللجان', icon: 'folder_special', iconColor: '#1B3A6B', roles: ['Admin', 'Deputy', 'Counselor'] },
     { path: '/general-forms', label: 'النماذج العامة', icon: 'folder_open', iconColor: '#f97316', roles: ['Admin', 'Deputy', 'Counselor'] },
   ]},
 

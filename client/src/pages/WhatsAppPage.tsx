@@ -52,10 +52,8 @@ function getStageInfo(stageId: string, _waMode: string) {
 // ★ MainView types — تدفق الصفحة الرئيسية مطابق لـ JS_WhatsApp.html
 type MainView =
   | 'loading' | 'error'
-  | 'security-setup'
   | 'connected' | 'disconnected'
-  | 'qr-verify' | 'qr-scan' | 'qr-success'
-  | 'recovery-choose' | 'recovery-input' | 'recovery-change';
+  | 'qr-scan' | 'qr-success';
 
 // ===== Main Component =====
 const WhatsAppPage: React.FC = () => {
@@ -64,11 +62,11 @@ const WhatsAppPage: React.FC = () => {
   const userRole = storedUser?.role;
   const userScopeValue = storedUser?.scopeValue || '';
   const userScopes = userScopeValue ? userScopeValue.split(',').filter(Boolean) : [];
-  const visibleStages = getVisibleStages(userRole, userScopes);
-
-  // المرحلة الحالية — مطابق لـ currentStage في الأصلي
-  const [currentStage, setCurrentStage] = useState(() => {
+  // المرحلة الحالية — تلقائية حسب صلاحية المستخدم
+  // الأدمن ← 'all' (رقم موحد)، الوكيل ← مرحلته فقط
+  const [currentStage] = useState(() => {
     const user = JSON.parse(localStorage.getItem('user') || 'null');
+    if (user?.role === 'Admin') return 'all';
     const scopes = user?.scopeValue?.split(',').filter(Boolean) || [];
     const vs = getVisibleStages(user?.role, scopes);
     return vs.length > 0 ? vs[0].id : 'متوسط';
@@ -82,18 +80,10 @@ const WhatsAppPage: React.FC = () => {
   const [stats, setStats] = useState<StatsResult | null>(null);
   const [mainView, setMainView] = useState<MainView>('loading');
 
-  // Security
-  const [setupCode, setSetupCode] = useState('');
-  const [setupPhone1, setSetupPhone1] = useState('');
-  const [setupPhone2, setSetupPhone2] = useState('');
-  const [securityCode, setSecurityCode] = useState('');
-  const [recoveryPhones, setRecoveryPhones] = useState<{ phone1: string | null; phone2: string | null; hasPhone1: boolean; hasPhone2: boolean }>({ phone1: null, phone2: null, hasPhone1: false, hasPhone2: false });
-  const [recoveryCode, setRecoveryCode] = useState('');
-  const [newSecurityCode, setNewSecurityCode] = useState('');
-
   // QR
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [qrConnectedPhone, setQrConnectedPhone] = useState<string | null>(null);
+  const [qrSessionId, setQrSessionId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const qrRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const qrTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -129,9 +119,7 @@ const WhatsAppPage: React.FC = () => {
       if (data.scenario) setScenario(data.scenario);
 
       // ★ مطابق handleStatusResponse — يقرر أي واجهة يعرض
-      if (data.needSetup) {
-        setMainView('security-setup');
-      } else if (data.connected && data.sessions?.length > 0) {
+      if (data.connected && data.sessions?.length > 0) {
         setMainView('connected');
         loadStats();
       } else {
@@ -171,71 +159,24 @@ const WhatsAppPage: React.FC = () => {
   const stageInfo = getStageInfo(currentStage, status?.whatsappMode || waMode);
 
   // =========================================================================
-  // Security Setup — مطابق submitSecuritySetup
-  // =========================================================================
-  const handleSecuritySetup = async () => {
-    if (!setupCode || setupCode.length < 6) { toast.error('رمز الأمان يجب أن يكون 6 خانات على الأقل'); return; }
-    if (!setupPhone1 || setupPhone1.length < 10) { toast.error('رقم الجوال الأول إجباري'); return; }
-    setActionLoading(true);
-    try {
-      const res = await whatsappApi.setupSecurityCode(setupCode, setupPhone1, setupPhone2 || undefined);
-      if (res.data?.success !== false) {
-        toast.success('تم إعداد رمز الأمان بنجاح');
-        loadStatus();
-      } else {
-        toast.error(res.data?.message || 'فشل الإعداد');
-      }
-    } catch { toast.error('فشل إعداد رمز الأمان'); }
-    finally { setActionLoading(false); }
-  };
-
-  // =========================================================================
-  // Verify Security Code → Open QR — مطابق createNewSession
-  // =========================================================================
-  const handleVerifyAndOpenQR = async () => {
-    if (!securityCode) { toast.error('أدخل رمز الأمان'); return; }
-    setActionLoading(true);
-    try {
-      const res = await whatsappApi.verifySecurityCode(securityCode);
-      if (res.data?.data?.valid) {
-        setSecurityCode('');
-        openQRPage();
-      } else {
-        toast.error('رمز الأمان غير صحيح');
-      }
-    } catch { toast.error('فشل التحقق'); }
-    finally { setActionLoading(false); }
-  };
-
-  // =========================================================================
-  // QR Pairing — مطابق openQRPage + fetchAndShowQR + startQRPolling
+  // QR Pairing — Multi-Session API
+  // Flow: getQR → {qrData, sessionId} → pollQR(sessionId) كل 5 ثوان
   // =========================================================================
   const openQRPage = async () => {
     stopQRPolling();
     setMainView('qr-scan');
     setQrImage(null);
     setQrConnectedPhone(null);
+    setQrSessionId(null);
 
-    // حفظ الأرقام الحالية للمقارنة — مطابق سطر 398-403
-    try {
-      const saved = await whatsappApi.getSessions(currentStage);
-      savedPhonesBeforeQR.current = (saved.data?.data || []).map((s: any) => s.phoneNumber);
-    } catch {
-      savedPhonesBeforeQR.current = [];
-    }
-
-    fetchAndShowQR();
-  };
-
-  const fetchAndShowQR = async () => {
     try {
       const res = await whatsappApi.getQR();
       const d = res.data?.data;
       if (d?.hasQR && d.qrData) {
         setQrImage(d.qrData);
-        startQRPolling();
+        if (d.sessionId) setQrSessionId(d.sessionId);
+        startQRPolling(d.sessionId);
       } else {
-        // QR fallback — مطابق showQRFallback
         toast.error('لم يتم الحصول على الباركود — تأكد من رابط السيرفر');
         setMainView(status?.connected ? 'connected' : 'disconnected');
       }
@@ -245,39 +186,33 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
-  // ★ startQRPolling — مطابق: polling كل 5 ثوان + تحديث QR كل 15 ثانية + timeout 3 دقائق
-  const startQRPolling = () => {
+  // ★ startQRPolling — polling كل 5 ثوان باستخدام sessionId + timeout 3 دقائق
+  const startQRPolling = (sessionId?: string) => {
     stopQRPolling();
+    if (!sessionId) return;
 
-    // Polling for new connection every 5s — مطابق سطر 520-545
+    // Poll QR status every 5s
     pollRef.current = setInterval(async () => {
       try {
-        const connRes = await whatsappApi.getConnectedSessions();
-        const phones: string[] = (connRes.data?.data?.phones || []).map((p: any) => p.phoneNumber);
-        const newPhone = phones.find(p => !savedPhonesBeforeQR.current.includes(p));
-        if (newPhone) {
+        const res = await whatsappApi.pollQR(sessionId);
+        const d = res.data?.data;
+
+        if (d?.status === 'connected' && d.phone) {
           stopQRPolling();
-          // ★ حفظ الرقم الجديد تلقائياً — مطابق saveNewPhoneToSheet
+          // حفظ الرقم الجديد تلقائياً
           try {
-            await whatsappApi.syncAndSave({ phoneNumber: newPhone, stage: currentStage, userType: 'وكيل' });
+            await whatsappApi.syncAndSave({ phoneNumber: d.phone, stage: currentStage, userType: 'وكيل' });
           } catch { /* ignore */ }
-          setQrConnectedPhone(newPhone);
+          setQrConnectedPhone(d.phone);
           setMainView('qr-success');
+        } else if (d?.status === 'waiting' && d.qrData) {
+          // تحديث الـ QR بالصورة الجديدة
+          setQrImage(d.qrData);
         }
       } catch { /* ignore */ }
     }, 5000);
 
-    // Refresh QR image every 15s — مطابق سطر 548-558
-    qrRefreshRef.current = setInterval(async () => {
-      try {
-        const qrRes = await whatsappApi.getQR();
-        if (qrRes.data?.data?.hasQR && qrRes.data.data.qrData) {
-          setQrImage(qrRes.data.data.qrData);
-        }
-      } catch { /* ignore */ }
-    }, 15000);
-
-    // Timeout after 3 minutes — مطابق سطر 561-572
+    // Timeout after 3 minutes
     qrTimeoutRef.current = setTimeout(() => {
       if (pollRef.current) {
         stopQRPolling();
@@ -312,75 +247,6 @@ const WhatsAppPage: React.FC = () => {
       toast.success('تم حذف الرقم');
       loadStatus();
     } catch { toast.error('فشل الحذف'); }
-  };
-
-  // =========================================================================
-  // Recovery — مطابق showRecoveryOptions + sendRecoveryCode + verifyRecoveryCode
-  // =========================================================================
-  const handleShowRecovery = async () => {
-    try {
-      const res = await whatsappApi.getSecurityStatus();
-      const d = res.data?.data;
-      if (d) {
-        setRecoveryPhones({
-          phone1: d.recoveryPhone1Masked,
-          phone2: d.recoveryPhone2Masked,
-          hasPhone1: d.hasRecoveryPhone1,
-          hasPhone2: d.hasRecoveryPhone2,
-        });
-        if (!d.hasRecoveryPhone1 && !d.hasRecoveryPhone2) {
-          toast.error('لم يتم تسجيل أرقام استرجاع.');
-          return;
-        }
-        setMainView('recovery-choose');
-      }
-    } catch { toast.error('فشل جلب بيانات الاسترجاع'); }
-  };
-
-  const handleSendRecovery = async (phoneIndex: number) => {
-    setActionLoading(true);
-    try {
-      const res = await whatsappApi.requestRecoveryCode(phoneIndex);
-      if (res.data?.data?.sent) {
-        toast.success(`تم إرسال رمز الاسترجاع إلى ${res.data.data.phoneMasked}`);
-        setMainView('recovery-input');
-      } else {
-        toast.error(res.data?.message || 'فشل الإرسال');
-      }
-    } catch { toast.error('فشل إرسال رمز الاسترجاع'); }
-    finally { setActionLoading(false); }
-  };
-
-  const handleVerifyRecovery = async () => {
-    if (!recoveryCode || recoveryCode.length < 4) { toast.error('أدخل رمز الاسترجاع المكون من 4 أرقام'); return; }
-    setActionLoading(true);
-    try {
-      const res = await whatsappApi.verifyRecoveryCode(recoveryCode);
-      if (res.data?.data?.valid) {
-        toast.success('تم التحقق بنجاح');
-        setRecoveryCode('');
-        setMainView('recovery-change');
-      } else {
-        toast.error('رمز الاسترجاع غير صحيح');
-      }
-    } catch { toast.error('فشل التحقق'); }
-    finally { setActionLoading(false); }
-  };
-
-  const handleSaveNewCode = async () => {
-    if (!newSecurityCode || newSecurityCode.length < 6) { toast.error('رمز الأمان يجب أن يكون 6 خانات على الأقل'); return; }
-    setActionLoading(true);
-    try {
-      const res = await whatsappApi.changeSecurityCode({ newCode: newSecurityCode, bypassOldCode: true });
-      if (res.data?.success !== false) {
-        toast.success('تم تغيير رمز الأمان بنجاح');
-        setNewSecurityCode('');
-        loadStatus();
-      } else {
-        toast.error(res.data?.message || 'فشل التغيير');
-      }
-    } catch { toast.error('فشل تغيير رمز الأمان'); }
-    finally { setActionLoading(false); }
   };
 
   // =========================================================================
@@ -497,22 +363,16 @@ const WhatsAppPage: React.FC = () => {
             {scenario === 3 && 'مختلط'}
             {scenario === 4 && 'مستقل'}
           </span>
-          {/* شارة المرحلة */}
-          <div style={{
-            background: stageInfo.bg, color: stageInfo.color, padding: '8px 16px', borderRadius: '12px',
-            fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px',
-            border: `1px solid ${stageInfo.border}`,
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>apartment</span> {stageInfo.label}
-          </div>
-          {/* اختيار المرحلة — دائماً ظاهر كفلتر للطلاب */}
-          <select value={currentStage} onChange={e => setCurrentStage(e.target.value)} style={{
-            padding: '8px 12px', border: '2px solid #e5e7eb', borderRadius: '10px',
-            fontSize: '13px', fontWeight: 600, cursor: 'pointer', background: '#fff',
-          }}>
-            {userRole === 'Admin' && <option value="all">الكل</option>}
-            {visibleStages.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
-          </select>
+          {/* شارة المرحلة — تظهر فقط للوكيل لمعرفة مرحلته */}
+          {userRole !== 'Admin' && (
+            <div style={{
+              background: stageInfo.bg, color: stageInfo.color, padding: '8px 16px', borderRadius: '12px',
+              fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px',
+              border: `1px solid ${stageInfo.border}`,
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>apartment</span> {stageInfo.label}
+            </div>
+          )}
           <button onClick={handlePing} style={{ ...btnStyle('#f3f4f6', '#374151'), padding: '8px 12px', fontSize: '12px' }}>إيقاظ</button>
           <button onClick={() => loadStatus()} style={{ ...btnStyle('#f3f4f6', '#374151'), padding: '8px 12px', fontSize: '12px' }}>تحديث</button>
           <button onClick={() => setPageView('settings')} style={{ ...btnStyle('#f3f4f6', '#374151'), padding: '8px 12px', fontSize: '12px' }}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>settings</span></button>
@@ -544,8 +404,7 @@ const WhatsAppPage: React.FC = () => {
             </h3>
             <div style={{ display: 'grid', gap: '12px' }}>
               {[
-                'أدخل رمز الأمان (6 خانات على الأقل)',
-                'اضغط "ربط الرقم الرئيسي"',
+                'اضغط "ربط الرقم"',
                 'افتح واتساب على الجوال → "الأجهزة المرتبطة"',
                 'اضغط "ربط جهاز" وامسح الباركود',
               ].map((step, i) => (
@@ -571,37 +430,6 @@ const WhatsAppPage: React.FC = () => {
             {/* Loading */}
             {(pageView === 'loading' || mainView === 'loading') && <LoadingSpinner text="جاري التحميل..." />}
 
-            {/* ★ Security Setup — مطابق showSecuritySetupForm سطر 170-211 */}
-            {mainView === 'security-setup' && (
-              <div style={{ width: '100%', maxWidth: '340px' }}>
-                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                  <IconCircle emoji={<span className="material-symbols-outlined" style={{ fontSize: '28px' }}>lock</span>} bg="#dcfce7" />
-                  <h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 4px' }}>إعداد رمز الأمان</h3>
-                  <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>أول مرة تستخدم أدوات الواتساب</p>
-                </div>
-                <div style={{ display: 'grid', gap: '12px' }}>
-                  <div>
-                    <label style={labelStyle}>رمز الأمان (6 خانات على الأقل)</label>
-                    <input type="password" value={setupCode} onChange={e => setSetupCode(e.target.value)}
-                      placeholder="••••••" maxLength={20} style={{ ...inputStyle, textAlign: 'center', fontSize: '18px', letterSpacing: '4px' }} />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>جوال الاسترجاع الأول (إجباري)</label>
-                    <input type="tel" value={setupPhone1} onChange={e => setSetupPhone1(e.target.value)}
-                      placeholder="05xxxxxxxx" dir="ltr" style={inputStyle} />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>جوال الاسترجاع الثاني (اختياري)</label>
-                    <input type="tel" value={setupPhone2} onChange={e => setSetupPhone2(e.target.value)}
-                      placeholder="05xxxxxxxx" dir="ltr" style={inputStyle} />
-                  </div>
-                  <button onClick={handleSecuritySetup} disabled={actionLoading} style={{
-                    ...btnStyle('#25d366', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1,
-                  }}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>save</span> حفظ رمز الأمان</button>
-                </div>
-              </div>
-            )}
-
             {/* ★ Connected State — مطابق showConnectedState سطر 247-277 */}
             {mainView === 'connected' && status && (
               <div style={{ textAlign: 'center', width: '100%' }}>
@@ -618,7 +446,7 @@ const WhatsAppPage: React.FC = () => {
                   <span style={{ padding: '4px 12px', background: '#f3f4f6', color: '#6b7280', borderRadius: '100px', fontSize: '12px', fontWeight: 700 }}>متصل</span>
                 )}
                 <div style={{ marginTop: '24px', display: 'grid', gap: '12px' }}>
-                  <button onClick={() => setMainView('qr-verify')} style={{ ...btnStyle('#25d366', '#fff'), width: '100%' }}>
+                  <button onClick={() => openQRPage()} style={{ ...btnStyle('#25d366', '#fff'), width: '100%' }}>
                     <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> تغيير الرقم الرئيسي
                   </button>
                   <button onClick={() => loadStatus()} style={{ ...btnStyle('#f3f4f6', '#374151'), width: '100%' }}>
@@ -649,20 +477,9 @@ const WhatsAppPage: React.FC = () => {
                       {scenario === 4 && userRole === 'Deputy' && `اربط رقمك لمراسلات ${stageInfo.label}`}
                       {scenario === 3 && deputyChoice === 'own' && `اربط رقمك الخاص لمراسلات ${stageInfo.label}`}
                     </p>
-                    <div style={{ background: '#f9fafb', borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
-                      <div style={{ marginBottom: '12px' }}>
-                        <label style={labelStyle}>رمز الأمان</label>
-                        <input type="password" value={securityCode} onChange={e => setSecurityCode(e.target.value)}
-                          placeholder="••••••" style={{ ...inputStyle, textAlign: 'center', fontSize: '18px', letterSpacing: '4px' }}
-                          onKeyDown={e => { if (e.key === 'Enter') handleVerifyAndOpenQR(); }} />
-                      </div>
-                      <button onClick={handleVerifyAndOpenQR} disabled={actionLoading} style={{
-                        ...btnStyle('#25d366', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1,
-                      }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> ربط الرقم</button>
-                    </div>
-                    <button onClick={handleShowRecovery} style={{ background: 'none', border: 'none', color: '#25d366', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>
-                      نسيت رمز الأمان؟
-                    </button>
+                    <button onClick={() => openQRPage()} disabled={actionLoading} style={{
+                      ...btnStyle('#25d366', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1, padding: '14px 24px',
+                    }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> ربط الرقم</button>
                     {scenario === 3 && deputyChoice === 'own' && (
                       <button onClick={() => setDeputyChoice(null)} style={{ display: 'block', margin: '12px auto 0', background: 'none', border: 'none', color: '#6b7280', fontSize: '13px', cursor: 'pointer' }}>
                         ← رجوع للخيارات
@@ -738,44 +555,12 @@ const WhatsAppPage: React.FC = () => {
                     <IconCircle emoji={<span className="material-symbols-outlined" style={{ fontSize: '35px' }}>link</span>} bg="#ffedd5" size={80} />
                     <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>لا يوجد رقم رئيسي</h3>
                     <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>اربط الرقم الرئيسي للمدرسة</p>
-                    <div style={{ background: '#f9fafb', borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
-                      <div style={{ marginBottom: '12px' }}>
-                        <label style={labelStyle}>رمز الأمان</label>
-                        <input type="password" value={securityCode} onChange={e => setSecurityCode(e.target.value)}
-                          placeholder="••••••" style={{ ...inputStyle, textAlign: 'center', fontSize: '18px', letterSpacing: '4px' }}
-                          onKeyDown={e => { if (e.key === 'Enter') handleVerifyAndOpenQR(); }} />
-                      </div>
-                      <button onClick={handleVerifyAndOpenQR} disabled={actionLoading} style={{
-                        ...btnStyle('#25d366', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1,
-                      }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> ربط الرقم الرئيسي</button>
-                    </div>
-                    <button onClick={handleShowRecovery} style={{ background: 'none', border: 'none', color: '#25d366', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>
-                      نسيت رمز الأمان؟
-                    </button>
+                    <button onClick={() => openQRPage()} disabled={actionLoading} style={{
+                      ...btnStyle('#25d366', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1, padding: '14px 24px',
+                    }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> ربط الرقم الرئيسي</button>
                   </>
                 )}
 
-              </div>
-            )}
-
-            {/* ★ QR Verify (change primary) — مطابق showAddNewPhoneForm سطر 673-705 */}
-            {mainView === 'qr-verify' && (
-              <div style={{ textAlign: 'center', width: '100%' }}>
-                <IconCircle emoji={<span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span>} bg="#fffbeb" />
-                <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>تغيير الرقم الرئيسي</h3>
-                <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>الرقم الجديد سيصبح الرقم الرئيسي لـ {stageInfo.label}</p>
-                <div style={{ background: '#f9fafb', borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
-                  <div style={{ marginBottom: '12px' }}>
-                    <label style={labelStyle}>رمز الأمان</label>
-                    <input type="password" value={securityCode} onChange={e => setSecurityCode(e.target.value)}
-                      placeholder="••••••" style={{ ...inputStyle, textAlign: 'center', fontSize: '18px', letterSpacing: '4px' }}
-                      onKeyDown={e => { if (e.key === 'Enter') handleVerifyAndOpenQR(); }} />
-                  </div>
-                  <button onClick={handleVerifyAndOpenQR} disabled={actionLoading} style={{
-                    ...btnStyle('#25d366', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1,
-                  }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> مسح باركود جديد</button>
-                </div>
-                <button onClick={() => setMainView('connected')} style={{ ...btnStyle('#f3f4f6', '#374151'), width: '100%' }}>إلغاء</button>
               </div>
             )}
 
@@ -816,64 +601,7 @@ const WhatsAppPage: React.FC = () => {
                   <div style={{ fontSize: '13px', color: '#16a34a', fontWeight: 600 }}>تم ربط الحساب بنجاح</div>
                 </div>
                 <p style={{ color: '#16a34a', fontWeight: 700, fontSize: '14px', marginBottom: '16px' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>check_circle</span> تم الاتصال بنجاح مع واتساب</p>
-                <button onClick={() => loadStatus()} style={{ ...btnStyle('#25d366', '#fff'), padding: '12px 32px' }}>متابعة</button>
-              </div>
-            )}
-
-            {/* ★ Recovery Choose — مطابق showRecoveryOptions سطر 814-843 */}
-            {mainView === 'recovery-choose' && (
-              <div style={{ textAlign: 'center', width: '100%' }}>
-                <IconCircle emoji={<span className="material-symbols-outlined" style={{ fontSize: '28px' }}>chat</span>} bg="#dbeafe" />
-                <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>استرجاع رمز الأمان</h3>
-                <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>اختر الرقم لإرسال رمز الاسترجاع:</p>
-                <div style={{ display: 'grid', gap: '8px' }}>
-                  {recoveryPhones.hasPhone1 && (
-                    <button onClick={() => handleSendRecovery(1)} disabled={actionLoading} style={{
-                      ...btnStyle('#2563eb', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1,
-                    }}>إرسال إلى {recoveryPhones.phone1}</button>
-                  )}
-                  {recoveryPhones.hasPhone2 && (
-                    <button onClick={() => handleSendRecovery(2)} disabled={actionLoading} style={{
-                      ...btnStyle('#2563eb', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1,
-                    }}>إرسال إلى {recoveryPhones.phone2}</button>
-                  )}
-                  <button onClick={() => loadStatus()} style={{ ...btnStyle('#f3f4f6', '#374151'), width: '100%' }}>إلغاء</button>
-                </div>
-              </div>
-            )}
-
-            {/* ★ Recovery Input — مطابق showRecoveryCodeInput سطر 865-891 */}
-            {mainView === 'recovery-input' && (
-              <div style={{ textAlign: 'center', width: '100%' }}>
-                <IconCircle emoji={<span className="material-symbols-outlined" style={{ fontSize: '28px' }}>pin</span>} bg="#dcfce7" />
-                <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>أدخل رمز الاسترجاع</h3>
-                <div style={{ display: 'grid', gap: '12px' }}>
-                  <input type="text" value={recoveryCode}
-                    onChange={e => setRecoveryCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    placeholder="----" maxLength={4} dir="ltr"
-                    style={{ ...inputStyle, textAlign: 'center', fontSize: '24px', fontWeight: 800, letterSpacing: '12px' }}
-                    onKeyDown={e => { if (e.key === 'Enter') handleVerifyRecovery(); }} />
-                  <button onClick={handleVerifyRecovery} disabled={actionLoading} style={{
-                    ...btnStyle('#25d366', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1,
-                  }}>تحقق</button>
-                  <button onClick={() => loadStatus()} style={{ ...btnStyle('#f3f4f6', '#374151'), width: '100%' }}>إلغاء</button>
-                </div>
-              </div>
-            )}
-
-            {/* ★ Recovery Change Code — مطابق showNewSecurityCodeForm سطر 917-937 */}
-            {mainView === 'recovery-change' && (
-              <div style={{ textAlign: 'center', width: '100%' }}>
-                <IconCircle emoji={<span className="material-symbols-outlined" style={{ fontSize: '28px' }}>lock_open</span>} bg="#dcfce7" />
-                <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>تعيين رمز أمان جديد</h3>
-                <div style={{ display: 'grid', gap: '12px' }}>
-                  <input type="password" value={newSecurityCode} onChange={e => setNewSecurityCode(e.target.value)}
-                    placeholder="الرمز الجديد (6 خانات على الأقل)" style={{ ...inputStyle, textAlign: 'center', fontSize: '18px', letterSpacing: '4px' }}
-                    onKeyDown={e => { if (e.key === 'Enter') handleSaveNewCode(); }} />
-                  <button onClick={handleSaveNewCode} disabled={actionLoading} style={{
-                    ...btnStyle('#25d366', '#fff'), width: '100%', opacity: actionLoading ? 0.6 : 1,
-                  }}>حفظ الرمز الجديد</button>
-                </div>
+                <button onClick={() => loadStatus()} style={{ ...btnStyle('#25d366', '#fff'), padding: '12px 32px' }}>الذهاب للصفحة الرئيسية ←</button>
               </div>
             )}
 
@@ -891,7 +619,7 @@ const WhatsAppPage: React.FC = () => {
 
       {/* ===== Phones List — مطابق wa-phones-card سطر 122-128 ===== */}
       {status && (status.allSessions?.length > 0 || status.sessions?.length > 0) &&
-       !['qr-scan', 'qr-success', 'security-setup'].includes(mainView) && (
+       !['qr-scan', 'qr-success'].includes(mainView) && (
         <div style={{ marginTop: '24px', background: '#fff', borderRadius: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', border: '1px solid #e5e7eb', padding: '24px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#1f2937', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> أرقام {stageInfo.label}
@@ -960,6 +688,11 @@ const WhatsAppPage: React.FC = () => {
         </div>
       )}
 
+      {/* ===== Stage Teachers — معلمين المرحلة ===== */}
+      {(userRole === 'Admin' || userRole === 'Deputy') && mainView === 'connected' && (
+        <StageTeachersSection currentStage={currentStage} status={status} />
+      )}
+
       {/* CSS Animations */}
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -985,6 +718,123 @@ const StatCard: React.FC<{ label: string; value: number; color: string; bg: stri
     <div style={{ fontSize: '12px', color: '#6b7280' }}>{label}</div>
   </div>
 );
+
+// ===== Stage Teachers Section =====
+const StageTeachersSection: React.FC<{ currentStage: string; status: StatusResult | null }> = ({ currentStage, status }) => {
+  const [teachers, setTeachers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    whatsappApi.getStageTeachers()
+      .then(res => {
+        if (!cancelled) setTeachers(res.data?.data || []);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentStage]);
+
+  const handleSendLink = async (teacher: any) => {
+    if (!teacher.mobile || !teacher.tokenLink) {
+      toast.error('لا يوجد رقم جوال أو رابط لهذا المعلم');
+      return;
+    }
+    setSending(teacher.id);
+    try {
+      const msg = `مرحباً ${teacher.name}\nرابط نظام المتابعة السلوكية:\n${teacher.tokenLink}`;
+      await whatsappApi.sendWithLog({
+        studentId: 0,
+        phone: teacher.mobile,
+        message: msg,
+        messageType: 'رابط_معلم',
+        messageTitle: 'إرسال رابط المعلم',
+        stage: currentStage,
+      });
+      toast.success(`تم إرسال الرابط إلى ${teacher.name}`);
+    } catch {
+      toast.error('فشل إرسال الرابط');
+    } finally {
+      setSending(null);
+    }
+  };
+
+  if (loading) return (
+    <div style={{ marginTop: '24px', background: '#fff', borderRadius: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', border: '1px solid #e5e7eb', padding: '24px', textAlign: 'center' }}>
+      <LoadingSpinner text="جاري تحميل المعلمين..." />
+    </div>
+  );
+
+  if (teachers.length === 0) return null;
+
+  const stageInfo = getStageInfo(currentStage, '');
+  const linked = teachers.filter(t => t.hasLink).length;
+
+  return (
+    <div style={{ marginTop: '24px', background: '#fff', borderRadius: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', border: '1px solid #e5e7eb', padding: '24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#1f2937', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+          <MI n="school" s={16} /> معلمين {stageInfo.label}
+        </h3>
+        <span style={{ fontSize: '12px', color: '#6b7280' }}>
+          {linked}/{teachers.length} مربوطين
+        </span>
+      </div>
+      <div style={{ display: 'grid', gap: '10px' }}>
+        {teachers.map((t: any) => (
+          <div key={t.id} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px',
+            background: t.hasLink ? '#f0fdf4' : '#fefce8', borderRadius: '12px',
+            border: t.hasLink ? '1px solid #bbf7d0' : '1px solid #fde68a',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '36px', height: '36px', borderRadius: '50%',
+                background: t.hasLink ? '#dcfce7' : '#fef9c3',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <MI n={t.hasLink ? 'check_circle' : 'link_off'} s={18} c={t.hasLink ? '#16a34a' : '#ca8a04'} />
+              </div>
+              <div>
+                <p style={{ fontWeight: 600, color: '#1f2937', margin: 0, fontSize: '14px' }}>{t.name}</p>
+                <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0' }}>
+                  {t.subjects || '-'} {t.mobile ? `• ${t.mobile}` : ''}
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {t.hasLink ? (
+                <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, padding: '4px 10px', background: '#dcfce7', borderRadius: '100px' }}>
+                  مربوط
+                </span>
+              ) : (
+                <span style={{ fontSize: '11px', color: '#ca8a04', fontWeight: 600, padding: '4px 10px', background: '#fef9c3', borderRadius: '100px' }}>
+                  غير مربوط
+                </span>
+              )}
+              {t.hasLink && t.mobile && status?.connected && (
+                <button
+                  onClick={() => handleSendLink(t)}
+                  disabled={sending === t.id}
+                  style={{
+                    ...btnStyle('#25d366', '#fff'),
+                    padding: '6px 12px', fontSize: '12px',
+                    opacity: sending === t.id ? 0.6 : 1,
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle', marginLeft: '4px' }}>send</span>
+                  إرسال الرابط
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 // ===== Styles =====
 const btnStyle = (bg: string, color: string): React.CSSProperties => ({

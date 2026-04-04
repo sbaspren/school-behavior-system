@@ -1,59 +1,21 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import FilterBtn from '../components/shared/FilterBtn';
 import { positiveBehaviorApi } from '../api/positiveBehavior';
-import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
 import InputModal from '../components/shared/InputModal';
 import StudentSelector from '../components/shared/StudentSelector';
-import { SETTINGS_STAGES } from '../utils/constants';
+import { SETTINGS_STAGES, BEHAVIOR_TYPES } from '../utils/constants';
+import type { StudentOption, BehaviorRow, DailyStats } from '../types';
 import { printListReport, ListReportRow } from '../utils/printTemplates';
-import { toIndic, formatClass } from '../utils/printUtils';
+import { toIndic, formatClass, classToLetter } from '../utils/printUtils';
+import { useAppContext } from '../hooks/useAppContext';
 
 const THEME = '#10b981'; // emerald-500
 
-const BEHAVIOR_TYPES = [
-  'المحافظة على الصلاة', 'التفوق الدراسي', 'حسن السلوك والأخلاق',
-  'المشاركة في الأنشطة', 'التطوع وخدمة المجتمع', 'حفظ القرآن الكريم',
-  'النظافة الشخصية والعامة', 'الالتزام بالزي المدرسي', 'التعاون مع الزملاء',
-  'الانضباط والالتزام', 'الإبداع والابتكار', 'القيادة الطلابية',
-  'المحافظة على الممتلكات', 'احترام المعلمين والطلاب', 'المبادرة الإيجابية',
-];
-
-interface BehaviorRow {
-  id: number;
-  studentId: number;
-  studentNumber: string;
-  studentName: string;
-  grade: string;
-  className: string;
-  stage: string;
-  behaviorType: string;
-  degree: string;
-  details: string;
-  hijriDate: string;
-  recordedBy: string;
-  recordedAt: string;
-  isSent: boolean;
-}
-
-interface StudentOption {
-  id: number;
-  studentNumber: string;
-  name: string;
-  stage: string;
-  grade: string;
-  className: string;
-}
-
-interface DailyStats {
-  totalRecords: number;
-  todayCount: number;
-  uniqueStudents: number;
-  totalDegrees: number;
-}
 
 const PositiveBehaviorPage: React.FC = () => {
+  const { stages, enabledStages, schoolSettings } = useAppContext();
   const [records, setRecords] = useState<BehaviorRow[]>([]);
-  const [stages, setStages] = useState<StageConfigData[]>([]);
   const [currentStage, setCurrentStage] = useState('');
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -63,28 +25,17 @@ const PositiveBehaviorPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [detailStudent, setDetailStudent] = useState<{ name: string; grade: string; cls: string; behaviors: BehaviorRow[] } | null>(null);
   const [stats, setStats] = useState<DailyStats>({ totalRecords: 0, todayCount: 0, uniqueStudents: 0, totalDegrees: 0 });
-  const [schoolSettings, setSchoolSettings] = useState<Record<string, string>>({});
-
-  const enabledStages = useMemo(() =>
-    stages.filter(s => s.isEnabled && s.grades.some(g => g.isEnabled && g.classCount > 0)),
-    [stages]
-  );
 
   useEffect(() => {
-    settingsApi.getStructure().then(res => {
-      if (res.data?.data?.stages) {
-        const st = Array.isArray(res.data.data.stages) ? res.data.data.stages : [];
-        setStages(st);
-        const enabled = st.filter((s: StageConfigData) => s.isEnabled && s.grades.some((g: { isEnabled: boolean; classCount: number }) => g.isEnabled && g.classCount > 0));
-        if (enabled.length > 0) setCurrentStage(enabled[0].stage);
-      }
-    });
-    settingsApi.getSettings().then(res => { if (res.data?.data) setSchoolSettings(res.data.data); });
-  }, []);
+    if (enabledStages.length > 0 && !currentStage) {
+      setCurrentStage(enabledStages[0].stage);
+    }
+  }, [enabledStages, currentStage]);
 
+  const initialLoadDone = useRef(false);
   const loadData = useCallback(async () => {
     if (!currentStage) return;
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const [rRes, sRes] = await Promise.all([
         positiveBehaviorApi.getAll({ stage: currentStage }),
@@ -93,7 +44,7 @@ const PositiveBehaviorPage: React.FC = () => {
       if (rRes.data?.data) setRecords(rRes.data.data);
       if (sRes.data?.data) setStats(sRes.data.data);
     } catch { /* empty */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone.current = true; }
   }, [currentStage]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -193,8 +144,7 @@ const PositiveBehaviorPage: React.FC = () => {
         {enabledStages.length > 1 && (
           <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
             {enabledStages.map(s => (
-              <button key={s.stage} onClick={() => setCurrentStage(s.stage)}
-                style={{ padding: '6px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', background: currentStage === s.stage ? '#fff' : 'rgba(255,255,255,0.15)', color: currentStage === s.stage ? THEME : '#fff', border: 'none' }}>{stageName(s.stage)}</button>
+              <FilterBtn key={s.stage} label={stageName(s.stage)} active={currentStage === s.stage} onClick={() => setCurrentStage(s.stage)} color={THEME} />
             ))}
           </div>
         )}
@@ -240,7 +190,7 @@ const PositiveBehaviorPage: React.FC = () => {
             else if (total >= 5) { badge = 'جيد جداً'; badgeBg = '#ecfdf5'; badgeColor = '#047857'; }
             else if (total >= 3) { badge = 'جيد'; badgeBg = '#f0fdfa'; badgeColor = '#0f766e'; }
             return (
-              <div key={idx} onClick={() => setDetailStudent({ name: g.info.studentName, grade: g.info.grade, cls: g.info.className, behaviors: g.behaviors })}
+              <div key={g.info.studentId} onClick={() => setDetailStudent({ name: g.info.studentName, grade: g.info.grade, cls: classToLetter(g.info.className), behaviors: g.behaviors })}
                 style={{ background: '#fff', borderRadius: '12px', border: `2px solid ${total >= 10 ? THEME : total >= 5 ? '#a7f3d0' : '#e5e7eb'}`, padding: '16px', cursor: 'pointer', transition: 'box-shadow 0.2s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -250,7 +200,7 @@ const PositiveBehaviorPage: React.FC = () => {
                   <span style={{ fontSize: '10px', fontWeight: 700, background: badgeBg, color: badgeColor, padding: '2px 8px', borderRadius: '12px' }}>{badge}</span>
                 </div>
                 <h3 style={{ fontWeight: 700, fontSize: '14px', margin: '0 0 4px', color: '#1f2937' }}>{g.info.studentName}</h3>
-                <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 12px' }}>{g.info.grade}/{g.info.className}</p>
+                <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 12px' }}>{g.info.grade}/{classToLetter(g.info.className)}</p>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, textAlign: 'center', background: '#ecfdf5', borderRadius: '8px', padding: '6px 4px', minWidth: '60px' }}>
                     <div style={{ fontSize: '16px', fontWeight: 800, color: THEME }}>{total}</div>
@@ -280,7 +230,7 @@ const PositiveBehaviorPage: React.FC = () => {
                   <td style={tdStyle}>{i + 1}</td>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>{r.studentName}</td>
                   <td style={tdStyle}>{r.grade}</td>
-                  <td style={tdStyle}>{r.className}</td>
+                  <td style={tdStyle}>{classToLetter(r.className)}</td>
                   <td style={tdStyle}><span style={{ padding: '2px 8px', background: '#ecfdf5', color: THEME, borderRadius: '100px', fontSize: '11px', fontWeight: 600 }}>{r.behaviorType}</span></td>
                   <td style={tdStyle}><span style={{ padding: '2px 8px', background: '#ecfdf5', color: THEME, borderRadius: '100px', fontSize: '11px', fontWeight: 700 }}>{r.degree || '-'}</span></td>
                   <td style={{ ...tdStyle, fontSize: '12px', color: '#6b7280' }}>{r.recordedBy || '-'}</td>
@@ -340,7 +290,7 @@ const PositiveBehaviorPage: React.FC = () => {
 
 // ────────────────────────── ADD MODAL ──────────────────────────
 const AddBehaviorModal: React.FC<{ stage: string; onClose: () => void; onSaved: () => void }> = ({ stage, onClose, onSaved }) => {
-  const [selectedStudents, setSelectedStudents] = useState<import('../components/shared/StudentSelector').StudentOption[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<StudentOption[]>([]);
   const [behaviorType, setBehaviorType] = useState('');
   const [degree, setDegree] = useState('');
   const [details, setDetails] = useState('');

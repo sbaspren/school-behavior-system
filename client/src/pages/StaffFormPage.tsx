@@ -4,10 +4,8 @@ import {
   staffInputApi, StaffVerifyData, StudentsMap, TodayEntries,
   FlatStudent, flattenGradeStudents
 } from '../api/staffInput';
-
-// ★ خيارات مطابقة للأصلي — 4 أسباب + 3 مستلمين (بدون "أخرى")
-const REASONS = ['ظرف صحي', 'ظرف أسري', 'موعد حكومي', 'طلب ولي الأمر'];
-const GUARDIANS = ['الأب', 'الأخ', 'الأم'];
+import { PERMISSION_REASONS, GUARDIANS } from '../utils/constants';
+import { MF, ROLE_THEME, SEC_COLORS } from '../utils/mobileFormStyles';
 
 type Tab = 'perm' | 'late';
 
@@ -151,210 +149,278 @@ export default function StaffFormPage() {
   };
 
   // ── Render ──
-  if (loading) return <div style={S.center}><div style={S.loadingText}><span className="material-symbols-outlined" style={{ fontSize: '18px', verticalAlign: 'middle' }}>hourglass_empty</span> جاري التحميل...</div></div>;
+  const tabColor = tab === 'perm' ? SEC_COLORS.permission : SEC_COLORS.tardiness;
+
+  if (loading) return (
+    <div style={MF.loadingPage}>
+      <span className="material-symbols-outlined" style={{ fontSize: '32px', color: ROLE_THEME.staff.color }}>hourglass_empty</span>
+      <div style={MF.loadingText}>جاري التحميل...</div>
+    </div>
+  );
 
   if (error || !pageData) return (
-    <div style={S.center}>
-      <div style={S.errScr}>
-        <div style={{ marginBottom: '16px' }}><span className="material-symbols-outlined" style={{ fontSize: '64px', display: 'block', marginBottom: '16px', color: '#9ca3af' }}>lock</span></div>
-        <div style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>رابط غير صالح</div>
-        <div style={{ color: '#6b7280', fontSize: '14px' }}>{error || 'تأكد من صحة الرابط'}</div>
-      </div>
+    <div style={MF.errorPage}>
+      <span className="material-symbols-outlined" style={{ ...MF.errorIcon, fontSize: '48px' }}>lock</span>
+      <div style={MF.errorTitle}>رابط غير صالح</div>
+      <div style={MF.errorMsg}>{error || 'تأكد من صحة الرابط'}</div>
     </div>
   );
 
   const { staff } = pageData;
-  const tabColor = tab === 'perm' ? '#3b82f6' : '#ea580c';
-  const headerBg = tab === 'perm'
-    ? 'linear-gradient(135deg, #1e40af, #3b82f6)'
-    : 'linear-gradient(135deg, #c2410c, #ea580c)';
 
   return (
-    <div style={S.page}>
+    <div style={MF.page}>
+      {/* Accent strip */}
+      <div style={{...MF.accentStrip, background: ROLE_THEME.staff.color}} />
+
       {/* Header */}
-      <div style={{ ...S.header, background: headerBg }}>
-        <div style={S.hdrRow}>
-          <div>
-            <h1 style={S.hdrTitle}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>assignment</span> التأخر والاستئذان</h1>
-            <div style={S.hdrSub}><span className="material-symbols-outlined" style={{ fontSize: '18px', verticalAlign: 'middle' }}>person</span> {staff.name}{staff.role ? ` — ${staff.role}` : ''}</div>
+      <div style={MF.header}>
+        <div style={MF.headerRow}>
+          <div style={MF.headerInfo}>
+            <div style={{...MF.headerIcon, background: ROLE_THEME.staff.bg, color: ROLE_THEME.staff.color}}>
+              <span className="material-symbols-outlined" style={{fontSize: 22}}>shield_person</span>
+            </div>
+            <div>
+              <h1 style={MF.headerTitle}>التأخر والاستئذان</h1>
+              <div style={MF.headerSub}>{staff.name}{staff.role ? ` — ${staff.role}` : ''}</div>
+            </div>
           </div>
-          <button onClick={doRefresh} style={S.hdrBtn}>
-            <span style={refreshing ? { display: 'inline-block', animation: 'spin .8s linear infinite' } : {}}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span></span>
+          <button onClick={doRefresh} style={MF.refreshBtn}>
+            <span style={refreshing ? { display: 'inline-flex', animation: 'spin .8s linear infinite' } : { display: 'inline-flex' }}>
+              <span className="material-symbols-outlined" style={{fontSize: 16}}>refresh</span>
+            </span>
+            تحديث
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={S.tabs}>
+      <div style={MF.tabsBar}>
         <button onClick={() => swTab('perm')}
-          style={{ ...S.tab, ...(tab === 'perm' ? { color: '#fff', background: 'linear-gradient(135deg, #1e40af, #3b82f6)' } : {}) }}>
-          🚪 استئذان
+          style={{
+            ...MF.tab,
+            ...(tab === 'perm' ? { ...MF.tabActive, background: SEC_COLORS.permission } : {}),
+          }}>
+          <span className="material-symbols-outlined" style={{fontSize: 16}}>door_front</span>
+          استئذان
         </button>
         <button onClick={() => swTab('late')}
-          style={{ ...S.tab, ...(tab === 'late' ? { color: '#fff', background: 'linear-gradient(135deg, #c2410c, #ea580c)' } : {}) }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>schedule</span> تأخر
+          style={{
+            ...MF.tab,
+            ...(tab === 'late' ? { ...MF.tabActive, background: SEC_COLORS.tardiness } : {}),
+          }}>
+          <span className="material-symbols-outlined" style={{fontSize: 16}}>schedule</span>
+          تأخر
         </button>
       </div>
 
-      <div style={S.main}>
+      <div style={MF.content}>
         {/* Card: المرحلة والصف */}
-        <div style={{ ...S.card, borderColor: tab === 'perm' ? 'rgba(59,130,246,.15)' : 'rgba(234,88,12,.15)' }}>
-          <div style={S.cardTitle}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>apartment</span> المرحلة والصف</div>
-          <div style={S.fr}>
-            <div>
-              <div style={S.fl}>المرحلة</div>
-              <select value={stage} onChange={e => setStage(e.target.value)} style={S.sel}>
-                <option value="">اختر</option>
-                {stages.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+        <div style={MF.card}>
+          <div style={{...MF.cardAccent, background: tabColor}} />
+          <div style={MF.cardBody}>
+            <div style={MF.cardTitle}>
+              <span className="material-symbols-outlined" style={{fontSize: 16, color: tabColor}}>apartment</span>
+              المرحلة والصف
             </div>
-            <div>
-              <div style={S.fl}>الصف</div>
-              <select value={grade} onChange={e => setGrade(e.target.value)} style={S.sel} disabled={!stage}>
-                <option value="">اختر</option>
-                {grades.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
+            <div style={MF.selectGrid2}>
+              <div>
+                <div style={MF.selectLabel}>المرحلة</div>
+                <select value={stage} onChange={e => setStage(e.target.value)} style={MF.select}>
+                  <option value="">اختر</option>
+                  {stages.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={MF.selectLabel}>الصف</div>
+                <select value={grade} onChange={e => setGrade(e.target.value)} style={MF.select} disabled={!stage}>
+                  <option value="">اختر</option>
+                  {grades.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Card: Permission details */}
         {tab === 'perm' && (
-          <div style={{ ...S.card, borderColor: 'rgba(59,130,246,.15)' }}>
-            <div style={S.cardTitle}><span className="material-symbols-outlined" style={{ fontSize: '18px', verticalAlign: 'middle' }}>edit_note</span> تفاصيل الاستئذان</div>
-            <div style={S.fr}>
-              <div>
-                <div style={S.fl}>السبب</div>
-                <select value={reason} onChange={e => setReason(e.target.value)} style={S.sel}>
-                  <option value="">اختر</option>
-                  {REASONS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
+          <div style={MF.card}>
+            <div style={{...MF.cardAccent, background: SEC_COLORS.permission}} />
+            <div style={MF.cardBody}>
+              <div style={MF.cardTitle}>
+                <span className="material-symbols-outlined" style={{fontSize: 16, color: SEC_COLORS.permission}}>edit_note</span>
+                تفاصيل الاستئذان
               </div>
-              <div>
-                <div style={S.fl}>المستلم</div>
-                <select value={guardian} onChange={e => setGuardian(e.target.value)} style={S.sel}>
-                  <option value="">اختر</option>
-                  {GUARDIANS.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
+              <div style={MF.selectGrid2}>
+                <div>
+                  <div style={MF.selectLabel}>السبب</div>
+                  <select value={reason} onChange={e => setReason(e.target.value)} style={MF.select}>
+                    <option value="">اختر</option>
+                    {PERMISSION_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={MF.selectLabel}>المستلم</div>
+                  <select value={guardian} onChange={e => setGuardian(e.target.value)} style={MF.select}>
+                    <option value="">اختر</option>
+                    {GUARDIANS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
               </div>
             </div>
           </div>
         )}
 
         {/* Card: Students */}
-        <div style={{ ...S.card, borderColor: tab === 'perm' ? 'rgba(59,130,246,.15)' : 'rgba(234,88,12,.15)' }}>
-          <div style={S.cardTitle}>
-            <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>groups</span> {tab === 'perm' ? 'الطلاب' : 'المتأخرين'}
-            {selected.length > 0 && (
-              <span style={{ ...S.badge, background: tabColor }}>{selected.length}</span>
-            )}
-          </div>
-
-          {/* Search */}
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="ابحث عن طالب..." style={S.sb} />
-
-          {/* Student list */}
-          <div style={S.sl}>
-            {!grade ? (
-              <div style={S.empty}>اختر المرحلة والصف أولاً</div>
-            ) : filtered.length === 0 ? (
-              <div style={S.empty}>لا يوجد طلاب</div>
-            ) : (
-              <>
-                <div onClick={selectAll} style={S.sa}>
-                  <span style={S.sat}>تحديد الكل ({filtered.length})</span>
-                </div>
-                {filtered.map(s => {
-                  const on = isSelected(s.id);
-                  return (
-                    <div key={s.id} onClick={() => toggleStudent(s)}
-                      style={{ ...S.si, background: on ? (tab === 'perm' ? '#eff6ff' : '#fff7ed') : '#fff' }}>
-                      <div style={{
-                        ...S.ck,
-                        background: on ? tabColor : '#fff',
-                        borderColor: on ? tabColor : '#d1d5db',
-                        color: '#fff'
-                      }}>
-                        {on && '✓'}
-                      </div>
-                      <span style={S.sn}>{s.name}</span>
-                      <span style={S.ct}>{s.sec}</span>
-                    </div>
-                  );
-                })}
-              </>
-            )}
-          </div>
-
-          {/* Chips */}
-          {selected.length > 0 && (
-            <div style={S.chips}>
-              {selected.map(s => (
-                <span key={s.id} style={{ ...S.chip, background: tabColor }}>
-                  {shortenName(s.name)} <span style={S.chipC}>({s.sec})</span>
-                  <span style={S.chipX} onClick={(e) => { e.stopPropagation(); removeStudent(s.id); }}>✕</span>
-                </span>
-              ))}
+        <div style={MF.card}>
+          <div style={{...MF.cardAccent, background: tabColor}} />
+          <div style={MF.cardBody}>
+            <div style={MF.studentHeader}>
+              <div style={MF.studentHeaderTitle}>
+                <span className="material-symbols-outlined" style={{fontSize: 16, color: tabColor}}>groups</span>
+                {tab === 'perm' ? 'الطلاب' : 'المتأخرين'}
+                {selected.length > 0 && (
+                  <span style={{...MF.countBadge, background: tabColor}}>{selected.length}</span>
+                )}
+              </div>
             </div>
-          )}
+
+            {/* Search */}
+            <div style={MF.searchBox}>
+              <span className="material-symbols-outlined" style={MF.searchIcon}>search</span>
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="ابحث عن طالب..." style={MF.searchInput} />
+            </div>
+
+            {/* Student list */}
+            <div style={MF.scrollList}>
+              {!grade ? (
+                <div style={MF.empty}>اختر المرحلة والصف أولا</div>
+              ) : filtered.length === 0 ? (
+                <div style={MF.empty}>لا يوجد طلاب</div>
+              ) : (
+                <>
+                  <div style={{display:'flex',justifyContent:'flex-end',padding:'6px 12px',borderBottom:`1px solid #f0f2f7`}}>
+                    <button onClick={selectAll} style={MF.selectAllBtn}>
+                      تحديد الكل ({filtered.length})
+                    </button>
+                  </div>
+                  {filtered.map(s => {
+                    const on = isSelected(s.id);
+                    return (
+                      <div key={s.id} onClick={() => toggleStudent(s)}
+                        style={{...MF.studentItem, background: on ? (tab === 'perm' ? '#eff6ff' : '#fff7ed') : '#fff'}}>
+                        <div style={{
+                          ...MF.checkbox,
+                          ...(on ? {...MF.checkboxOn, background: tabColor} : {}),
+                        }}>
+                          {on && <span className="material-symbols-outlined" style={{fontSize: 14}}>check</span>}
+                        </div>
+                        <span style={MF.studentName}>{s.name}</span>
+                        <span style={MF.studentClass}>{s.sec}</span>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+
+            {/* Chips */}
+            {selected.length > 0 && (
+              <div style={MF.chips}>
+                {selected.map(s => (
+                  <span key={s.id} style={{...MF.chip, background: tabColor, color: '#fff'}}>
+                    {s.name}
+                    <span style={{opacity: 0.75, fontSize: '10px'}}>({s.sec})</span>
+                    <span style={{cursor:'pointer',display:'inline-flex'}} onClick={(e) => { e.stopPropagation(); removeStudent(s.id); }}>
+                      <span className="material-symbols-outlined" style={{fontSize: 14}}>close</span>
+                    </span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Bottom bar */}
-      <div style={S.bbar}>
-        <div style={S.bbarIn}>
-          <button onClick={handleSubmit} disabled={!canSubmit || submitting}
-            style={{
-              ...S.btnS,
-              background: canSubmit ? (tab === 'perm' ? 'linear-gradient(135deg,#1e40af,#3b82f6)' : 'linear-gradient(135deg,#c2410c,#ea580c)') : '#d1d5db',
-              opacity: submitting ? 0.6 : 1,
-            }}>
-            {submitting ? 'جاري الإرسال...' : tab === 'perm' ? <><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>check_circle</span> تسجيل الاستئذان</> : 'تسجيل التأخر'}
-          </button>
-          <button onClick={openLog} style={S.btnL}><span className="material-symbols-outlined" style={{ fontSize: '20px' }}>history</span></button>
-        </div>
+      <div style={MF.bottomBar}>
+        <button onClick={handleSubmit} disabled={!canSubmit || submitting}
+          style={{
+            ...MF.submitBtn,
+            background: canSubmit ? tabColor : '#d1d5db',
+            opacity: submitting ? 0.6 : 1,
+          }}>
+          {submitting ? 'جاري الإرسال...' : (
+            <>
+              <span className="material-symbols-outlined" style={{fontSize: 18}}>send</span>
+              {tab === 'perm' ? 'تسجيل الاستئذان' : 'تسجيل التأخر'}
+            </>
+          )}
+        </button>
+        <button onClick={openLog} style={MF.logBtn}>
+          <span className="material-symbols-outlined" style={{fontSize: 18}}>history</span>
+        </button>
       </div>
 
       {/* Toast */}
       {toast && (
         <div style={{
-          ...S.toast,
-          background: toast.cls === 'ts' ? '#16a34a' : toast.cls === 'te' ? '#dc2626' : '#3b82f6',
+          ...MF.toast,
+          ...(toast.cls === 'ts' ? MF.toastSuccess : toast.cls === 'te' ? MF.toastError : {}),
         }}>
+          <span className="material-symbols-outlined" style={{fontSize: 18}}>
+            {toast.cls === 'ts' ? 'check_circle' : 'error'}
+          </span>
           {toast.msg}
         </div>
       )}
 
       {/* Log Modal */}
       {showLog && (
-        <div style={S.mo} onClick={() => setShowLog(false)}>
-          <div style={S.ms} onClick={e => e.stopPropagation()}>
-            <div style={S.mhBar} />
-            <div style={S.mhd}>
-              <h3 style={{ fontSize: '18px', fontWeight: 800 }}><span className="material-symbols-outlined" style={{ fontSize: '20px', verticalAlign: 'middle' }}>history</span> سجل اليوم</h3>
-              <button onClick={() => setShowLog(false)} style={S.mc}>✕</button>
+        <div style={MF.overlay} onClick={() => setShowLog(false)}>
+          <div style={MF.modal} onClick={e => e.stopPropagation()}>
+            <div style={MF.modalHandle} />
+            <div style={MF.modalHeader}>
+              <h3 style={MF.modalTitle}>
+                <span className="material-symbols-outlined" style={{fontSize: 20}}>history</span>
+                سجل اليوم
+              </h3>
+              <button onClick={() => setShowLog(false)} style={MF.modalClose}>
+                <span className="material-symbols-outlined" style={{fontSize: 18}}>close</span>
+              </button>
             </div>
-            <div style={S.mb}>
+            <div style={MF.modalBody}>
               {!logData ? (
-                <div style={S.empty}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>hourglass_empty</span> جاري التحميل...</div>
+                <div style={MF.empty}>
+                  <span className="material-symbols-outlined" style={{fontSize: 16, verticalAlign: 'middle'}}>hourglass_empty</span>
+                  {' '}جاري التحميل...
+                </div>
               ) : (() => {
                 const entries = logData.entries || {};
                 const stageKeys = Object.keys(entries);
                 const total = stageKeys.reduce((sum, k) => sum + entries[k].length, 0);
-                if (total === 0) return <div style={S.empty}><span className="material-symbols-outlined" style={{ fontSize: '24px', verticalAlign: 'middle' }}>inbox</span> لا توجد سجلات</div>;
+                if (total === 0) return (
+                  <div style={MF.empty}>
+                    <span className="material-symbols-outlined" style={{fontSize: 24, verticalAlign: 'middle'}}>inbox</span>
+                    {' '}لا توجد سجلات
+                  </div>
+                );
                 return stageKeys.map(st => {
                   const arr = entries[st];
                   if (!arr.length) return null;
                   return (
                     <div key={st}>
-                      <div style={S.lsh}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle', color: '#6366f1' }}>square</span> {st} ({arr.length})</div>
+                      <div style={MF.logStageHeader}>
+                        <span className="material-symbols-outlined" style={{fontSize: 16, color: '#6366f1'}}>square</span>
+                        {st} ({arr.length})
+                      </div>
                       {arr.map((e, i) => (
-                        <div key={i} style={S.li}>
-                          <span style={S.ln}>{e.name}</span>
+                        <div key={i} style={MF.logItem}>
+                          <span style={MF.logName}>{e.name}</span>
                           <span style={{
-                            ...S.lt,
-                            background: e.type === 'استئذان' ? '#3b82f6' : '#ea580c'
+                            ...MF.logBadge,
+                            background: e.type === 'استئذان' ? SEC_COLORS.permission : SEC_COLORS.tardiness
                           }}>
                             {e.type} {e.time}
                           </span>
@@ -373,58 +439,3 @@ export default function StaffFormPage() {
     </div>
   );
 }
-
-function shortenName(n: string): string {
-  const p = n.trim().split(/\s+/);
-  return p.length <= 2 ? n : `${p[0]} ${p[p.length - 1]}`;
-}
-
-// ★ Styles matching original StaffInputForm.html
-const S: Record<string, React.CSSProperties> = {
-  page: { direction: 'rtl', fontFamily: "'Segoe UI','Tahoma','Arial',sans-serif", background: '#f0f2f5', minHeight: '100vh', color: '#1f2937' },
-  center: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', direction: 'rtl' as const },
-  loadingText: { fontSize: '18px', color: '#6b7280' },
-  errScr: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const, padding: '32px' },
-  header: { padding: '16px 20px', position: 'sticky' as const, top: 0, zIndex: 40, boxShadow: '0 2px 12px rgba(30,64,175,.3)' },
-  hdrRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '600px', margin: '0 auto' },
-  hdrTitle: { fontSize: '20px', fontWeight: 800, color: '#fff', margin: 0 },
-  hdrSub: { fontSize: '12px', color: 'rgba(255,255,255,.8)', marginTop: '2px' },
-  hdrBtn: { width: '42px', height: '42px', borderRadius: '12px', border: 'none', background: 'rgba(255,255,255,.15)', color: '#fff', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  tabs: { display: 'flex', background: '#fff', margin: '16px 16px 0', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,.06)', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto' },
-  tab: { flex: 1, padding: '14px', textAlign: 'center' as const, fontSize: '15px', fontWeight: 700, border: 'none', background: '#fff', color: '#6b7280', cursor: 'pointer', transition: 'all .25s' },
-  main: { maxWidth: '600px', margin: '0 auto', padding: '16px 16px 120px' },
-  card: { background: '#fff', borderRadius: '16px', padding: '18px', marginBottom: '14px', boxShadow: '0 2px 8px rgba(0,0,0,.05)', border: '2px solid transparent' },
-  cardTitle: { fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' },
-  fr: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' },
-  fl: { fontSize: '12px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' },
-  sel: { width: '100%', padding: '12px 14px', border: '2px solid #e5e7eb', borderRadius: '12px', fontSize: '15px', fontFamily: 'inherit', background: '#fff', color: '#1f2937', appearance: 'none' as const },
-  sb: { width: '100%', padding: '10px 14px', border: '2px solid #e5e7eb', borderRadius: '12px', fontSize: '14px', fontFamily: 'inherit', marginBottom: '10px', boxSizing: 'border-box' as const },
-  sl: { maxHeight: '350px', overflowY: 'auto' as const, border: '2px solid #e5e7eb', borderRadius: '12px' },
-  si: { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', userSelect: 'none' as const },
-  ck: { width: '22px', height: '22px', borderRadius: '6px', border: '2px solid #d1d5db', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', transition: 'all .15s' },
-  sn: { fontSize: '15px', fontWeight: 600, color: '#1f2937', flex: 1 },
-  ct: { fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '8px', background: '#f3f4f6', color: '#6b7280', flexShrink: 0 },
-  sa: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f9fafb', borderBottom: '2px solid #e5e7eb', cursor: 'pointer', userSelect: 'none' as const },
-  sat: { fontSize: '13px', fontWeight: 700, color: '#6b7280' },
-  badge: { fontSize: '12px', fontWeight: 800, padding: '2px 10px', borderRadius: '100px', color: '#fff' },
-  chips: { display: 'flex', flexWrap: 'wrap' as const, gap: '6px', marginTop: '10px' },
-  chip: { display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 10px', borderRadius: '100px', fontSize: '12px', fontWeight: 700, color: '#fff' },
-  chipC: { opacity: 0.75, fontSize: '10px' },
-  chipX: { cursor: 'pointer', fontSize: '14px', opacity: 0.8 },
-  empty: { textAlign: 'center' as const, padding: '40px 20px', color: '#9ca3af', fontSize: '15px' },
-  bbar: { position: 'fixed' as const, bottom: 0, left: 0, right: 0, padding: '14px 16px', background: '#fff', borderTop: '1px solid #e5e7eb', zIndex: 30, boxShadow: '0 -4px 12px rgba(0,0,0,.06)' },
-  bbarIn: { maxWidth: '600px', margin: '0 auto', display: 'flex', gap: '10px' },
-  btnS: { flex: 1, padding: '16px', border: 'none', borderRadius: '14px', color: '#fff', fontSize: '17px', fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(0,0,0,.15)' },
-  btnL: { width: '56px', height: '56px', borderRadius: '14px', border: '2px solid #e5e7eb', background: '#fff', color: '#6b7280', fontSize: '22px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  toast: { position: 'fixed' as const, top: '80px', left: '50%', transform: 'translateX(-50%)', padding: '14px 24px', borderRadius: '14px', color: '#fff', fontSize: '15px', fontWeight: 700, zIndex: 60, textAlign: 'center' as const, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,.2)' },
-  mo: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', backdropFilter: 'blur(4px)' },
-  ms: { background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' as const },
-  mhBar: { width: '40px', height: '4px', background: '#d1d5db', borderRadius: '100px', margin: '10px auto' },
-  mhd: { padding: '0 20px 14px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  mc: { width: '36px', height: '36px', borderRadius: '50%', border: 'none', background: '#f3f4f6', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  mb: { flex: 1, overflowY: 'auto' as const, padding: '16px 20px' },
-  lsh: { fontSize: '14px', fontWeight: 800, color: '#6b7280', padding: '8px 12px', background: '#f3f4f6', borderRadius: '10px', margin: '12px 0 8px', textAlign: 'center' as const },
-  li: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f3f4f6' },
-  ln: { fontSize: '14px', fontWeight: 700 },
-  lt: { fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '100px', color: '#fff' },
-};

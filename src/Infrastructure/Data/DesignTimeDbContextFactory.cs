@@ -8,10 +8,10 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
     public AppDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-        // Connection string for design-time only (migrations)
-        optionsBuilder.UseMySql(
-            "Server=localhost;Port=3306;Database=schoolbehaviorsystem;User=root;Password=Admin123;",
-            ServerVersion.AutoDetect("Server=localhost;Port=3306;Database=schoolbehaviorsystem;User=root;Password=Admin123;"));
+        // يقرأ سلسلة الاتصال من متغير البيئة أو يستخدم القيمة الافتراضية المحلية
+        var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
+            ?? "Server=localhost;Port=3306;Database=schoolbehaviorsystem;User=root;Password=;";
+        optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
 
         return new AppDbContext(optionsBuilder.Options);
     }

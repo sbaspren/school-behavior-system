@@ -62,7 +62,7 @@ public class SmsService : ISmsService
     public async Task<SmsBulkResult> SendBulkAsync(string apiToken, string senderName, List<SmsRecipient> recipients, string messageTemplate)
     {
         var result = new SmsBulkResult();
-        var date = DateTime.Now.ToString("d", new CultureInfo("ar-SA"));
+        var date = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh")).ToString("d", new CultureInfo("ar-SA"));
 
         foreach (var recipient in recipients)
         {

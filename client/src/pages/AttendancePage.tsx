@@ -1,31 +1,28 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import MI from '../components/shared/MI';
 import PageHero from '../components/shared/PageHero';
 import TabBar from '../components/shared/TabBar';
 import FloatingBar from '../components/shared/FloatingBar';
 import EmptyState from '../components/shared/EmptyState';
 import ActionIcon from '../components/shared/ActionIcon';
+import FilterBtn from '../components/shared/FilterBtn';
+import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { tardinessApi } from '../api/tardiness';
 import { permissionsApi } from '../api/permissions';
 import { studentsApi } from '../api/students';
-import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
-import { SETTINGS_STAGES } from '../utils/constants';
+import { SETTINGS_STAGES, TARDINESS_TYPES, PERIODS, PERMISSION_REASONS } from '../utils/constants';
+import { useAppContext } from '../hooks/useAppContext';
+import type { StudentOption } from '../types';
 import { printListReport, ListReportRow } from '../utils/printTemplates';
-import { toIndic, formatClass } from '../utils/printUtils';
+import { toIndic, formatClass, classToLetter } from '../utils/printUtils';
 
 // ═══════════════════════════════════════════════════════════
 // Constants — مطابقة لـ JS_Attendance.html سطر 13-17
 // ═══════════════════════════════════════════════════════════
-const PERMISSION_REASONS = ['ظرف صحي', 'ظرف أسري', 'موعد حكومي', 'طلب ولي الأمر'];
 const PERMISSION_RECEIVERS = ['الأب', 'الأخ', 'الأم', 'الجد', 'العم', 'آخر'];
 const PERMISSION_RESPONSIBLES = ['الموجه الطلابي', 'الوكيل', 'المدير'];
-const PERIODS = ['الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة', 'السادسة', 'السابعة'];
 
-const TARDINESS_TYPES: Record<string, { label: string; color: string; bg: string }> = {
-  Morning: { label: 'تأخر صباحي', color: '#dc2626', bg: '#fee2e2' },
-  Period: { label: 'تأخر حصة', color: '#d97706', bg: '#fef3c7' },
-};
 
 // ═══════════════════════════════════════════════════════════
 // Interfaces
@@ -43,9 +40,6 @@ interface PermRow {
   hijriDate: string; recordedBy: string; recordedAt: string;
   confirmationTime: string; isSent: boolean;
 }
-interface StudentOption {
-  id: number; studentNumber: string; name: string; stage: string; grade: string; className: string;
-}
 
 type MainTab = 'late' | 'permission' | 'archive';
 
@@ -53,34 +47,29 @@ type MainTab = 'late' | 'permission' | 'archive';
 // Main Page — مطابق لـ renderAttendancePage() في JS_Attendance.html سطر 51
 // ═══════════════════════════════════════════════════════════
 const AttendancePage: React.FC = () => {
+  const { stages, enabledStages, schoolSettings } = useAppContext();
   const [lateRecords, setLateRecords] = useState<LateRow[]>([]);
   const [permRecords, setPermRecords] = useState<PermRow[]>([]);
-  const [stages, setStages] = useState<StageConfigData[]>([]);
   const [loading, setLoading] = useState(true);
   const [stageFilter, setStageFilter] = useState('__all__');
   const [activeTab, setActiveTab] = useState<MainTab>('late');
   const [lateModalOpen, setLateModalOpen] = useState(false);
   const [permModalOpen, setPermModalOpen] = useState(false);
   const [students, setStudents] = useState<StudentOption[]>([]);
-  const [schoolSettings, setSchoolSettings] = useState<Record<string, string>>({});
 
-  const enabledStages = useMemo(() =>
-    stages.filter((s) => s.isEnabled && s.grades.some((g) => g.isEnabled && g.classCount > 0)), [stages]);
-
+  const initialLoadDone = useRef(false);
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
-      const [lRes, pRes, sRes, stRes, seRes] = await Promise.all([
+      const [lRes, pRes, stRes] = await Promise.all([
         tardinessApi.getAll(), permissionsApi.getAll(),
-        settingsApi.getStructure(), studentsApi.getAll(), settingsApi.getSettings(),
+        studentsApi.getAll(),
       ]);
       if (lRes.data?.data) setLateRecords(lRes.data.data);
       if (pRes.data?.data) setPermRecords(pRes.data.data);
-      if (sRes.data?.data?.stages) setStages(Array.isArray(sRes.data.data.stages) ? sRes.data.data.stages : []);
       if (stRes.data?.data) setStudents(stRes.data.data);
-      if (seRes.data?.data) setSchoolSettings(seRes.data.data);
     } catch { /* empty */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone.current = true; }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -101,7 +90,7 @@ const AttendancePage: React.FC = () => {
   }, [permRecords, todayDate, stageId]);
 
   if (loading) {
-    return (<div style={{ textAlign: 'center', padding: '60px' }}><div className="spinner" /><p style={{ color: '#666', marginTop: '16px' }}>جاري التحميل...</p></div>);
+    return <LoadingSpinner />;
   }
 
   // ─── Tab colors ───
@@ -130,10 +119,10 @@ const AttendancePage: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '14px', fontWeight: 700, color: '#6b7280' }}>المرحلة:</span>
         <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '8px', padding: '4px' }}>
-          <StagePill label="الكل" active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} color={tc.main} />
+          <FilterBtn label="الكل" active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} color={tc.main} />
           {enabledStages.map((s) => {
             const info = SETTINGS_STAGES.find((si) => si.id === s.stage);
-            return <StagePill key={s.stage} label={info?.name || s.stage} active={stageFilter === (info?.name || s.stage)} onClick={() => setStageFilter(info?.name || s.stage)} color={tc.main} />;
+            return <FilterBtn key={s.stage} label={info?.name || s.stage} active={stageFilter === (info?.name || s.stage)} onClick={() => setStageFilter(info?.name || s.stage)} color={tc.main} />;
           })}
         </div>
       </div>
@@ -256,11 +245,11 @@ const LateTab: React.FC<{ records: LateRow[]; onRefresh: () => void; onAdd: () =
                   <tr key={r.id} style={{ background: selected.has(r.id) ? '#fef2f2' : undefined }}>
                     <td><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
                     <td><div style={{ fontWeight: 700 }}>{r.studentName}</div><div style={{ fontSize: '12px', color: '#9ca3af' }}>{r.studentNumber}</div></td>
-                    <td style={{ fontSize: '13px' }}>{r.grade} / {r.className}</td>
+                    <td style={{ fontSize: '13px' }}>{r.grade} / {classToLetter(r.className)}</td>
                     <td><span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, background: tt.bg, color: tt.color }}>{tt.label}</span></td>
                     <td><span style={{ padding: '4px 8px', background: '#f3f4f6', borderRadius: '6px', fontSize: '12px', fontWeight: 700 }}>{r.period || '-'}</span></td>
                     <td style={{ fontSize: '12px', color: '#6b7280' }}>{r.hijriDate}</td>
-                    <td>{r.isSent ? <Badge label="تم ✓" bg="#dcfce7" color="#15803d" /> : <Badge label="لم يُرسل" bg="#fef3c7" color="#92400e" />}</td>
+                    <td>{r.isSent ? <Badge label="تم" bg="#dcfce7" color="#15803d" /> : <Badge label="لم يُرسل" bg="#fef3c7" color="#92400e" />}</td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                         <IconBtn icon={<span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span>} title="إرسال" disabled={sendingId === r.id} onClick={() => setMsgRow(r)} />
@@ -366,13 +355,13 @@ const PermissionTab: React.FC<{ records: PermRow[]; onRefresh: () => void; onAdd
                 <tr key={r.id} style={{ background: selected.has(r.id) ? '#f5f3ff' : undefined }}>
                   <td><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
                   <td><div style={{ fontWeight: 700 }}>{r.studentName}</div><div style={{ fontSize: '12px', color: '#9ca3af' }}>{r.studentNumber}</div></td>
-                  <td style={{ fontSize: '13px' }}>{r.grade} / {r.className}</td>
+                  <td style={{ fontSize: '13px' }}>{r.grade} / {classToLetter(r.className)}</td>
                   <td style={{ fontSize: '12px', color: '#6b7280' }}>{r.hijriDate}</td>
                   <td><span style={{ padding: '4px 8px', background: '#ede9fe', color: '#7c3aed', borderRadius: '6px', fontSize: '12px', fontWeight: 700 }}>{r.exitTime || '-'}</span></td>
                   <td style={{ fontSize: '13px', color: '#4b5563', maxWidth: '150px' }}>{r.reason || '-'}</td>
                   <td style={{ fontSize: '13px', color: '#4b5563' }}>{r.receiver || '-'}</td>
                   <td>{r.confirmationTime ? <Badge label={`خرج ${r.confirmationTime}`} bg="#dcfce7" color="#15803d" /> : <Badge label="معلق" bg="#fef3c7" color="#92400e" />}</td>
-                  <td>{r.isSent ? <Badge label="تم ✓" bg="#dcfce7" color="#15803d" /> : <Badge label="لم يُرسل" bg="#fef3c7" color="#92400e" />}</td>
+                  <td>{r.isSent ? <Badge label="تم" bg="#dcfce7" color="#15803d" /> : <Badge label="لم يُرسل" bg="#fef3c7" color="#92400e" />}</td>
                   <td style={{ textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                       <IconBtn icon={<span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span>} title="إرسال" disabled={sendingId === r.id} onClick={() => setMsgRow(r)} />
@@ -462,7 +451,7 @@ const ArchiveTab: React.FC<{ stageId: string | null; schoolSettings: Record<stri
       </div>
 
       {archiveLoading ? (
-        <div style={{ textAlign: 'center', padding: '64px' }}><div className="spinner" /><p style={{ color: '#666', marginTop: '16px' }}>جاري تحميل الأرشيف...</p></div>
+        <LoadingSpinner text="جاري تحميل الأرشيف..." />
       ) : !searched ? (
         <div style={{ textAlign: 'center', padding: '64px', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>inventory_2</span>
@@ -488,7 +477,7 @@ const ArchiveTab: React.FC<{ stageId: string | null; schoolSettings: Record<stri
               {archiveRecords.map((r: any, i: number) => (
                 <tr key={r.id || i}>
                   <td style={{ fontWeight: 700 }}>{r.studentName}</td>
-                  <td style={{ fontSize: '13px' }}>{r.grade} / {r.className}</td>
+                  <td style={{ fontSize: '13px' }}>{r.grade} / {classToLetter(r.className)}</td>
                   <td style={{ fontSize: '12px', color: '#6b7280' }}>{r.hijriDate}</td>
                   <td>
                     {archiveType === 'late'
@@ -652,9 +641,6 @@ const IconBtn: React.FC<{ icon: React.ReactNode; title: string; disabled?: boole
   <button onClick={onClick} disabled={disabled} title={title} style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', fontSize: '16px', opacity: disabled ? 0.5 : 1 }}>{icon}</button>
 );
 
-const StagePill: React.FC<{ label: string; active: boolean; onClick: () => void; color: string }> = ({ label, active, onClick, color }) => (
-  <button onClick={onClick} style={{ padding: '6px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 700, background: active ? '#fff' : 'transparent', color: active ? color : '#6b7280', boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', border: 'none', cursor: 'pointer' }}>{label}</button>
-);
 
 const TypeBtn: React.FC<{ label: string; active: boolean; color: string; bg: string; onClick: () => void }> = ({ label, active, color, bg, onClick }) => (
   <button onClick={onClick} style={{ flex: 1, padding: '12px 8px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '14px', background: active ? bg : '#f9fafb', color: active ? color : '#6b7280', border: active ? `2px solid ${color}` : '1px solid #e5e7eb' }}>{label}</button>
@@ -677,7 +663,7 @@ const StudentPicker: React.FC<{
         {filtered.map((s) => (
           <div key={s.id} onClick={() => onAdd(s)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ fontWeight: 600 }}>{s.name}</span>
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>{s.grade} ({s.className})</span>
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>{s.grade} ({classToLetter(s.className)})</span>
           </div>
         ))}
       </div>
@@ -687,7 +673,7 @@ const StudentPicker: React.FC<{
         {selected.map((s) => (
           <span key={s.id} style={{ padding: '4px 10px', background: accentBg, borderRadius: '8px', border: `1px solid ${accentColor}33`, fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
             {s.name}
-            <button onClick={() => onRemove(s.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}>✕</button>
+            <button onClick={() => onRemove(s.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}><span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span></button>
           </span>
         ))}
       </div>
@@ -703,7 +689,7 @@ const ModalShell: React.FC<{
     <div style={{ background: '#fff', borderRadius: '20px', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '16px 24px', background: `linear-gradient(to left, ${gradientFrom}, ${gradientTo})`, borderBottom: `1px solid ${borderColor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>{icon} {title}</h3>
-        <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#9ca3af' }}>✕</button>
+        <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span></button>
       </div>
       <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>{children}</div>
     </div>
@@ -743,7 +729,7 @@ const SendMsgModal: React.FC<{
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#15803d' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال رسالة واتساب</h3>
             <span style={{ fontSize: '13px', color: '#4b5563' }}>{name} - {mobile || 'لا يوجد رقم'}</span>
           </div>
-          <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}>✕</button>
+          <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span></button>
         </div>
         <div style={{ padding: '20px 24px' }}>
           <label style={labelStyle}>نص الرسالة</label>

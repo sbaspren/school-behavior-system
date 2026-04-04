@@ -3,6 +3,7 @@ import { usersApi, UserData } from '../../api/users';
 import { settingsApi, StageConfigData } from '../../api/settings';
 import { showSuccess, showError } from '../shared/Toast';
 import { ADMIN_ROLES, ROLE_INTERFACE_DESC, ADMIN_ROLE_TO_SYSTEM_ROLE, SETTINGS_STAGES, CLASS_LETTERS } from '../../utils/constants';
+import LoadingSpinner from '../shared/LoadingSpinner';
 
 interface AdminUser {
   id: number;
@@ -62,12 +63,7 @@ const AdminsTab: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '60px' }}>
-        <div className="spinner" />
-        <p style={{ color: '#666', marginTop: '16px' }}>جاري التحميل...</p>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
@@ -282,7 +278,7 @@ const AdminModal: React.FC<AdminModalProps> = ({ user, stages, onClose, onSaved 
             {isEdit ? 'تعديل عضو' : 'إضافة عضو جديد'}
           </h3>
           <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', color: '#9ca3af', fontSize: '18px' }}>
-            ✕
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
           </button>
         </div>
 

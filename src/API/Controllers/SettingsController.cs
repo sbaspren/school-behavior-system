@@ -230,6 +230,40 @@ public class SettingsController : ControllerBase
         return Ok(ApiResponse<object>.Ok(result));
     }
 
+    // ════════════════════════════════════════════════════════════════
+    //  SEMESTER MANAGEMENT — إدارة الفصل الدراسي
+    // ════════════════════════════════════════════════════════════════
+
+    /// <summary>قراءة الفصل الحالي والسنة الأكاديمية</summary>
+    [HttpGet("semester")]
+    public async Task<ActionResult<ApiResponse<object>>> GetSemester([FromServices] ISemesterService semesterSvc)
+    {
+        var (semester, year) = await semesterSvc.GetCurrentAsync();
+        return Ok(ApiResponse<object>.Ok(new { semester, academicYear = year }));
+    }
+
+    /// <summary>تغيير الفصل الحالي — يُستخدم عند بداية فصل جديد</summary>
+    [HttpPut("semester")]
+    public async Task<ActionResult<ApiResponse>> SetSemester([FromBody] SetSemesterRequest request)
+    {
+        if (request.Semester is not (1 or 2))
+            return Ok(ApiResponse.Fail("الفصل يجب أن يكون 1 أو 2"));
+
+        if (string.IsNullOrEmpty(request.AcademicYear) || request.AcademicYear.Length != 4)
+            return Ok(ApiResponse.Fail("السنة الأكاديمية يجب أن تكون 4 أرقام مثل 1447"));
+
+        var settings = await _configService.GetSettingsAsync();
+        if (settings == null)
+            return Ok(ApiResponse.Fail("يرجى إعداد المدرسة أولاً"));
+
+        settings.CurrentSemester = request.Semester;
+        settings.CurrentAcademicYear = request.AcademicYear;
+        settings.UpdatedAt = DateTime.UtcNow;
+
+        await _configService.SaveSettingsAsync(settings);
+        return Ok(ApiResponse.Ok($"تم تعيين الفصل {request.Semester} للسنة {request.AcademicYear}"));
+    }
+
     private static string SanitizeInput(string? input)
     {
         if (string.IsNullOrEmpty(input)) return "";
@@ -238,4 +272,10 @@ public class SettingsController : ControllerBase
             .Replace("\n", " ")
             .Trim();
     }
+}
+
+public class SetSemesterRequest
+{
+    public int Semester { get; set; }
+    public string AcademicYear { get; set; } = "";
 }

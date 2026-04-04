@@ -26,12 +26,30 @@ public class WhatsAppController : ControllerBase
         _hijri = hijri;
     }
 
+    // ===== Helper: ضمان وجود سجل WhatsAppSettings دائماً =====
+    private async Task<WhatsAppSettings> GetOrCreateSettingsAsync()
+    {
+        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        if (settings != null) return settings;
+
+        // ★ إنشاء تلقائي مع رابط السيرفر الافتراضي — يمنع تكرار مشكلة "فشل الاتصال"
+        settings = new WhatsAppSettings
+        {
+            ServerUrl = "http://194.163.133.252:3000",
+            ServiceStatus = "مفعل",
+            TenantId = 1
+        };
+        _db.WhatsAppSettings.Add(settings);
+        await _db.SaveChangesAsync();
+        return settings;
+    }
+
     // ===== Settings =====
 
     [HttpGet("settings")]
     public async Task<ActionResult<ApiResponse<object>>> GetSettings()
     {
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings = await GetOrCreateSettingsAsync();
         var schoolSettings = await _db.SchoolSettings.FirstOrDefaultAsync();
 
         return Ok(ApiResponse<object>.Ok(new
@@ -47,12 +65,7 @@ public class WhatsAppController : ControllerBase
     [HttpPost("settings")]
     public async Task<ActionResult<ApiResponse>> SaveSettings([FromBody] WhatsAppSettingsRequest request)
     {
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
-        if (settings == null)
-        {
-            settings = new WhatsAppSettings();
-            _db.WhatsAppSettings.Add(settings);
-        }
+        var settings = await GetOrCreateSettingsAsync();
 
         if (request.ServerUrl != null) settings.ServerUrl = request.ServerUrl;
         if (request.ServiceStatus != null) settings.ServiceStatus = request.ServiceStatus;
@@ -76,7 +89,7 @@ public class WhatsAppController : ControllerBase
     [HttpGet("status")]
     public async Task<ActionResult<ApiResponse<object>>> GetStatus([FromQuery] string? stage = null)
     {
-        var settings       = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings       = await GetOrCreateSettingsAsync();
         var schoolSettings = await _db.SchoolSettings.FirstOrDefaultAsync();
         var serverUrl      = settings?.ServerUrl ?? "";
 
@@ -102,9 +115,9 @@ public class WhatsAppController : ControllerBase
                 error = "رابط سيرفر الواتساب غير مُعيّن — عيّنه في إعدادات الواتساب"
             }));
 
-        // ★ 3. جلب الأرقام المتصلة من السيرفر — مطابق GAS سطر 997 (getConnectedSessionsByStage)
-        var serverStatus   = await _waServer.GetStatusAsync(serverUrl);
-        var serverPhones   = serverStatus.ConnectedPhones.Select(p => p.PhoneNumber).ToList();
+        // ★ 3. فحص السيرفر + جلب الجلسات المحفوظة + التحقق من حياة كل جلسة
+        var serverStatus = await _waServer.GetStatusAsync(serverUrl);
+        var serverOnline = serverStatus.IsOnline;
 
         // جلب الجلسات المحفوظة للمرحلة
         var savedQ = _db.WhatsAppSessions.AsQueryable();
@@ -112,20 +125,34 @@ public class WhatsAppController : ControllerBase
             savedQ = savedQ.Where(s => s.Stage == effectiveStage);
         var savedSessions = await savedQ.ToListAsync();
 
-        // بناء allSessions (كل المحفوظة مع حالة الاتصال) — مطابق GAS allSessions
+        // ★ لكل رقم محفوظ، نفحص هل جلسته لا تزال حية على السيرفر
+        // السيرفر لا يملك endpoint لسرد الأرقام — نستخدم فحص فردي عبر /send
+        var sessionStatuses = new Dictionary<string, bool>();
+        if (serverOnline)
+        {
+            var checkTasks = savedSessions.Select(async s =>
+            {
+                var alive = await _waServer.IsSessionAliveAsync(serverUrl, s.PhoneNumber);
+                return (s.PhoneNumber, alive);
+            });
+            var results = await Task.WhenAll(checkTasks);
+            foreach (var (phone, alive) in results)
+                sessionStatuses[phone] = alive;
+        }
+
         var allSessions = savedSessions.Select(s => new
         {
             phone       = s.PhoneNumber,
             stage       = s.Stage,
             userType    = s.UserType,
-            status      = serverPhones.Contains(s.PhoneNumber) ? "متصل" : "غير متصل",
+            status      = serverOnline && sessionStatuses.GetValueOrDefault(s.PhoneNumber, false) ? "متصل" : "غير متصل",
             linkedDate  = s.LinkedAt?.ToString("yyyy/MM/dd HH:mm") ?? "",
             lastUsed    = s.LastUsed?.ToString("yyyy/MM/dd HH:mm") ?? "",
             messageCount = s.MessageCount,
             isPrimary   = s.IsPrimary,
         }).ToList();
 
-        // sessions = المتصلون فقط — مطابق GAS sessions
+        // sessions = المتصلون فقط
         var connectedSessions = allSessions.Where(s => s.status == "متصل").Cast<object>().ToList();
 
         // ★ 4. جلب الرقم الرئيسي — مطابق GAS سطر 1001 (getPrimaryPhoneForStage)
@@ -150,7 +177,7 @@ public class WhatsAppController : ControllerBase
                 whatsappMode = whatsAppMode,
                 canUseAdminWhatsApp = currentUser?.CanUseAdminWhatsApp ?? false,
                 adminHasWhatsApp = adminHasPhone,
-                connectedPhones = serverStatus.ConnectedPhones.Select(p => new { p.PhoneNumber, p.IsConnected }),
+                serverOnline,
                 scenario = await DetectScenario(),
             }));
         }
@@ -178,7 +205,7 @@ public class WhatsAppController : ControllerBase
     [HttpPost("ping")]
     public async Task<ActionResult<ApiResponse<object>>> Ping()
     {
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings = await GetOrCreateSettingsAsync();
         var serverUrl = settings?.ServerUrl ?? "";
         var isOnline = await _waServer.PingAsync(serverUrl);
         return Ok(ApiResponse<object>.Ok(new { isOnline }));
@@ -189,18 +216,46 @@ public class WhatsAppController : ControllerBase
     [HttpGet("qr")]
     public async Task<ActionResult<ApiResponse<object>>> GetQRCode()
     {
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings = await GetOrCreateSettingsAsync();
         var serverUrl = settings?.ServerUrl ?? "";
 
         if (string.IsNullOrEmpty(serverUrl))
             return BadRequest(ApiResponse<object>.Fail("\u0631\u0627\u0628\u0637 \u0627\u0644\u0633\u064a\u0631\u0641\u0631 \u063a\u064a\u0631 \u0645\u064f\u0639\u064a\u0651\u0646")); // رابط السيرفر غير مُعيّن
 
-        var qr = await _waServer.GetQRCodeAsync(serverUrl);
+        var qrResult = await _waServer.GetQRCodeAsync(serverUrl);
 
-        if (qr == null)
+        if (qrResult == null)
             return Ok(ApiResponse<object>.Ok(new { hasQR = false }));
 
-        return Ok(ApiResponse<object>.Ok(new { hasQR = true, qrData = qr }));
+        // Multi-Session API returns "qrData|sessionId"
+        var parts = qrResult.Split('|', 2);
+        var qrData = parts[0];
+        var sessionId = parts.Length > 1 ? parts[1] : null;
+
+        return Ok(ApiResponse<object>.Ok(new { hasQR = true, qrData, sessionId }));
+    }
+
+    // ===== QR Status Poll — فحص حالة الـ QR (هل تم المسح؟) =====
+
+    [HttpGet("qr/poll")]
+    public async Task<ActionResult<ApiResponse<object>>> PollQRStatus([FromQuery] string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId))
+            return BadRequest(ApiResponse<object>.Fail("sessionId مطلوب"));
+
+        var settings = await GetOrCreateSettingsAsync();
+        var serverUrl = settings?.ServerUrl ?? "";
+        if (string.IsNullOrEmpty(serverUrl))
+            return BadRequest(ApiResponse<object>.Fail("رابط السيرفر غير مُعيّن"));
+
+        var result = await _waServer.PollQRStatusAsync(serverUrl, sessionId);
+        return Ok(ApiResponse<object>.Ok(new
+        {
+            status = result.Status,
+            phone = result.Phone,
+            qrData = result.QrData,
+            error = result.Error
+        }));
     }
 
     // ===== Connected Sessions from Server =====
@@ -208,7 +263,7 @@ public class WhatsAppController : ControllerBase
     [HttpGet("connected-sessions")]
     public async Task<ActionResult<ApiResponse<object>>> GetConnectedSessions()
     {
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings = await GetOrCreateSettingsAsync();
         var serverUrl = settings?.ServerUrl ?? "";
 
         var sessions = await _waServer.GetConnectedSessionsAsync(serverUrl);
@@ -242,7 +297,7 @@ public class WhatsAppController : ControllerBase
         if (string.IsNullOrEmpty(request.Message))
             return BadRequest(ApiResponse<object>.Fail("نص الرسالة مطلوب"));
 
-        var settings  = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings  = await GetOrCreateSettingsAsync();
         var serverUrl = settings?.ServerUrl ?? "";
 
         if (string.IsNullOrEmpty(serverUrl))
@@ -305,7 +360,7 @@ public class WhatsAppController : ControllerBase
         if (string.IsNullOrEmpty(request.Phone))
             return BadRequest(ApiResponse<object>.Fail("رقم الجوال مطلوب"));
 
-        var settings  = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings  = await GetOrCreateSettingsAsync();
         var serverUrl = settings?.ServerUrl ?? "";
 
         Stage? stageEnum = null;
@@ -551,7 +606,7 @@ public class WhatsAppController : ControllerBase
     [HttpGet("stats")]
     public async Task<ActionResult<ApiResponse<object>>> GetStats([FromQuery] string? stage = null)
     {
-        var settings  = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings  = await GetOrCreateSettingsAsync();
         var serverUrl = settings?.ServerUrl ?? "";
 
         // جلب الأرقام المحفوظة للمرحلة — مطابق savedSessions في GAS
@@ -726,7 +781,7 @@ public class WhatsAppController : ControllerBase
         if (string.IsNullOrEmpty(phone))
             return BadRequest(ApiResponse<object>.Fail("رقم الجوال مطلوب"));
 
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings = await GetOrCreateSettingsAsync();
         var serverUrl = settings?.ServerUrl ?? "";
         if (string.IsNullOrEmpty(serverUrl))
             return Ok(ApiResponse<object>.Ok(new { connected = false, error = "رابط السيرفر غير مُعيّن" }));
@@ -745,7 +800,7 @@ public class WhatsAppController : ControllerBase
     [HttpGet("connected-sessions/by-stage")]
     public async Task<ActionResult<ApiResponse<object>>> GetConnectedByStage([FromQuery] string? stage = null)
     {
-        var settings      = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings      = await GetOrCreateSettingsAsync();
         var serverUrl     = settings?.ServerUrl ?? "";
         var schoolSettings = await _db.SchoolSettings.FirstOrDefaultAsync();
         var whatsAppMode  = schoolSettings?.WhatsAppMode.ToString() ?? "PerStage";
@@ -787,7 +842,7 @@ public class WhatsAppController : ControllerBase
     [HttpGet("qr/inspect")]
     public async Task<ActionResult<ApiResponse<object>>> InspectQR()
     {
-        var settings  = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings  = await GetOrCreateSettingsAsync();
         var serverUrl = settings?.ServerUrl ?? "";
         if (string.IsNullOrEmpty(serverUrl))
             return Ok(ApiResponse<object>.Ok(new { success = false, error = "رابط السيرفر غير مُعيّن" }));
@@ -806,24 +861,26 @@ public class WhatsAppController : ControllerBase
         if (string.IsNullOrEmpty(request.PhoneNumber))
             return BadRequest(ApiResponse<object>.Fail("رقم الواتساب مطلوب"));
 
-        var settings       = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings       = await GetOrCreateSettingsAsync();
         var serverUrl      = settings?.ServerUrl ?? "";
         var schoolSettings = await _db.SchoolSettings.FirstOrDefaultAsync();
         var whatsAppMode   = schoolSettings?.WhatsAppMode.ToString() ?? "PerStage";
         var effectiveStage = whatsAppMode == "Unified" ? "" : (request.Stage ?? "");
         var cleanPhone     = CleanPhoneNumber(request.PhoneNumber);
 
-        // التحقق من أن الرقم متصل في السيرفر
+        // ★ التحقق من أن الرقم متصل فعلاً على السيرفر
+        // نستخدم IsSessionAliveAsync (فحص فردي عبر /send) بدل GetConnectedSessionsAsync (غير مدعوم)
         if (!string.IsNullOrEmpty(serverUrl))
         {
-            var serverPhones = await _waServer.GetConnectedSessionsAsync(serverUrl);
-            var foundOnServer = serverPhones.Any(p => CleanPhoneNumber(p) == cleanPhone);
-            if (!foundOnServer)
-                return Ok(ApiResponse<object>.Ok(new
-                {
-                    success = false,
-                    error   = "الرقم غير متصل في السيرفر"
-                }));
+            var isAlive = await _waServer.IsSessionAliveAsync(serverUrl, cleanPhone);
+            if (!isAlive)
+            {
+                // الجلسة ممكن لم تُسجّل بعد — ننتظر قليلاً ونعيد الفحص
+                await Task.Delay(2000);
+                isAlive = await _waServer.IsSessionAliveAsync(serverUrl, cleanPhone);
+            }
+            // لا نمنع الحفظ — الرقم جاء من QR ناجح، نحفظه حتى لو الفحص فشل
+            // لكن نسجّل الحالة الفعلية
         }
 
         // إزالة علامة رئيسي من جميع أرقام المرحلة
@@ -891,7 +948,7 @@ public class WhatsAppController : ControllerBase
     [HttpGet("security/status")]
     public async Task<ActionResult<ApiResponse<object>>> GetSecurityStatus()
     {
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings = await GetOrCreateSettingsAsync();
         return Ok(ApiResponse<object>.Ok(new
         {
             hasSecurityCode = !string.IsNullOrEmpty(settings?.SecurityCode),
@@ -910,12 +967,7 @@ public class WhatsAppController : ControllerBase
         if (string.IsNullOrEmpty(request.RecoveryPhone1))
             return Ok(ApiResponse.Fail("جوال الاسترجاع الأول مطلوب"));
 
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
-        if (settings == null)
-        {
-            settings = new WhatsAppSettings();
-            _db.WhatsAppSettings.Add(settings);
-        }
+        var settings = await GetOrCreateSettingsAsync();
 
         settings.SecurityCode = BCrypt.Net.BCrypt.HashPassword(request.Code);
         settings.RecoveryPhone1 = request.RecoveryPhone1;
@@ -928,7 +980,7 @@ public class WhatsAppController : ControllerBase
     [HttpPost("security/verify")]
     public async Task<ActionResult<ApiResponse<object>>> VerifySecurityCode([FromBody] SecurityVerifyRequest request)
     {
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings = await GetOrCreateSettingsAsync();
         if (settings == null || string.IsNullOrEmpty(settings.SecurityCode))
             return Ok(ApiResponse<object>.Ok(new { valid = true })); // No code set = open
 
@@ -939,7 +991,7 @@ public class WhatsAppController : ControllerBase
     [HttpPost("security/request-recovery")]
     public async Task<ActionResult<ApiResponse<object>>> RequestRecoveryCode([FromBody] RecoveryRequest request)
     {
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings = await GetOrCreateSettingsAsync();
         if (settings == null || string.IsNullOrEmpty(settings.SecurityCode))
             return Ok(ApiResponse.Fail("لا يوجد رمز أمان محدد"));
 
@@ -971,7 +1023,7 @@ public class WhatsAppController : ControllerBase
     [HttpPost("security/verify-recovery")]
     public async Task<ActionResult<ApiResponse<object>>> VerifyRecoveryCode([FromBody] SecurityVerifyRequest request)
     {
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings = await GetOrCreateSettingsAsync();
         if (settings == null)
             return Ok(ApiResponse<object>.Ok(new { valid = false }));
 
@@ -1000,7 +1052,7 @@ public class WhatsAppController : ControllerBase
         if (string.IsNullOrEmpty(request.PhoneNumber))
             return BadRequest(ApiResponse<object>.Fail("رقم الجوال مطلوب"));
 
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings = await GetOrCreateSettingsAsync();
         var serverUrl = settings?.ServerUrl ?? "";
 
         if (string.IsNullOrEmpty(serverUrl))
@@ -1105,7 +1157,7 @@ public class WhatsAppController : ControllerBase
     [HttpPost("security/change-code")]
     public async Task<ActionResult<ApiResponse>> ChangeSecurityCode([FromBody] SecurityChangeRequest request)
     {
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
+        var settings = await GetOrCreateSettingsAsync();
         if (settings == null)
             return Ok(ApiResponse.Fail("لا توجد إعدادات"));
 

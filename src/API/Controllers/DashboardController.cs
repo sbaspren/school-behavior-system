@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
-using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SchoolBehaviorSystem.Application.DTOs.Responses;
+using SchoolBehaviorSystem.Application.Interfaces;
 using SchoolBehaviorSystem.Domain.Enums;
 using SchoolBehaviorSystem.Infrastructure.Data;
 
@@ -14,34 +14,46 @@ namespace SchoolBehaviorSystem.API.Controllers;
 public class DashboardController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IHijriDateService _hijri;
+    private readonly ISemesterService _semesterSvc;
 
-    public DashboardController(AppDbContext db)
+    public DashboardController(AppDbContext db, IHijriDateService hijri, ISemesterService semesterSvc)
     {
         _db = db;
+        _hijri = hijri;
+        _semesterSvc = semesterSvc;
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<object>>> GetDashboard([FromQuery] string? stage = null)
+    public async Task<ActionResult<ApiResponse<object>>> GetDashboard(
+        [FromQuery] string? stage = null,
+        [FromQuery] int? semester = null,
+        [FromQuery] string? academicYear = null)
     {
+        // ★ فرض عزل المراحل — الوكيل يرى مرحلته فقط
+        var effectiveStage = EnforceScopeStage(stage);
         Stage? stageEnum = null;
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var parsed))
+        if (!string.IsNullOrEmpty(effectiveStage) && Enum.TryParse<Stage>(effectiveStage, true, out var parsed))
             stageEnum = parsed;
+
+        // ★ عزل الفصل الدراسي — إذا لم يُحدد يستخدم الحالي
+        var (curSem, curYear) = await _semesterSvc.GetCurrentAsync();
+        var sem = semester ?? curSem;
+        var yr = academicYear ?? curYear;
 
         var today = DateTime.UtcNow.Date;
 
         // ── Hijri Date ──
-        var cal = new UmAlQuraCalendar();
-        var now = DateTime.Now;
-        var hijriDate = $"{cal.GetYear(now)}/{cal.GetMonth(now):D2}/{cal.GetDayOfMonth(now):D2}";
+        var hijriDate = _hijri.GetHijriDate();
 
-        // ── Queries with optional stage filter ──
+        // ── Queries with semester + optional stage filter ──
         var studentsQ = _db.Students.AsQueryable();
-        var violationsQ = _db.Violations.AsQueryable();
-        var positiveQ = _db.PositiveBehaviors.AsQueryable();
-        var tardinessQ = _db.TardinessRecords.AsQueryable();
-        var absenceQ = _db.DailyAbsences.AsQueryable();
-        var permissionsQ = _db.PermissionRecords.AsQueryable();
-        var notesQ = _db.EducationalNotes.AsQueryable();
+        var violationsQ = _db.Violations.Where(v => v.Semester == sem && v.AcademicYear == yr);
+        var positiveQ = _db.PositiveBehaviors.Where(p => p.Semester == sem && p.AcademicYear == yr);
+        var tardinessQ = _db.TardinessRecords.Where(t => t.Semester == sem && t.AcademicYear == yr);
+        var absenceQ = _db.DailyAbsences.Where(a => a.Semester == sem && a.AcademicYear == yr);
+        var permissionsQ = _db.PermissionRecords.Where(p => p.Semester == sem && p.AcademicYear == yr);
+        var notesQ = _db.EducationalNotes.Where(n => n.Semester == sem && n.AcademicYear == yr);
 
         if (stageEnum.HasValue)
         {
@@ -62,8 +74,9 @@ public class DashboardController : ControllerBase
         var todayViolations = await violationsQ.CountAsync(v => v.RecordedAt >= today);
         var todayNotes = await notesQ.CountAsync(n => n.RecordedAt >= today);
 
-        // ── 2. Stage stats (both stages) ──
-        var stageStatsList = await _db.DailyAbsences
+        // ── 2. Stage stats ──
+        // ★ استخدام الـ queries المفلترة بالمرحلة بدل _db مباشرة
+        var stageStatsList = await absenceQ
             .GroupBy(a => a.Stage)
             .Select(g => new
             {
@@ -76,33 +89,33 @@ public class DashboardController : ControllerBase
             })
             .ToListAsync();
 
-        // Get tardiness, permissions, violations, notes per stage
-        var tardByStage = await _db.TardinessRecords
+        // Get tardiness, permissions, violations, notes per stage — ★ مفلتر بالمرحلة
+        var tardByStage = await tardinessQ
             .Where(t => t.RecordedAt >= today)
             .GroupBy(t => t.Stage)
             .Select(g => new { stage = g.Key.ToString(), count = g.Count() })
             .ToListAsync();
 
-        var permByStage = await _db.PermissionRecords
+        var permByStage = await permissionsQ
             .Where(p => p.RecordedAt >= today)
             .GroupBy(p => p.Stage)
             .Select(g => new { stage = g.Key.ToString(), count = g.Count() })
             .ToListAsync();
 
-        var violByStage = await _db.Violations
+        var violByStage = await violationsQ
             .Where(v => v.RecordedAt >= today)
             .GroupBy(v => v.Stage)
             .Select(g => new { stage = g.Key.ToString(), count = g.Count() })
             .ToListAsync();
 
-        var notesByStage = await _db.EducationalNotes
+        var notesByStage = await notesQ
             .Where(n => n.RecordedAt >= today)
             .GroupBy(n => n.Stage)
             .Select(g => new { stage = g.Key.ToString(), count = g.Count() })
             .ToListAsync();
 
-        // Build combined stage stats
-        var allStageNames = new[] { "Intermediate", "Secondary" };
+        // Build combined stage stats — ★ يشمل Primary أيضاً
+        var allStageNames = new[] { "Primary", "Intermediate", "Secondary" };
         var stageStats = new Dictionary<string, object>();
         foreach (var sn in allStageNames)
         {
@@ -154,16 +167,26 @@ public class DashboardController : ControllerBase
         var notSentTardiness = await tardinessQ.CountAsync(t => t.RecordedAt >= today && !t.IsSent);
         var notSentViolations = await violationsQ.CountAsync(v => v.RecordedAt >= today && !v.IsSent);
 
-        // Not sent by stage
+        // Not sent by stage — ★ مفلتر بالمرحلة
+        var absNotSent = await absenceQ
+            .Where(a => a.RecordedAt >= today && !a.IsSent)
+            .GroupBy(a => a.Stage).Select(g => new { stage = g.Key, count = g.Count() }).ToListAsync();
+        var tarNotSent = await tardinessQ
+            .Where(t => t.RecordedAt >= today && !t.IsSent)
+            .GroupBy(t => t.Stage).Select(g => new { stage = g.Key, count = g.Count() }).ToListAsync();
+        var violNotSent = await violationsQ
+            .Where(v => v.RecordedAt >= today && !v.IsSent)
+            .GroupBy(v => v.Stage).Select(g => new { stage = g.Key, count = g.Count() }).ToListAsync();
+
         var notSentByStage = new Dictionary<string, object>();
         foreach (var sn in allStageNames)
         {
             if (!Enum.TryParse<Stage>(sn, true, out var stg)) continue;
             notSentByStage[sn] = new
             {
-                absence = await _db.DailyAbsences.CountAsync(a => a.Stage == stg && a.RecordedAt >= today && !a.IsSent),
-                tardiness = await _db.TardinessRecords.CountAsync(t => t.Stage == stg && t.RecordedAt >= today && !t.IsSent),
-                violations = await _db.Violations.CountAsync(v => v.Stage == stg && v.RecordedAt >= today && !v.IsSent)
+                absence = absNotSent.FirstOrDefault(x => x.stage == stg)?.count ?? 0,
+                tardiness = tarNotSent.FirstOrDefault(x => x.stage == stg)?.count ?? 0,
+                violations = violNotSent.FirstOrDefault(x => x.stage == stg)?.count ?? 0
             };
         }
 
@@ -230,11 +253,11 @@ public class DashboardController : ControllerBase
             .Take(6)
             .ToList();
 
-        // ── 9. Semester totals ──
-        var semesterViolations = await _db.Violations.CountAsync();
-        var semesterAbsence = await _db.DailyAbsences.CountAsync();
-        var semesterPermissions = await _db.PermissionRecords.CountAsync();
-        var semesterTardiness = await _db.TardinessRecords.CountAsync();
+        // ── 9. Semester totals ── ★ مفلتر بالمرحلة
+        var semesterViolations = await violationsQ.CountAsync();
+        var semesterAbsence = await absenceQ.CountAsync();
+        var semesterPermissions = await permissionsQ.CountAsync();
+        var semesterTardiness = await tardinessQ.CountAsync();
 
         // ── 10. Needs printing — مطابق لـ Server_Dashboard.gs سطر 157-365 ──
         // ثوابت حدود المخالفات والغياب — مطابق لـ VIOLATION_DEGREE و ABSENCE_THRESHOLD
@@ -372,6 +395,7 @@ public class DashboardController : ControllerBase
             },
             absenceByClass,
             recentActivity,
+            currentSemester = new { semester = sem, academicYear = yr },
             semesterTotals = new
             {
                 violations = semesterViolations,
@@ -427,5 +451,17 @@ public class DashboardController : ControllerBase
         };
 
         return Ok(ApiResponse<object>.Ok(new { events, semesters }));
+    }
+
+    /// <summary>
+    /// ★ عزل المراحل — الوكيل يرى مرحلته فقط
+    /// </summary>
+    private string? EnforceScopeStage(string? requestedStage)
+    {
+        var scopeType = User.FindFirst("scope_type")?.Value;
+        var scopeValue = User.FindFirst("scope_value")?.Value;
+        if (string.IsNullOrEmpty(scopeType) || scopeType == "all") return requestedStage;
+        if (scopeType == "stage" && !string.IsNullOrEmpty(scopeValue)) return scopeValue;
+        return requestedStage;
     }
 }

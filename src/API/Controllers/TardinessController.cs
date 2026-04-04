@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
-using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using SchoolBehaviorSystem.Application.DTOs.Responses;
 using SchoolBehaviorSystem.Application.Interfaces;
+using SchoolBehaviorSystem.API.Controllers.Base;
 using SchoolBehaviorSystem.Domain.Entities;
 using SchoolBehaviorSystem.Domain.Enums;
 using SchoolBehaviorSystem.Infrastructure.Data;
@@ -14,16 +15,10 @@ namespace SchoolBehaviorSystem.API.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class TardinessController : ControllerBase
+public class TardinessController : RecordControllerBase
 {
-    private readonly AppDbContext _db;
-    private readonly IWhatsAppServerService _wa;
-
-    public TardinessController(AppDbContext db, IWhatsAppServerService wa)
-    {
-        _db = db;
-        _wa = wa;
-    }
+    public TardinessController(AppDbContext db, IWhatsAppServerService wa, IHijriDateService hijri, ISemesterService semesterSvc, IMemoryCache cache)
+        : base(db, wa, hijri, semesterSvc, cache) { }
 
     [HttpGet]
     public async Task<ActionResult<ApiResponse<List<object>>>> GetAll(
@@ -38,31 +33,15 @@ public class TardinessController : ControllerBase
         [FromQuery] bool? isSent = null,
         [FromQuery] string? search = null)
     {
-        var query = _db.TardinessRecords.AsQueryable();
+        var query = ApplyCommonFilters(
+            Db.TardinessRecords.AsQueryable(),
+            stage, grade, className, studentId, dateFrom, dateTo, isSent, search);
 
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
-        if (!string.IsNullOrEmpty(grade))
-            query = query.Where(r => r.Grade == grade);
-        if (!string.IsNullOrEmpty(className))
-            query = query.Where(r => r.Class == className);
-        if (studentId.HasValue)
-            query = query.Where(r => r.StudentId == studentId.Value);
+        // Entity-specific filters
         if (!string.IsNullOrEmpty(hijriDate))
             query = query.Where(r => r.HijriDate == hijriDate);
-        if (!string.IsNullOrEmpty(dateFrom))
-            query = query.Where(r => string.Compare(r.HijriDate, dateFrom) >= 0);
-        if (!string.IsNullOrEmpty(dateTo))
-            query = query.Where(r => string.Compare(r.HijriDate, dateTo) <= 0);
         if (!string.IsNullOrEmpty(tardinessType) && Enum.TryParse<TardinessType>(tardinessType, true, out var tt))
             query = query.Where(r => r.TardinessType == tt);
-        if (isSent.HasValue)
-            query = query.Where(r => r.IsSent == isSent.Value);
-        if (!string.IsNullOrEmpty(search))
-        {
-            var q = search.ToLower();
-            query = query.Where(r => r.StudentName.ToLower().Contains(q) || r.StudentNumber.Contains(q));
-        }
 
         var records = await query
             .OrderByDescending(r => r.RecordedAt)
@@ -86,10 +65,7 @@ public class TardinessController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> GetDailyStats([FromQuery] string? stage = null)
     {
         var today = DateTime.UtcNow.Date;
-        var query = _db.TardinessRecords.Where(r => r.RecordedAt >= today);
-
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
+        var query = ApplyStageFilter(Db.TardinessRecords.Where(r => r.RecordedAt >= today), stage);
 
         var todayRecords = await query.ToListAsync();
 
@@ -109,7 +85,7 @@ public class TardinessController : ControllerBase
         if (request.StudentId <= 0)
             return Ok(ApiResponse.Fail("الطالب مطلوب"));
 
-        var student = await _db.Students.FindAsync(request.StudentId);
+        var student = await Db.Students.FindAsync(request.StudentId);
         if (student == null)
             return Ok(ApiResponse.Fail("الطالب غير موجود"));
 
@@ -118,15 +94,7 @@ public class TardinessController : ControllerBase
 
         var hijriDate = request.HijriDate;
         if (string.IsNullOrEmpty(hijriDate))
-        {
-            try
-            {
-                var cal = new UmAlQuraCalendar();
-                var now = DateTime.Now;
-                hijriDate = $"{cal.GetYear(now)}/{cal.GetMonth(now):D2}/{cal.GetDayOfMonth(now):D2}";
-            }
-            catch { hijriDate = ""; }
-        }
+            hijriDate = Hijri.GetHijriDate();
 
         var record = new TardinessRecord
         {
@@ -144,8 +112,9 @@ public class TardinessController : ControllerBase
             RecordedAt = DateTime.UtcNow
         };
 
-        _db.TardinessRecords.Add(record);
-        await _db.SaveChangesAsync();
+        await StampSemesterAsync(record);
+        Db.TardinessRecords.Add(record);
+        await Db.SaveChangesAsync();
 
         return Ok(ApiResponse<object>.Ok(new { id = record.Id, message = "تم تسجيل التأخر بنجاح" }));
     }
@@ -162,22 +131,14 @@ public class TardinessController : ControllerBase
 
         var hijriDate = request.HijriDate;
         if (string.IsNullOrEmpty(hijriDate))
-        {
-            try
-            {
-                var cal = new UmAlQuraCalendar();
-                var now = DateTime.Now;
-                hijriDate = $"{cal.GetYear(now)}/{cal.GetMonth(now):D2}/{cal.GetDayOfMonth(now):D2}";
-            }
-            catch { hijriDate = ""; }
-        }
+            hijriDate = Hijri.GetHijriDate();
 
-        var students = await _db.Students.Where(s => request.StudentIds.Contains(s.Id)).ToListAsync();
+        var students = await Db.Students.Where(s => request.StudentIds.Contains(s.Id)).ToListAsync();
         var added = 0;
 
         foreach (var student in students)
         {
-            _db.TardinessRecords.Add(new TardinessRecord
+            var batchRecord = new TardinessRecord
             {
                 StudentId = student.Id,
                 StudentNumber = student.StudentNumber,
@@ -191,180 +152,92 @@ public class TardinessController : ControllerBase
                 HijriDate = hijriDate,
                 RecordedBy = request.RecordedBy ?? "",
                 RecordedAt = DateTime.UtcNow
-            });
+            };
+            await StampSemesterAsync(batchRecord);
+            Db.TardinessRecords.Add(batchRecord);
             added++;
         }
 
-        await _db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
         return Ok(ApiResponse<object>.Ok(new { addedCount = added, message = $"تم تسجيل {added} حالة تأخر" }));
     }
 
     // تحديث حالة الإرسال
     [HttpPut("{id}/sent")]
-    public async Task<ActionResult<ApiResponse>> UpdateSentStatus(int id, [FromBody] UpdateSentRequest request)
+    public async Task<ActionResult<ApiResponse>> UpdateSentStatus(int id, [FromBody] CommonUpdateSentRequest request)
     {
-        var record = await _db.TardinessRecords.FindAsync(id);
-        if (record == null) return Ok(ApiResponse.Fail("السجل غير موجود"));
-        record.IsSent = request.IsSent;
-        await _db.SaveChangesAsync();
-        return Ok(ApiResponse.Ok("تم تحديث حالة الإرسال"));
+        return await UpdateSentStatusAsync(Db.TardinessRecords, id, request.IsSent);
     }
 
     // تحديث حالة الإرسال - جماعي
     [HttpPut("sent-batch")]
-    public async Task<ActionResult<ApiResponse<object>>> UpdateSentStatusBatch([FromBody] BulkIdsRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> UpdateSentStatusBatch([FromBody] CommonBulkIdsRequest request)
     {
-        if (request.Ids == null || request.Ids.Count == 0)
-            return Ok(ApiResponse<object>.Fail("لا توجد سجلات محددة"));
-
-        var records = await _db.TardinessRecords
-            .Where(r => request.Ids.Contains(r.Id))
-            .ToListAsync();
-
-        foreach (var r in records) r.IsSent = true;
-        await _db.SaveChangesAsync();
-
-        return Ok(ApiResponse<object>.Ok(new { updatedCount = records.Count }));
+        return await UpdateSentBatchAsync(Db.TardinessRecords, request.Ids);
     }
 
     // إرسال واتساب
     [HttpPost("{id}/send-whatsapp")]
     public async Task<ActionResult<ApiResponse<object>>> SendWhatsApp(int id, [FromBody] SendTardinessWhatsAppRequest request)
     {
-        var record = await _db.TardinessRecords.FindAsync(id);
+        var record = await Db.TardinessRecords.FindAsync(id);
         if (record == null) return Ok(ApiResponse<object>.Fail("السجل غير موجود"));
-
-        if (string.IsNullOrEmpty(record.Mobile))
-            return Ok(ApiResponse<object>.Fail("لا يوجد رقم جوال"));
-
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
-        if (settings == null || string.IsNullOrEmpty(settings.ServerUrl))
-            return Ok(ApiResponse<object>.Fail("إعدادات الواتساب غير مكتملة"));
-
-        var senderPhone = request.SenderPhone;
-        if (string.IsNullOrEmpty(senderPhone))
-        {
-            var session = await _db.WhatsAppSessions
-                .Where(s => s.IsPrimary && s.Stage == record.Stage.ToString())
-                .FirstOrDefaultAsync();
-            session ??= await _db.WhatsAppSessions.Where(s => s.IsPrimary).FirstOrDefaultAsync();
-            senderPhone = session?.PhoneNumber ?? "";
-        }
-
-        if (string.IsNullOrEmpty(senderPhone))
-            return Ok(ApiResponse<object>.Fail("لا يوجد رقم مرسل"));
 
         var typeLabel = record.TardinessType == TardinessType.Morning ? "تأخر صباحي" : "تأخر عن الحصة";
         var message = request.Message ?? $"المكرم ولي أمر الطالب / {record.StudentName}\nالسلام عليكم\nنود إبلاغكم بتسجيل {typeLabel} على ابنكم بتاريخ {record.HijriDate}\nنأمل التواصل مع المدرسة.";
 
-        var sent = await _wa.SendMessageAsync(settings.ServerUrl, senderPhone, record.Mobile, message);
-
-        if (sent)
-        {
-            record.IsSent = true;
-            _db.CommunicationLogs.Add(new CommunicationLog
-            {
-                StudentId = record.StudentId,
-                StudentNumber = record.StudentNumber,
-                StudentName = record.StudentName,
-                Grade = record.Grade,
-                Class = record.Class,
-                Stage = record.Stage,
-                Mobile = record.Mobile,
-                MessageType = "تأخر",
-                MessageTitle = typeLabel,
-                MessageBody = message,
-                SendStatus = "تم",
-                MiladiDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
-                SentBy = request.SentBy ?? ""
-            });
-            await _db.SaveChangesAsync();
-        }
-
-        return Ok(ApiResponse<object>.Ok(new { success = sent }));
+        return await SendWhatsAppSingleAsync(
+            record, record.Mobile, message,
+            request.SenderPhone,
+            "تأخر",
+            typeLabel,
+            request.SentBy ?? "");
     }
 
     // إرسال جماعي
     [HttpPost("send-whatsapp-bulk")]
-    public async Task<ActionResult<ApiResponse<object>>> SendWhatsAppBulk([FromBody] BulkSendWhatsAppRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> SendWhatsAppBulk([FromBody] CommonBulkSendWhatsAppRequest request)
     {
         if (request.Ids == null || request.Ids.Count == 0)
             return Ok(ApiResponse<object>.Fail("لا توجد سجلات محددة"));
 
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
-        if (settings == null || string.IsNullOrEmpty(settings.ServerUrl))
-            return Ok(ApiResponse<object>.Fail("إعدادات الواتساب غير مكتملة"));
+        var records = await Db.TardinessRecords.Where(r => request.Ids.Contains(r.Id)).ToListAsync();
 
-        var records = await _db.TardinessRecords.Where(r => request.Ids.Contains(r.Id)).ToListAsync();
-        int sentCount = 0, failedCount = 0;
-
-        foreach (var record in records)
-        {
-            if (string.IsNullOrEmpty(record.Mobile)) { failedCount++; continue; }
-
-            var senderPhone = request.SenderPhone;
-            if (string.IsNullOrEmpty(senderPhone))
+        var (sentCount, failedCount, total) = await SendWhatsAppBulkCoreAsync(
+            records,
+            r => r.Mobile,
+            r =>
             {
-                var session = await _db.WhatsAppSessions
-                    .Where(s => s.IsPrimary && s.Stage == record.Stage.ToString())
-                    .FirstOrDefaultAsync();
-                session ??= await _db.WhatsAppSessions.Where(s => s.IsPrimary).FirstOrDefaultAsync();
-                senderPhone = session?.PhoneNumber ?? "";
-            }
-            if (string.IsNullOrEmpty(senderPhone)) { failedCount++; continue; }
+                var typeLabel = r.TardinessType == TardinessType.Morning ? "تأخر صباحي" : "تأخر عن الحصة";
+                return Task.FromResult($"المكرم ولي أمر الطالب / {r.StudentName}\nالسلام عليكم\nنود إبلاغكم بتسجيل {typeLabel} على ابنكم بتاريخ {r.HijriDate}\nنأمل التواصل مع المدرسة.");
+            },
+            request.SenderPhone,
+            "تأخر",
+            r => r.TardinessType == TardinessType.Morning ? "تأخر صباحي" : "تأخر عن الحصة",
+            request.SentBy ?? "",
+            speed: request.Speed,
+            customDelaySeconds: request.CustomDelaySeconds);
 
-            var typeLabel = record.TardinessType == TardinessType.Morning ? "تأخر صباحي" : "تأخر عن الحصة";
-            var message = $"المكرم ولي أمر الطالب / {record.StudentName}\nالسلام عليكم\nنود إبلاغكم بتسجيل {typeLabel} على ابنكم بتاريخ {record.HijriDate}\nنأمل التواصل مع المدرسة.";
-
-            var sent = await _wa.SendMessageAsync(settings.ServerUrl, senderPhone, record.Mobile, message);
-            if (sent)
-            {
-                record.IsSent = true;
-                sentCount++;
-                _db.CommunicationLogs.Add(new CommunicationLog
-                {
-                    StudentId = record.StudentId, StudentNumber = record.StudentNumber,
-                    StudentName = record.StudentName, Grade = record.Grade, Class = record.Class,
-                    Stage = record.Stage, Mobile = record.Mobile,
-                    MessageType = "تأخر", MessageTitle = typeLabel, MessageBody = message,
-                    SendStatus = "تم", MiladiDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
-                    SentBy = request.SentBy ?? ""
-                });
-            }
-            else failedCount++;
-            await Task.Delay(10_000); // ★ 10 ثوان بين كل رسالة — مطابق لـ Utilities.sleep(10000) في Server_Absence_Daily.gs سطر 721
-        }
-
-        await _db.SaveChangesAsync();
-        return Ok(ApiResponse<object>.Ok(new { sentCount, failedCount, total = records.Count }));
+        return Ok(ApiResponse<object>.Ok(new { sentCount, failedCount, total }));
     }
 
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse>> Delete(int id)
     {
-        var record = await _db.TardinessRecords.FindAsync(id);
-        if (record == null) return Ok(ApiResponse.Fail("السجل غير موجود"));
-        _db.TardinessRecords.Remove(record);
-        await _db.SaveChangesAsync();
-        return Ok(ApiResponse.Ok("تم حذف السجل بنجاح"));
+        return await DeleteRecordAsync(Db.TardinessRecords, id);
     }
 
     // حذف جماعي
     [HttpPost("delete-bulk")]
-    public async Task<ActionResult<ApiResponse<object>>> DeleteBulk([FromBody] BulkIdsRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> DeleteBulk([FromBody] CommonBulkIdsRequest request)
     {
-        if (request.Ids == null || request.Ids.Count == 0)
-            return Ok(ApiResponse<object>.Fail("لا توجد سجلات محددة"));
-        var records = await _db.TardinessRecords.Where(r => request.Ids.Contains(r.Id)).ToListAsync();
-        _db.TardinessRecords.RemoveRange(records);
-        await _db.SaveChangesAsync();
-        return Ok(ApiResponse<object>.Ok(new { deletedCount = records.Count }));
+        return await DeleteBulkAsync(Db.TardinessRecords, request.Ids);
     }
 
     [HttpGet("student-count/{studentId}")]
     public async Task<ActionResult<ApiResponse<object>>> GetStudentCount(int studentId)
     {
-        var counts = await _db.TardinessRecords
+        var counts = await Db.TardinessRecords
             .Where(r => r.StudentId == studentId)
             .GroupBy(r => r.TardinessType)
             .Select(g => new { type = g.Key.ToString(), count = g.Count() })
@@ -377,9 +250,7 @@ public class TardinessController : ControllerBase
     [HttpGet("report")]
     public async Task<ActionResult<ApiResponse<object>>> GetReport([FromQuery] string? stage = null)
     {
-        var query = _db.TardinessRecords.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
+        var query = ApplyStageFilter(Db.TardinessRecords.AsQueryable(), stage);
 
         var records = await query.ToListAsync();
 
@@ -405,9 +276,7 @@ public class TardinessController : ControllerBase
     [HttpGet("export")]
     public async Task<ActionResult> ExportCsv([FromQuery] string? stage = null)
     {
-        var query = _db.TardinessRecords.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
+        var query = ApplyStageFilter(Db.TardinessRecords.AsQueryable(), stage);
 
         var records = await query.OrderByDescending(r => r.RecordedAt).ToListAsync();
         var sb = new StringBuilder();

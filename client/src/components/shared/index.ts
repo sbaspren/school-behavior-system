@@ -1,3 +1,4 @@
+export { default as FilterBtn } from './FilterBtn';
 export { default as PageTransition } from './PageTransition';
 export { default as AnimatedCard } from './AnimatedCard';
 export { AnimatedList, AnimatedItem } from './AnimatedList';

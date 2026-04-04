@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { violationsApi } from '../api/violations';
 import { studentsApi } from '../api/students';
-import { settingsApi } from '../api/settings';
 import { printForm, printListReport, PrintFormData, ListReportRow } from '../utils/printTemplates';
+import { useAppContext } from '../hooks/useAppContext';
+import { toIndic, escapeHtml, classToLetter } from '../utils/printUtils';
 
 interface ViolationRecord {
   id: number;
@@ -54,22 +55,12 @@ function getGradeWeight(name: string): number {
   return idx >= 0 ? idx : 99;
 }
 
-function toIndic(str: string | number): string {
-  return String(str).replace(/\d/g, d => '\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669'[parseInt(d)]);
-}
-
-function escapeHtml(s: string): string {
-  const el = document.createElement('div');
-  el.textContent = s;
-  return el.innerHTML;
-}
-
 const AuditLogPage: React.FC = () => {
+  const { schoolSettings } = useAppContext();
   const [records, setRecords] = useState<ViolationRecord[]>([]);
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
-  const [schoolSettings, setSchoolSettings] = useState<Record<string, string>>({});
 
   // Filters
   const [gradeFilter, setGradeFilter] = useState('');
@@ -78,21 +69,20 @@ const AuditLogPage: React.FC = () => {
   const [degreeFilter, setDegreeFilter] = useState('');
 
   // Load data
+  const initialLoadDone = useRef(false);
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const sel = document.getElementById('stage-selector') as HTMLSelectElement | null;
       const currentStage = sel?.value || undefined;
-      const [vRes, sRes, seRes] = await Promise.all([
+      const [vRes, sRes] = await Promise.all([
         violationsApi.getAll({ stage: currentStage }),
         studentsApi.getAll(currentStage),
-        settingsApi.getSettings(),
       ]);
       setRecords(vRes.data?.data || []);
       setStudents(sRes.data?.data || []);
-      if (seRes.data?.data) setSchoolSettings(seRes.data.data);
     } catch { /* empty */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone.current = true; }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -172,12 +162,12 @@ const AuditLogPage: React.FC = () => {
   };
 
   const printList = () => {
-    const title = `سجل السلوك والمواظبة - ${gradeFilter || 'الكل'} ${classFilter ? '/ ' + classFilter : ''}`;
+    const title = `سجل السلوك والمواظبة - ${gradeFilter || 'الكل'} ${classFilter ? '/ ' + classToLetter(classFilter) : ''}`;
     const printDate = toIndic(new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura'));
     let lastStudent = '';
     const rows: ListReportRow[] = [];
     filtered.forEach((rec, i) => {
-      const studentKey = `${rec.studentName} - ${rec.grade}/${rec.className}`;
+      const studentKey = `${rec.studentName} - ${rec.grade}/${classToLetter(rec.className)}`;
       if (studentKey !== lastStudent) {
         rows.push({ cells: [], isGroupHeader: true, groupLabel: studentKey });
         lastStudent = studentKey;
@@ -204,8 +194,8 @@ const AuditLogPage: React.FC = () => {
     const today = new Date();
     const data: PrintFormData = {
       studentName: v.studentName,
-      grade: `${v.grade} / ${v.className}`,
-      class: v.className,
+      grade: `${v.grade} / ${classToLetter(v.className)}`,
+      class: classToLetter(v.className),
       violationDay: today.toLocaleDateString('ar-SA', { weekday: 'long' }),
       violationDate: v.hijriDate || today.toLocaleDateString('ar-SA-u-ca-islamic-umalqura'),
       violationDegree: v.degree,
@@ -220,7 +210,7 @@ const AuditLogPage: React.FC = () => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#111827', margin: 0 }}>
-          سجل السلوك والمخالفات
+          السجل التراكمي
         </h2>
       </div>
 
@@ -290,14 +280,14 @@ const AuditLogPage: React.FC = () => {
                         {group.info.studentName}
                       </h3>
                       <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0' }}>
-                        {group.info.grade} / {group.info.className}
+                        {group.info.grade} / {classToLetter(group.info.className)}
                       </p>
                     </div>
                     <span style={{
                       background: '#fff', padding: '2px 8px', borderRadius: '4px',
                       fontSize: '12px', fontWeight: 700, border: '1px solid #e5e7eb',
                     }}>
-                      {group.violations.length} مخالفات
+                      {group.violations.length === 1 ? 'مخالفة واحدة' : group.violations.length === 2 ? 'مخالفتان' : `${group.violations.length} مخالفات`}
                     </span>
                   </div>
                   {/* Violations */}
@@ -366,7 +356,7 @@ const AuditLogPage: React.FC = () => {
                   return (
                     <tr key={r.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ ...S.td, fontWeight: 700, color: '#111827' }}>{r.studentName}</td>
-                      <td style={{ ...S.td, color: '#6b7280' }}>{r.grade} / {r.className}</td>
+                      <td style={{ ...S.td, color: '#6b7280' }}>{r.grade} / {classToLetter(r.className)}</td>
                       <td style={{ ...S.td, color: '#111827' }}>{r.description}</td>
                       <td style={{ ...S.td, textAlign: 'center' }}>
                         <span style={{

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import LoadingSpinner from './LoadingSpinner';
 import {
   useReactTable,
   getCoreRowModel,
@@ -79,12 +80,7 @@ function EnhancedTable<T extends Record<string, any>>({
 
   /* ─── Loading state ─── */
   if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '40px' }}>
-        <div className="spinner" />
-        <p style={{ marginTop: '12px', color: '#666' }}>جاري التحميل...</p>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   /* ─── Sort indicator ─── */

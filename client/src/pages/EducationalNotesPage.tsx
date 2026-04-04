@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import MI from '../components/shared/MI';
 import PageHero from '../components/shared/PageHero';
 import TabBar from '../components/shared/TabBar';
@@ -6,51 +6,19 @@ import ActionBar from '../components/shared/ActionBar';
 import FloatingBar from '../components/shared/FloatingBar';
 import EmptyState from '../components/shared/EmptyState';
 import ActionIcon from '../components/shared/ActionIcon';
+import FilterBtn from '../components/shared/FilterBtn';
 import InputModal from '../components/shared/InputModal';
 import StudentSelector from '../components/shared/StudentSelector';
 import { educationalNotesApi } from '../api/educationalNotes';
-import { settingsApi, StageConfigData } from '../api/settings';
+import { StageConfigData } from '../api/settings';
 import { templatesApi } from '../api/templates';
 import { showSuccess, showError } from '../components/shared/Toast';
-import { SETTINGS_STAGES } from '../utils/constants';
+import { SETTINGS_STAGES, SECTION_THEMES } from '../utils/constants';
 import { printForm } from '../utils/printTemplates';
 import { printDailyReport } from '../utils/printDaily';
-import { sortByClass } from '../utils/printUtils';
-
-const THEME = '#059669'; // emerald-600
-
-interface NoteRow {
-  id: number;
-  studentId: number;
-  studentNumber: string;
-  studentName: string;
-  grade: string;
-  className: string;
-  stage: string;
-  mobile: string;
-  noteType: string;
-  details: string;
-  teacherName: string;
-  hijriDate: string;
-  recordedAt: string;
-  isSent: boolean;
-}
-
-interface StudentOption {
-  id: number;
-  studentNumber: string;
-  name: string;
-  stage: string;
-  grade: string;
-  className: string;
-}
-
-interface DailyStats {
-  todayCount: number;
-  totalCount: number;
-  unsentCount: number;
-  sentCount: number;
-}
+import { sortByClass, classToLetter } from '../utils/printUtils';
+import { usePageData, getHijriDate } from '../hooks/usePageData';
+import type { NoteRow, StudentOption, DailyStats } from '../types';
 
 interface ReportData {
   total: number;
@@ -63,47 +31,38 @@ interface ReportData {
 }
 
 const EducationalNotesPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'today' | 'approved' | 'reports'>('today');
-  const [stages, setStages] = useState<StageConfigData[]>([]);
+  const {
+    records, setRecords, stages, loading, schoolSettings,
+    stageFilter, setStageFilter, enabledStages,
+    filteredByStage, todayRecords, refresh,
+  } = usePageData<NoteRow>({ fetchRecords: () => educationalNotesApi.getAll() });
+
+  const [activeTab, setActiveTab] = useState<'today' | 'approved'>('today');
   const [currentStage, setCurrentStage] = useState('');
   const [noteTypes, setNoteTypes] = useState<string[]>([]);
   const [stats, setStats] = useState<DailyStats>({ todayCount: 0, totalCount: 0, unsentCount: 0, sentCount: 0 });
-  const [schoolSettings, setSchoolSettings] = useState<Record<string, string>>({});
-
-  const enabledStages = useMemo(() =>
-    stages.filter(s => s.isEnabled && s.grades.some(g => g.isEnabled && g.classCount > 0)),
-    [stages]
-  );
 
   useEffect(() => {
-    settingsApi.getStructure().then(res => {
-      if (res.data?.data?.stages) {
-        const st = Array.isArray(res.data.data.stages) ? res.data.data.stages : [];
-        setStages(st);
-        const enabled = st.filter((s: StageConfigData) => s.isEnabled && s.grades.some((g: { isEnabled: boolean; classCount: number }) => g.isEnabled && g.classCount > 0));
-        if (enabled.length > 0) setCurrentStage(enabled[0].stage);
-      }
-    });
-    settingsApi.getSettings().then(res => {
-      if (res.data?.data) setSchoolSettings(res.data.data);
-    });
-  }, []);
+    if (enabledStages.length > 0 && !currentStage) {
+      setCurrentStage(enabledStages[0].stage);
+    }
+  }, [enabledStages, currentStage]);
 
   useEffect(() => {
     if (!currentStage) return;
     educationalNotesApi.getTypes(currentStage).then(res => {
       if (res.data?.data) setNoteTypes(res.data.data);
-    });
+    }).catch(() => {});
     educationalNotesApi.getDailyStats(currentStage).then(res => {
       if (res.data?.data) setStats(res.data.data);
-    });
+    }).catch(() => {});
   }, [currentStage]);
 
   const refreshStats = useCallback(() => {
     if (!currentStage) return;
     educationalNotesApi.getDailyStats(currentStage).then(res => {
       if (res.data?.data) setStats(res.data.data);
-    });
+    }).catch(() => {});
   }, [currentStage]);
 
   const stageName = (id: string) => SETTINGS_STAGES.find(s => s.id === id)?.name || id;
@@ -113,12 +72,12 @@ const EducationalNotesPage: React.FC = () => {
       {/* Hero Banner — مطابق لـ .page-hero: gradient أخضر + عدادات */}
       <PageHero
         title={`الملاحظات التربوية — ${stageName(currentStage)}`}
-        subtitle={new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        subtitle={getHijriDate()}
         gradient="linear-gradient(135deg, #059669, #10b981)"
         stats={[
           { icon: 'menu_book', label: 'ملاحظات اليوم', value: stats.todayCount, color: '#fbbf24' },
-          { icon: 'bar_chart', label: 'إجمالي الملاحظات', value: stats.totalCount, color: '#c084fc' },
-          { icon: 'sms_failed', label: 'لم تُرسل', value: stats.unsentCount, color: '#f87171' },
+          { icon: 'bar_chart', label: 'إجمالي الملاحظات', value: stats.totalCount ?? 0, color: '#c084fc' },
+          { icon: 'sms_failed', label: 'لم تُرسل', value: stats.unsentCount ?? 0, color: '#f87171' },
         ]}
       />
 
@@ -126,13 +85,7 @@ const EducationalNotesPage: React.FC = () => {
       {enabledStages.length > 1 && (
         <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
           {enabledStages.map(s => (
-            <button key={s.stage} onClick={() => setCurrentStage(s.stage)}
-              style={{
-                padding: '6px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
-                background: currentStage === s.stage ? THEME : '#f3f4f6',
-                color: currentStage === s.stage ? '#fff' : '#6b7280',
-                border: 'none',
-              }}>{stageName(s.stage)}</button>
+            <FilterBtn key={s.stage} label={stageName(s.stage)} active={currentStage === s.stage} onClick={() => setCurrentStage(s.stage)} color={SECTION_THEMES.notes} />
           ))}
         </div>
       )}
@@ -142,16 +95,14 @@ const EducationalNotesPage: React.FC = () => {
         tabs={[
           { id: 'today', label: 'اليومي', icon: 'today' },
           { id: 'approved', label: 'المعتمد', icon: 'verified' },
-          { id: 'reports', label: 'التقارير', icon: 'bar_chart' },
         ]}
         activeTab={activeTab}
-        onTabChange={(id) => setActiveTab(id as 'today' | 'approved' | 'reports')}
-        sectionColor={THEME}
+        onTabChange={(id) => setActiveTab(id as 'today' | 'approved')}
+        sectionColor={SECTION_THEMES.notes}
       />
 
       {activeTab === 'today' && <TodayTab stage={currentStage} noteTypes={noteTypes} onRefresh={refreshStats} schoolSettings={schoolSettings} onTypesUpdated={setNoteTypes} />}
       {activeTab === 'approved' && <ApprovedTab stage={currentStage} noteTypes={noteTypes} schoolSettings={schoolSettings} />}
-      {activeTab === 'reports' && <ReportsTab stage={currentStage} />}
     </div>
   );
 };
@@ -174,9 +125,10 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
   const [sending, setSending] = useState(false);
   const [msgEditorRow, setMsgEditorRow] = useState<NoteRow | null>(null);
 
+  const initialLoadDone = useRef(false);
   const loadToday = useCallback(async () => {
     if (!stage) return;
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const today = new Date();
       const cal = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -188,7 +140,7 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
       const res = await educationalNotesApi.getAll({ stage, hijriDate });
       if (res.data?.data) setRecords(res.data.data);
     } catch { /* empty */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone.current = true; }
   }, [stage]);
 
   useEffect(() => { loadToday(); }, [loadToday]);
@@ -281,7 +233,7 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
     <div>
       {/* Actions */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={() => setModalOpen(true)} style={btnStyle(THEME, '#fff')}>+ تسجيل ملاحظة</button>
+        <button onClick={() => setModalOpen(true)} style={btnStyle(SECTION_THEMES.notes, '#fff')}>+ تسجيل ملاحظة</button>
         <button onClick={() => loadToday()} style={btnStyle('#f3f4f6', '#374151')}>تحديث</button>
         <button onClick={() => setTypesModalOpen(true)} style={btnStyle('#fef3c7', '#92400e')}>أنواع الملاحظات</button>
         <div style={{ flex: 1 }} />
@@ -295,13 +247,13 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
       ) : records.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
           <p style={{ color: '#9ca3af', fontSize: '18px' }}>لا توجد ملاحظات مسجلة اليوم</p>
-          <button onClick={() => setModalOpen(true)} style={{ ...btnStyle(THEME, '#fff'), marginTop: '16px' }}>+ تسجيل ملاحظة</button>
+          <button onClick={() => setModalOpen(true)} style={{ ...btnStyle(SECTION_THEMES.notes, '#fff'), marginTop: '16px' }}>+ تسجيل ملاحظة</button>
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
             <thead>
-              <tr style={{ background: THEME }}>
+              <tr style={{ background: SECTION_THEMES.notes }}>
                 <th style={{ ...thStyle, color: '#fff', width: '36px' }}>
                   <input type="checkbox" checked={selected.size === records.length && records.length > 0} onChange={toggleAll} />
                 </th>
@@ -320,7 +272,7 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
                   <td style={tdStyle}><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
                   <td style={tdStyle}>{i + 1}</td>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>{r.studentName}</td>
-                  <td style={tdStyle}>{r.grade} / {r.className}</td>
+                  <td style={tdStyle}>{r.grade} / {classToLetter(r.className)}</td>
                   <td style={tdStyle}>
                     <span style={{ padding: '2px 8px', borderRadius: '100px', fontSize: '12px', fontWeight: 600, background: '#ecfdf5', color: '#059669' }}>{r.noteType}</span>
                   </td>
@@ -333,7 +285,7 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
                       ) : (
                         <button onClick={() => handleSendWhatsApp(r)} style={{ padding: '2px 8px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '100px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>إرسال</button>
                       )}
-                      <button onClick={() => { printForm('tawtheeq_tawasol', { studentName: r.studentName, grade: r.grade + ' / ' + r.className, contactType: 'ملاحظة تربوية', contactReason: (r.noteType || '') + (r.details ? ' - ' + r.details : ''), violationDate: r.hijriDate || '', contactResult: r.isSent ? 'تم التواصل عبر الواتساب' : 'لم يتم الإرسال بعد', notes: 'المسجّل: ' + (r.teacherName || '-') }, schoolSettings as any); }} style={{ padding: '2px 6px', background: '#f0fdfa', color: '#0d9488', border: '1px solid #99f6e4', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }} title="توثيق تواصل"><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>contact_phone</span></button>
+                      <button onClick={() => { printForm('tawtheeq_tawasol', { studentName: r.studentName, grade: r.grade + ' / ' + classToLetter(r.className), contactType: 'ملاحظة تربوية', contactReason: (r.noteType || '') + (r.details ? ' - ' + r.details : ''), violationDate: r.hijriDate || '', contactResult: r.isSent ? 'تم التواصل عبر الواتساب' : 'لم يتم الإرسال بعد', notes: 'المسجّل: ' + (r.teacherName || '-') }, schoolSettings as any); }} style={{ padding: '2px 6px', background: '#f0fdfa', color: '#0d9488', border: '1px solid #99f6e4', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }} title="توثيق تواصل"><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>contact_phone</span></button>
                       <button onClick={() => handleDelete(r.id)} style={{ padding: '2px 6px', background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>حذف</button>
                     </div>
                   </td>
@@ -377,7 +329,7 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
           <button onClick={printToday} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
           <button onClick={handleBulkSend} disabled={sending} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: '#a7f3d0', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>{sending ? 'جاري الإرسال...' : <><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال</>}</button>
           <button onClick={handleBulkDelete} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>delete</span> حذف</button>
-          <button onClick={() => setSelected(new Set())} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '16px', marginRight: '4px' }}>✕</button>
+          <button onClick={() => setSelected(new Set())} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '16px', marginRight: '4px' }}><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span></button>
         </div>
       )}
     </div>
@@ -426,7 +378,7 @@ const EduMsgEditor: React.FC<{ record: NoteRow; onSend: (msg: string) => void; o
         <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
           <button onClick={handleSaveAsTemplate} style={{ padding: '4px 12px', background: '#eef2ff', color: '#4f46e5', borderRadius: '6px', border: '1px solid #c7d2fe', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>save</span> حفظ كقالب</button>
           <button onClick={handleResetTemplate} style={{ padding: '4px 12px', background: '#f3f4f6', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '12px', color: '#6b7280' }}>إعادة تعيين</button>
-          {templateLoaded && <span style={{ fontSize: '11px', color: '#059669', alignSelf: 'center' }}>✓ تم تحميل القالب المحفوظ</span>}
+          {templateLoaded && <span style={{ fontSize: '11px', color: '#059669', alignSelf: 'center' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>check</span> تم تحميل القالب المحفوظ</span>}
         </div>
       </div>
       <div style={{ padding: '16px 24px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
@@ -450,14 +402,15 @@ const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings
   const [dateTo, setDateTo] = useState('');
   const [detailStudent, setDetailStudent] = useState<{ name: string; grade: string; cls: string; notes: NoteRow[] } | null>(null);
 
+  const initialLoadDone2 = useRef(false);
   const loadAll = useCallback(async () => {
     if (!stage) return;
-    setLoading(true);
+    if (!initialLoadDone2.current) setLoading(true);
     try {
       const res = await educationalNotesApi.getAll({ stage });
       if (res.data?.data) setRecords(res.data.data);
     } catch { /* empty */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone2.current = true; }
   }, [stage]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
@@ -515,8 +468,8 @@ const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings
         <select value={classFilter} onChange={e => setClassFilter(e.target.value)} disabled={!gradeFilter}
           style={selectStyle}><option value="">كل الفصول</option>{classes.map(c => <option key={c} value={c}>{c}</option>)}</select>
         <div style={{ display: 'flex', gap: '2px', background: '#f3f4f6', borderRadius: '8px', padding: '2px' }}>
-          <button onClick={() => setViewMode('cards')} style={{ padding: '4px 8px', borderRadius: '6px', border: 'none', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? THEME : '#9ca3af', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>بطاقات</button>
-          <button onClick={() => setViewMode('table')} style={{ padding: '4px 8px', borderRadius: '6px', border: 'none', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? THEME : '#9ca3af', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>جدول</button>
+          <button onClick={() => setViewMode('cards')} style={{ padding: '4px 8px', borderRadius: '6px', border: 'none', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? SECTION_THEMES.notes : '#9ca3af', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>بطاقات</button>
+          <button onClick={() => setViewMode('table')} style={{ padding: '4px 8px', borderRadius: '6px', border: 'none', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? SECTION_THEMES.notes : '#9ca3af', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>جدول</button>
         </div>
         <span style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280' }}>الفترة:</span>
         <input type="text" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="من (هجري)"
@@ -530,10 +483,10 @@ const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings
 
       {/* Type quick filters */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={() => setTypeFilter('all')} style={{ padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', background: typeFilter === 'all' ? '#ecfdf5' : '#f9fafb', color: typeFilter === 'all' ? THEME : '#6b7280', border: typeFilter === 'all' ? `1px solid ${THEME}` : '1px solid #e5e7eb' }}>الكل</button>
+        <button onClick={() => setTypeFilter('all')} style={{ padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', background: typeFilter === 'all' ? '#ecfdf5' : '#f9fafb', color: typeFilter === 'all' ? SECTION_THEMES.notes : '#6b7280', border: typeFilter === 'all' ? `1px solid ${SECTION_THEMES.notes}` : '1px solid #e5e7eb' }}>الكل</button>
         {noteTypes.map(t => (
           <button key={t} onClick={() => setTypeFilter(typeFilter === t ? 'all' : t)}
-            style={{ padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', background: typeFilter === t ? '#ecfdf5' : '#f9fafb', color: typeFilter === t ? THEME : '#6b7280', border: typeFilter === t ? `1px solid ${THEME}` : '1px solid #e5e7eb' }}>{t}</button>
+            style={{ padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', background: typeFilter === t ? '#ecfdf5' : '#f9fafb', color: typeFilter === t ? SECTION_THEMES.notes : '#6b7280', border: typeFilter === t ? `1px solid ${SECTION_THEMES.notes}` : '1px solid #e5e7eb' }}>{t}</button>
         ))}
         <span style={{ fontSize: '11px', color: '#9ca3af', marginRight: 'auto' }}>{filtered.length} ملاحظة</span>
       </div>
@@ -552,21 +505,21 @@ const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings
             const typeCounts: Record<string, number> = {};
             g.notes.forEach(n => { typeCounts[n.noteType] = (typeCounts[n.noteType] || 0) + 1; });
             return (
-              <div key={idx} onClick={() => setDetailStudent({ name: g.info.studentName, grade: g.info.grade, cls: g.info.className, notes: g.notes })}
-                style={{ background: '#fff', borderRadius: '12px', border: `2px solid ${g.notes.length >= 10 ? THEME : g.notes.length >= 5 ? '#a7f3d0' : notSent > 0 ? '#fdba74' : '#e5e7eb'}`, padding: '16px', cursor: 'pointer', transition: 'box-shadow 0.2s' }}>
+              <div key={idx} onClick={() => setDetailStudent({ name: g.info.studentName, grade: g.info.grade, cls: classToLetter(g.info.className), notes: g.notes })}
+                style={{ background: '#fff', borderRadius: '12px', border: `2px solid ${g.notes.length >= 10 ? SECTION_THEMES.notes : g.notes.length >= 5 ? '#a7f3d0' : notSent > 0 ? '#fdba74' : '#e5e7eb'}`, padding: '16px', cursor: 'pointer', transition: 'box-shadow 0.2s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '22px', fontWeight: 800, color: THEME }}>{g.notes.length}</span>
+                  <span style={{ fontSize: '22px', fontWeight: 800, color: SECTION_THEMES.notes }}>{g.notes.length}</span>
                   {notSent > 0
                     ? <span style={{ fontSize: '10px', fontWeight: 700, background: '#fff7ed', color: '#9a3412', padding: '2px 8px', borderRadius: '12px', border: '1px solid #fdba74' }}>{notSent} لم يُرسل</span>
                     : <span style={{ fontSize: '10px', fontWeight: 700, background: '#ecfdf5', color: '#059669', padding: '2px 8px', borderRadius: '12px', border: '1px solid #a7f3d0' }}>تم الإرسال</span>
                   }
                 </div>
                 <h3 style={{ fontWeight: 700, fontSize: '14px', margin: '0 0 4px', color: '#1f2937' }}>{g.info.studentName}</h3>
-                <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 12px' }}>{g.info.grade}/{g.info.className}</p>
+                <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 12px' }}>{g.info.grade}/{classToLetter(g.info.className)}</p>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {Object.entries(typeCounts).map(([t, c]) => (
                     <div key={t} style={{ flex: 1, textAlign: 'center', background: '#ecfdf5', borderRadius: '8px', padding: '6px 4px', minWidth: '60px' }}>
-                      <div style={{ fontSize: '16px', fontWeight: 800, color: THEME }}>{c}</div>
+                      <div style={{ fontSize: '16px', fontWeight: 800, color: SECTION_THEMES.notes }}>{c}</div>
                       <div style={{ fontSize: '9px', color: '#047857', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t}</div>
                     </div>
                   ))}
@@ -588,8 +541,8 @@ const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings
               {filtered.map(r => (
                 <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>{r.studentName}</td>
-                  <td style={tdStyle}>{r.grade} / {r.className}</td>
-                  <td style={tdStyle}><span style={{ padding: '2px 8px', background: '#ecfdf5', color: THEME, borderRadius: '6px', fontSize: '12px', fontWeight: 600 }}>{r.noteType}</span></td>
+                  <td style={tdStyle}>{r.grade} / {classToLetter(r.className)}</td>
+                  <td style={tdStyle}><span style={{ padding: '2px 8px', background: '#ecfdf5', color: SECTION_THEMES.notes, borderRadius: '6px', fontSize: '12px', fontWeight: 600 }}>{r.noteType}</span></td>
                   <td style={{ ...tdStyle, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.details || '-'}</td>
                   <td style={tdStyle}>{r.hijriDate || '-'}</td>
                   <td style={tdStyle}>{r.isSent
@@ -613,19 +566,19 @@ const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings
                 <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>{detailStudent.grade} / {detailStudent.cls}</p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ background: '#ecfdf5', color: THEME, padding: '4px 12px', borderRadius: '12px', fontSize: '13px', fontWeight: 700 }}>{detailStudent.notes.length} ملاحظة</span>
+                <span style={{ background: '#ecfdf5', color: SECTION_THEMES.notes, padding: '4px 12px', borderRadius: '12px', fontSize: '13px', fontWeight: 700 }}>{detailStudent.notes.length} ملاحظة</span>
                 <button onClick={() => setDetailStudent(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#9ca3af' }}>x</button>
               </div>
             </div>
             <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
               {detailStudent.notes.map(n => (
-                <div key={n.id} style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '16px', marginBottom: '12px', borderRight: `4px solid ${THEME}` }}>
+                <div key={n.id} style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '16px', marginBottom: '12px', borderRight: `4px solid ${SECTION_THEMES.notes}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                     <p style={{ fontWeight: 600, fontSize: '14px', margin: 0 }}>{n.details || '-'}</p>
                     <span style={{ fontSize: '11px', color: '#9ca3af' }}>{n.hijriDate || ''}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ padding: '2px 8px', background: '#ecfdf5', color: THEME, borderRadius: '100px', fontSize: '11px', fontWeight: 700 }}>{n.noteType}</span>
+                    <span style={{ padding: '2px 8px', background: '#ecfdf5', color: SECTION_THEMES.notes, borderRadius: '100px', fontSize: '11px', fontWeight: 700 }}>{n.noteType}</span>
                     {n.isSent
                       ? <span style={{ padding: '2px 8px', background: '#dcfce7', color: '#16a34a', borderRadius: '100px', fontSize: '10px', fontWeight: 700 }}>تم</span>
                       : <span style={{ padding: '2px 8px', background: '#fff7ed', color: '#9a3412', borderRadius: '100px', fontSize: '10px', fontWeight: 700 }}>لم يُرسل</span>
@@ -652,14 +605,15 @@ const ReportsTab: React.FC<{ stage: string }> = ({ stage }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
+  const initialLoadDone3 = useRef(false);
   const loadAll = useCallback(async () => {
     if (!stage) return;
-    setLoading(true);
+    if (!initialLoadDone3.current) setLoading(true);
     try {
       const res = await educationalNotesApi.getAll({ stage });
       if (res.data?.data) setAllRecords(res.data.data);
     } catch { /* empty */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone3.current = true; }
   }, [stage]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
@@ -693,7 +647,7 @@ const ReportsTab: React.FC<{ stage: string }> = ({ stage }) => {
     const topStudents = Object.values(studentCounts).sort((a, b) => b.count - a.count).slice(0, 10);
 
     const classCounts: Record<string, number> = {};
-    filtered.forEach(r => { const k = `${r.grade} ${r.className}`; classCounts[k] = (classCounts[k] || 0) + 1; });
+    filtered.forEach(r => { const k = `${r.grade} ${classToLetter(r.className)}`; classCounts[k] = (classCounts[k] || 0) + 1; });
     const byClass = Object.entries(classCounts).sort((a, b) => b[1] - a[1]).map(([className, count]) => ({ className, count }));
 
     const typeCounts: Record<string, number> = {};
@@ -736,7 +690,7 @@ const ReportsTab: React.FC<{ stage: string }> = ({ stage }) => {
 
       {/* Stats cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        <ReportCard label="إجمالي الملاحظات" value={report.total} color={THEME} />
+        <ReportCard label="إجمالي الملاحظات" value={report.total} color={SECTION_THEMES.notes} />
         <ReportCard label="عدد الطلاب" value={report.uniqueStudents} color="#3b82f6" />
         <ReportCard label="تم إرسالها" value={report.sent} color="#22c55e" />
         <ReportCard label="لم تُرسل" value={report.unsent} color="#f97316" />
@@ -756,10 +710,10 @@ const ReportsTab: React.FC<{ stage: string }> = ({ stage }) => {
                     <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: i < 3 ? '#ef4444' : '#d1d5db', color: i < 3 ? '#fff' : '#374151', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700 }}>{i + 1}</span>
                     <div>
                       <span style={{ fontSize: '13px', fontWeight: 600 }}>{s.studentName}</span>
-                      <span style={{ fontSize: '11px', color: '#9ca3af', marginRight: '8px' }}>{s.grade} {s.className}</span>
+                      <span style={{ fontSize: '11px', color: '#9ca3af', marginRight: '8px' }}>{s.grade} {classToLetter(s.className)}</span>
                     </div>
                   </div>
-                  <span style={{ padding: '2px 8px', background: '#ecfdf5', color: THEME, borderRadius: '12px', fontSize: '12px', fontWeight: 700 }}>{s.count} ملاحظة</span>
+                  <span style={{ padding: '2px 8px', background: '#ecfdf5', color: SECTION_THEMES.notes, borderRadius: '12px', fontSize: '12px', fontWeight: 700 }}>{s.count} ملاحظة</span>
                 </div>
               ))
             }
@@ -779,7 +733,7 @@ const ReportsTab: React.FC<{ stage: string }> = ({ stage }) => {
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                     <span style={{ fontSize: '13px', fontWeight: 600, width: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.className}</span>
                     <div style={{ flex: 1, background: '#e5e7eb', borderRadius: '99px', height: '16px' }}>
-                      <div style={{ width: `${pct}%`, background: THEME, borderRadius: '99px', height: '16px' }} />
+                      <div style={{ width: `${pct}%`, background: SECTION_THEMES.notes, borderRadius: '99px', height: '16px' }} />
                     </div>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: '#374151', width: '40px', textAlign: 'left' }}>{c.count}</span>
                   </div>
@@ -827,7 +781,7 @@ const ReportCard: React.FC<{ label: string; value: number; color: string }> = ({
 interface AddModalProps { stage: string; noteTypes: string[]; onClose: () => void; onSaved: () => void }
 
 const AddNoteModal: React.FC<AddModalProps> = ({ stage, noteTypes, onClose, onSaved }) => {
-  const [selectedStudents, setSelectedStudents] = useState<import('../components/shared/StudentSelector').StudentOption[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<StudentOption[]>([]);
   const [noteType, setNoteType] = useState('');
   const [details, setDetails] = useState('');
   const [saving, setSaving] = useState(false);
@@ -849,8 +803,8 @@ const AddNoteModal: React.FC<AddModalProps> = ({ stage, noteTypes, onClose, onSa
     <InputModal
       title="تسجيل ملاحظة تربوية"
       icon="edit_note"
-      headerBg={`linear-gradient(to right, ${THEME}, #047857)`}
-      accentColor={THEME}
+      headerBg={`linear-gradient(to right, ${SECTION_THEMES.notes}, #047857)`}
+      accentColor={SECTION_THEMES.notes}
       saveLabel="حفظ"
       counterText={`${selectedStudents.length} طالب محدد`}
       saving={saving}
@@ -860,7 +814,7 @@ const AddNoteModal: React.FC<AddModalProps> = ({ stage, noteTypes, onClose, onSa
       <StudentSelector
         stageFilter={stage}
         onSelectionChange={setSelectedStudents}
-        accentColor={THEME}
+        accentColor={SECTION_THEMES.notes}
         accentBg="#ecfdf5"
       />
       {/* نوع الملاحظة */}
@@ -925,7 +879,7 @@ const NoteTypesModal: React.FC<{ stage: string; types: string[]; onClose: () => 
             <div style={{ display: 'flex', gap: '8px' }}>
               <input type="text" value={newType} onChange={e => setNewType(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addType(); }}
                 placeholder="اكتب اسم النوع..." style={{ flex: 1, padding: '10px 14px', border: '2px solid #a7f3d0', borderRadius: '10px', fontSize: '14px' }} />
-              <button onClick={addType} disabled={saving} style={{ padding: '10px 20px', background: THEME, color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>إضافة</button>
+              <button onClick={addType} disabled={saving} style={{ padding: '10px 20px', background: SECTION_THEMES.notes, color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>إضافة</button>
             </div>
           </div>
           <h4 style={{ margin: '0 0 12px', fontWeight: 700, fontSize: '14px', color: '#374151' }}>الأنواع الموجودة</h4>
@@ -933,7 +887,7 @@ const NoteTypesModal: React.FC<{ stage: string; types: string[]; onClose: () => 
             types.map((t, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f9fafb', borderRadius: '10px', border: '1px solid #e5e7eb', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ width: '28px', height: '28px', background: '#ecfdf5', color: THEME, borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700 }}>{i + 1}</span>
+                  <span style={{ width: '28px', height: '28px', background: '#ecfdf5', color: SECTION_THEMES.notes, borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700 }}>{i + 1}</span>
                   <span style={{ fontSize: '14px', fontWeight: 600 }}>{t}</span>
                 </div>
                 <button onClick={() => deleteType(i)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '18px' }}>x</button>

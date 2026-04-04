@@ -13,11 +13,34 @@ public static class DataSeeder
         // (SetupPage + POST /api/licenses/activate)
         // لم يعد هناك حاجة لبيانات افتراضية — الأمان أولاً!
 
+        // ★ إعدادات الواتساب — ضمان وجود سجل دائماً حتى لو أعيد إنشاء القاعدة
+        if (!db.WhatsAppSettings.Any())
+        {
+            db.WhatsAppSettings.Add(new WhatsAppSettings
+            {
+                ServerUrl = "http://194.163.133.252:3000",
+                ServiceStatus = "مفعل",
+                TenantId = 1
+            });
+            changed = true;
+        }
+
         // 3. تعريفات المخالفات (160+ مخالفة حسب النظام السعودي)
         if (!db.ViolationTypeDefs.Any())
         {
             var defs = GetViolationTypeDefs();
             db.ViolationTypeDefs.AddRange(defs);
+            changed = true;
+        }
+
+        // ★ اللجان الثلاث — ضمان وجودها دائماً
+        if (!db.Committees.Any())
+        {
+            db.Committees.AddRange(
+                new Committee { Name = "لجنة الانضباط المدرسي", CommitteeType = "Discipline", TenantId = 1, IsActive = true },
+                new Committee { Name = "لجنة التوجيه الطلابي", CommitteeType = "Guidance", TenantId = 1, IsActive = true },
+                new Committee { Name = "لجنة التحصيل الدراسي", CommitteeType = "Academic", TenantId = 1, IsActive = true }
+            );
             changed = true;
         }
 

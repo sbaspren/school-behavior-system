@@ -4,6 +4,7 @@ import {
   CategoryScale, LinearScale, BarElement,
 } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
+import { DEGREE_LABELS as DEGREE_LABELS_OBJ } from '../utils/constants';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 
@@ -25,8 +26,8 @@ interface DashboardChartsProps {
 const TODAY_LABELS = ['غياب', 'تأخر', 'استئذان', 'مخالفات', 'ملاحظات'];
 const TODAY_COLORS = ['#f97316', '#ef4444', '#8b5cf6', '#3b82f6', '#22c55e'];
 
-const DEGREE_LABELS = ['الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة'];
-const DEGREE_COLORS = ['#22c55e', '#eab308', '#f97316', '#ef4444', '#991b1b'];
+const DEGREE_LABELS_ARR = Object.values(DEGREE_LABELS_OBJ).map(v => v.label);
+const DEGREE_COLORS_ARR = Object.values(DEGREE_LABELS_OBJ).map(v => v.color);
 
 const BAR_LABELS_AR: Record<string, string> = {
   absence: 'غياب',
@@ -230,10 +231,10 @@ const ViolationsByDegreeDoughnut: React.FC<{ violationsByDegree?: { degree: numb
   const allZero = degreeData.every(v => v === 0);
 
   const data = {
-    labels: DEGREE_LABELS,
+    labels: DEGREE_LABELS_ARR,
     datasets: [{
       data: allZero ? [1] : degreeData,
-      backgroundColor: allZero ? ['#e2e8f0'] : DEGREE_COLORS,
+      backgroundColor: allZero ? ['#e2e8f0'] : DEGREE_COLORS_ARR,
       borderWidth: 0,
       hoverOffset: 6,
     }],

@@ -12,11 +12,12 @@ public class WhatsAppServerService : IWhatsAppServerService
     public WhatsAppServerService(HttpClient http)
     {
         _http = http;
-        _http.Timeout = TimeSpan.FromSeconds(15);
+        _http.Timeout = TimeSpan.FromSeconds(30);
     }
 
-    // ★ يستدعي GET /status من سيرفر Node.js (whatsapp-web.js)
-    // الاستجابة: { connected, qr, phone, timestamp, qrAge }
+    // ★ Multi-Session API: GET /qr/status → {action:"wait", sessionId:"session_xxx"}
+    // ثم GET /qr/status?sid=SESSION_ID → {action:"show_qr", qr:"data:image/png;base64,..."}
+    // أو {action:"connected", phone:"966xxx"}
     public async Task<WhatsAppServerStatus> GetStatusAsync(string serverUrl)
     {
         var status = new WhatsAppServerStatus();
@@ -24,37 +25,9 @@ public class WhatsAppServerService : IWhatsAppServerService
 
         try
         {
-            var response = await _http.GetAsync($"{serverUrl.TrimEnd('/')}/status");
-            if (!response.IsSuccessStatusCode)
-            {
-                status.IsOnline = false;
-                return status;
-            }
-
-            status.IsOnline = true;
-            var content = await response.Content.ReadAsStringAsync();
-
-            var json = JsonSerializer.Deserialize<JsonElement>(content);
-
-            var connected = json.TryGetProperty("connected", out var connProp) && connProp.GetBoolean();
-
-            if (connected)
-            {
-                // phone field contains the connected phone number
-                var phone = json.TryGetProperty("phone", out var phoneProp)
-                            && phoneProp.ValueKind != JsonValueKind.Null
-                    ? phoneProp.GetString() ?? ""
-                    : "";
-
-                if (!string.IsNullOrEmpty(phone))
-                {
-                    status.ConnectedPhones.Add(new ConnectedPhone
-                    {
-                        PhoneNumber = CleanPhone(phone),
-                        IsConnected = true
-                    });
-                }
-            }
+            // نحاول /qr/status كـ ping — إذا رد السيرفر فهو متصل
+            var response = await _http.GetAsync($"{serverUrl.TrimEnd('/')}/qr/status");
+            status.IsOnline = response.IsSuccessStatusCode;
         }
         catch
         {
@@ -64,24 +37,79 @@ public class WhatsAppServerService : IWhatsAppServerService
         return status;
     }
 
-    // ★ يجلب الباركود من GET /status → حقل "qr" (data URL base64)
-    // السيرفر يضع الباركود في /status وليس في endpoint منفصل
+    /// <summary>
+    /// ★ فحص هل جلسة رقم معين لا تزال حية على السيرفر
+    /// يحاول إرسال لرقم وهمي — إذا رجع SESSION_NOT_FOUND (404) فالجلسة ميتة
+    /// أي رد آخر (حتى خطأ 400/503) يعني الجلسة موجودة
+    /// </summary>
+    public async Task<bool> IsSessionAliveAsync(string serverUrl, string phoneNumber)
+    {
+        if (string.IsNullOrEmpty(serverUrl) || string.IsNullOrEmpty(phoneNumber)) return false;
+
+        try
+        {
+            var cleanPhone = CleanPhone(phoneNumber);
+            // نرسل لرقم وهمي "0" — السيرفر يفحص الجلسة أولاً قبل التحقق من الرقم
+            var payload = new { sessionId = cleanPhone, phone = "0", message = "check" };
+            var json = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _http.PostAsync($"{serverUrl.TrimEnd('/')}/send", content);
+
+            // 404 = SESSION_NOT_FOUND → الجلسة ميتة
+            if ((int)response.StatusCode == 404) return false;
+
+            // أي رد آخر (200, 400, 503) → الجلسة موجودة
+            return true;
+        }
+        catch
+        {
+            return false; // سيرفر غير متاح
+        }
+    }
+
+    // ★ Multi-Session API: QR flow
+    // 1. GET /qr/status → {action:"wait", sessionId:"session_xxx"} (ينشئ جلسة جديدة)
+    // 2. GET /qr/status?sid=SESSION_ID → {action:"show_qr", qr:"data:image/png;base64,..."}
     public async Task<string?> GetQRCodeAsync(string serverUrl)
     {
         if (string.IsNullOrEmpty(serverUrl)) return null;
 
         try
         {
-            var response = await _http.GetAsync($"{serverUrl.TrimEnd('/')}/status");
-            if (!response.IsSuccessStatusCode) return null;
+            // Step 1: إنشاء جلسة جديدة
+            var initResponse = await _http.GetAsync($"{serverUrl.TrimEnd('/')}/qr/status");
+            if (!initResponse.IsSuccessStatusCode) return null;
 
-            var text = await response.Content.ReadAsStringAsync();
-            var json = JsonSerializer.Deserialize<JsonElement>(text);
+            var initText = await initResponse.Content.ReadAsStringAsync();
+            var initJson = JsonSerializer.Deserialize<JsonElement>(initText);
 
-            // QR is a base64 data URL in the "qr" field, null when already connected
-            if (json.TryGetProperty("qr", out var qrProp) && qrProp.ValueKind != JsonValueKind.Null)
+            var sessionId = initJson.TryGetProperty("sessionId", out var sidProp)
+                ? sidProp.GetString() : null;
+            if (string.IsNullOrEmpty(sessionId)) return null;
+
+            // Step 2: جلب الباركود بالـ sessionId — retry حتى يجهز
+            for (int attempt = 0; attempt < 5; attempt++)
             {
-                return qrProp.GetString();
+                await Task.Delay(attempt == 0 ? 1500 : 2000);
+
+                var qrResponse = await _http.GetAsync($"{serverUrl.TrimEnd('/')}/qr/status?sid={sessionId}");
+                if (!qrResponse.IsSuccessStatusCode) continue;
+
+                var qrText = await qrResponse.Content.ReadAsStringAsync();
+                var qrJson = JsonSerializer.Deserialize<JsonElement>(qrText);
+
+                var action = qrJson.TryGetProperty("action", out var actProp)
+                    ? actProp.GetString() : null;
+
+                if (action == "show_qr" && qrJson.TryGetProperty("qr", out var qrProp)
+                    && qrProp.ValueKind != JsonValueKind.Null)
+                {
+                    // نرفق الـ sessionId كـ suffix بعد |
+                    return qrProp.GetString() + "|" + sessionId;
+                }
+
+                if (action != "wait") break; // خطأ أو حالة غير متوقعة
             }
         }
         catch { /* server unreachable */ }
@@ -104,26 +132,25 @@ public class WhatsAppServerService : IWhatsAppServerService
         }
     }
 
-    // ★ يرسل رسالة عبر POST /send مع { phone, message } في body
-    // سيرفر whatsapp-web.js لا يدعم تحديد المرسل (جلسة واحدة فقط)
+    // ★ Multi-Session API: POST /send مع { sessionId, phone, message }
+    // sessionId = رقم الهاتف المرسل (مثال: 966501234567)
     public async Task<bool> SendMessageAsync(string serverUrl, string senderPhone, string recipientPhone, string message)
     {
         if (string.IsNullOrEmpty(serverUrl)) return false;
 
         try
         {
+            var cleanSender = CleanPhone(senderPhone);
             var cleanRecipient = CleanPhone(recipientPhone);
 
-            var payload = new { phone = cleanRecipient, message };
+            var payload = new { sessionId = cleanSender, phone = cleanRecipient, message };
             var json    = JsonSerializer.Serialize(payload);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            // POST /send — السيرفر يستخدم الجلسة الوحيدة المتصلة
             var response = await _http.PostAsync($"{serverUrl.TrimEnd('/')}/send", content);
 
             if (response.IsSuccessStatusCode) return true;
 
-            // بعض السيرفرات تُرجع JSON مع success field
             var respText = await response.Content.ReadAsStringAsync();
             try
             {
@@ -275,6 +302,43 @@ public class WhatsAppServerService : IWhatsAppServerService
         catch (Exception e)
         {
             return new PairingCodeResult { Success = false, Error = e.Message };
+        }
+    }
+
+    // ★ Multi-Session API: فحص حالة QR session
+    public async Task<QRPollResult> PollQRStatusAsync(string serverUrl, string sessionId)
+    {
+        if (string.IsNullOrEmpty(serverUrl) || string.IsNullOrEmpty(sessionId))
+            return new QRPollResult { Status = "error", Error = "بيانات ناقصة" };
+
+        try
+        {
+            var response = await _http.GetAsync($"{serverUrl.TrimEnd('/')}/qr/status?sid={sessionId}");
+            if (!response.IsSuccessStatusCode)
+                return new QRPollResult { Status = "error", Error = $"HTTP {(int)response.StatusCode}" };
+
+            var text = await response.Content.ReadAsStringAsync();
+            var json = JsonSerializer.Deserialize<JsonElement>(text);
+
+            var action = json.TryGetProperty("action", out var actProp) ? actProp.GetString() : "unknown";
+
+            if (action == "connected")
+            {
+                var phone = json.TryGetProperty("phone", out var phoneProp) ? phoneProp.GetString() : null;
+                return new QRPollResult { Status = "connected", Phone = phone != null ? CleanPhone(phone) : null };
+            }
+
+            if (action == "show_qr")
+            {
+                var qr = json.TryGetProperty("qr", out var qrProp) ? qrProp.GetString() : null;
+                return new QRPollResult { Status = "waiting", QrData = qr };
+            }
+
+            return new QRPollResult { Status = action ?? "unknown" };
+        }
+        catch (Exception ex)
+        {
+            return new QRPollResult { Status = "error", Error = ex.Message };
         }
     }
 

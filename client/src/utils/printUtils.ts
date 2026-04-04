@@ -346,5 +346,5 @@ export function sortByClass<T>(records: T[], nameField: keyof T, gradeField: key
 }
 
 export function sortByGradeClass(a: { grade: string; className: string }, b: { grade: string; className: string }): number {
-  return (gradeOrderValue(a.grade) - gradeOrderValue(b.grade)) || a.className.localeCompare(b.className, 'ar');
+  return (gradeOrderValue(a.grade) - gradeOrderValue(b.grade)) || a.grade.localeCompare(b.grade, 'ar') || a.className.localeCompare(b.className, 'ar');
 }

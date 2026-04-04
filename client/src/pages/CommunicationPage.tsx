@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
+import FilterBtn from '../components/shared/FilterBtn';
 import { communicationApi } from '../api/communication';
-import { settingsApi, StageConfigData } from '../api/settings';
 import { SETTINGS_STAGES } from '../utils/constants';
-import { escapeHtml, toIndic, getTodayDates } from '../utils/printUtils';
+import { useAppContext } from '../hooks/useAppContext';
+import { escapeHtml, toIndic, getTodayDates, classToLetter } from '../utils/printUtils';
 import { printListReport, printSingleDetail, ListReportRow } from '../utils/printTemplates';
 
 const MESSAGE_TYPES: Record<string, { label: string; color: string; bg: string }> = {
@@ -56,8 +57,8 @@ interface SummaryData {
 }
 
 const CommunicationPage: React.FC = () => {
+  const { stages, enabledStages, schoolSettings } = useAppContext();
   const [records, setRecords] = useState<CommRow[]>([]);
-  const [stages, setStages] = useState<StageConfigData[]>([]);
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [stageFilter, setStageFilter] = useState('__all__');
@@ -67,31 +68,20 @@ const CommunicationPage: React.FC = () => {
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<CommRow | null>(null);
-  const [schoolSettings, setSchoolSettings] = useState<{ schoolName: string; eduAdmin: string; eduDept: string; letterheadMode: string; letterheadImageUrl: string }>({
-    schoolName: '', eduAdmin: '', eduDept: '', letterheadMode: 'Text', letterheadImageUrl: '',
-  });
 
-  const enabledStages = useMemo(() =>
-    stages.filter((s) => s.isEnabled && s.grades.some((g) => g.isEnabled && g.classCount > 0)),
-    [stages]
-  );
-
+  const initialLoadDone = useRef(false);
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const stg = stageFilter !== '__all__' ? stageFilter : undefined;
-      const [rRes, sRes, sumRes, schRes] = await Promise.all([
+      const [rRes, sumRes] = await Promise.all([
         communicationApi.getAll({ stage: stg }),
-        settingsApi.getStructure(),
         communicationApi.getSummary(stg),
-        settingsApi.getSettings(),
       ]);
       if (rRes.data?.data) setRecords(rRes.data.data);
-      if (sRes.data?.data?.stages) setStages(Array.isArray(sRes.data.data.stages) ? sRes.data.data.stages : []);
       if (sumRes.data?.data) setSummary(sumRes.data.data);
-      if (schRes.data?.data) setSchoolSettings(schRes.data.data);
     } catch { /* empty */ }
-    finally { setLoading(false); }
+    finally { setLoading(false); initialLoadDone.current = true; }
   }, [stageFilter]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -157,12 +147,12 @@ const CommunicationPage: React.FC = () => {
 
     const rows: ListReportRow[] = filtered.map((rec, i) => {
       const statusColor = (rec.sendStatus || '').includes('تم') ? 'green' : '#999';
-      const statusText = (rec.sendStatus || '').includes('تم') ? '✓' : '✗';
+      const statusText = (rec.sendStatus || '').includes('تم') ? '&#10003;' : '&#10007;';
       return { cells: [
         toIndic(i + 1),
         escapeHtml(rec.hijriDate),
         `<span style="font-weight:bold;text-align:right">${escapeHtml(rec.studentName)}</span>`,
-        `${escapeHtml(rec.grade)}/${escapeHtml(rec.className)}`,
+        `${escapeHtml(rec.grade)}/${escapeHtml(classToLetter(rec.className))}`,
         `<span style="direction:ltr;font-size:11pt">${escapeHtml(rec.mobile)}</span>`,
         escapeHtml(rec.messageType),
         `<span style="color:${statusColor};font-weight:bold">${statusText}</span>`,
@@ -188,7 +178,7 @@ const CommunicationPage: React.FC = () => {
       dateText: hijri,
       fields: [
         { label: 'اسم الطالب:', value: rec.studentName },
-        { label: 'الصف:', value: `${rec.grade} / ${rec.className}` },
+        { label: 'الصف:', value: `${rec.grade} / ${classToLetter(rec.className)}` },
         { label: 'رقم الجوال:', value: rec.mobile, ltr: true },
         { label: 'تاريخ الإرسال:', value: `${rec.hijriDate} - ${rec.time}` },
         { label: 'نوع الرسالة:', value: rec.messageType },
@@ -281,9 +271,9 @@ const CommunicationPage: React.FC = () => {
 
       {/* Stage filter */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={() => setStageFilter('__all__')} style={filterBtnStyle(stageFilter === '__all__')}>الكل</button>
+        <FilterBtn label="الكل" active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} color="#4f46e5" />
         {enabledStages.map(s => (
-          <button key={s.stage} onClick={() => setStageFilter(s.stage)} style={filterBtnStyle(stageFilter === s.stage)}>{stageLabel(s.stage)}</button>
+          <FilterBtn key={s.stage} label={stageLabel(s.stage)} active={stageFilter === s.stage} onClick={() => setStageFilter(s.stage)} color="#4f46e5" />
         ))}
       </div>
 
@@ -378,7 +368,7 @@ const CommunicationPage: React.FC = () => {
                       <div style={{ fontWeight: 600 }}>{r.studentName}</div>
                       <div style={{ fontSize: '12px', color: '#9ca3af', direction: 'ltr' as const }}>{r.mobile}</div>
                     </td>
-                    <td style={tdStyle}>{r.grade} / {r.className}</td>
+                    <td style={tdStyle}>{r.grade} / {classToLetter(r.className)}</td>
                     <td style={tdStyle}>
                       <span style={{ background: mt.bg, color: mt.color, padding: '4px 10px', borderRadius: '100px', fontSize: '12px', fontWeight: 600 }}>{mt.label}</span>
                     </td>
@@ -392,7 +382,7 @@ const CommunicationPage: React.FC = () => {
                     <td style={{ ...tdStyle, textAlign: 'center', whiteSpace: 'nowrap' }}>
                       <button onClick={() => setSelectedRecord(r)} title="عرض التفاصيل" style={actionBtnStyle('#2563eb', '#dbeafe')}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>visibility</span></button>
                       <button onClick={() => handleResend(r)} title="إعادة الإرسال" style={actionBtnStyle('#16a34a', '#dcfce7')}>↻</button>
-                      <button onClick={() => handleDelete(r.id)} title="حذف" style={actionBtnStyle('#dc2626', '#fee2e2')}>✕</button>
+                      <button onClick={() => handleDelete(r.id)} title="حذف" style={actionBtnStyle('#dc2626', '#fee2e2')}><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span></button>
                     </td>
                   </tr>
                 );
@@ -420,12 +410,12 @@ const CommunicationPage: React.FC = () => {
               <h3 style={{ color: '#fff', fontWeight: 700, fontSize: '16px', margin: 0 }}>تفاصيل الرسالة</h3>
               <button onClick={() => setSelectedRecord(null)} style={{
                 background: 'none', border: 'none', color: '#fff', fontSize: '20px', cursor: 'pointer',
-              }}>✕</button>
+              }}><span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span></button>
             </div>
             <div style={{ padding: '20px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                 <InfoBox label="الطالب" value={selectedRecord.studentName} />
-                <InfoBox label="الصف" value={`${selectedRecord.grade} / ${selectedRecord.className}`} />
+                <InfoBox label="الصف" value={`${selectedRecord.grade} / ${classToLetter(selectedRecord.className)}`} />
                 <InfoBox label="التاريخ والوقت" value={`${selectedRecord.hijriDate} - ${selectedRecord.time}`} />
                 <InfoBox label="رقم الجوال" value={selectedRecord.mobile} dir="ltr" />
                 <InfoBox label="نوع الرسالة" value={selectedRecord.messageType} />
@@ -484,11 +474,6 @@ const InfoBox: React.FC<{ label: string; value: string; dir?: string; valueColor
 
 // ===== Helpers =====
 
-const filterBtnStyle = (active: boolean): React.CSSProperties => ({
-  padding: '8px 16px', borderRadius: '12px', border: active ? '2px solid #374151' : '2px solid #d1d5db',
-  background: active ? '#f3f4f6' : '#fff', color: active ? '#111' : '#374151',
-  fontWeight: active ? 700 : 400, fontSize: '13px', cursor: 'pointer',
-});
 const selectStyle: React.CSSProperties = {
   padding: '8px 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '13px',
 };

@@ -34,8 +34,10 @@ public class NoorController : ControllerBase
         [FromQuery] string type = "all",
         [FromQuery] string filterMode = "today")
     {
+        // ★ عزل المراحل — الوكيل يرى مرحلته فقط
+        var effectiveStage = EnforceScopeStage(stage);
         Stage? stageEnum = null;
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var parsed))
+        if (!string.IsNullOrEmpty(effectiveStage) && Enum.TryParse<Stage>(effectiveStage, true, out var parsed))
             stageEnum = parsed;
 
         bool isExcluded = filterMode == "excluded";
@@ -104,7 +106,7 @@ public class NoorController : ControllerBase
                 records.Add(new
                 {
                     item.Id, _type = "violation",
-                    item.StudentName, item.Grade, item.Class, item.stage,
+                    item.StudentName, Grade = NoorMappings.CombineGradeStage(item.Grade, item.stage), item.Class, item.stage,
                     item.violationCode, item.description, item.degree, item.degreeName,
                     item.date, item.NoorStatus,
                     _noorValue = noorValue,
@@ -118,7 +120,7 @@ public class NoorController : ControllerBase
             {
                 var tQ = isExcluded
                     ? _db.TardinessRecords.Where(t => t.NoorStatus == "مستبعد")
-                    : _db.TardinessRecords.Where(t => t.NoorStatus == "" || t.NoorStatus == "معلق" || t.NoorStatus == "failed");
+                    : _db.TardinessRecords.Where(t => t.NoorStatus == null || t.NoorStatus == "" || t.NoorStatus == "معلق" || t.NoorStatus == "failed");
                 if (stageEnum != null) tQ = tQ.Where(t => t.Stage == stageEnum);
                 if (!isExcluded && filterMode == "today") tQ = tQ.Where(t => t.RecordedAt >= today);
 
@@ -139,8 +141,12 @@ public class NoorController : ControllerBase
                     records.Add(new
                     {
                         item.Id, _type = "tardiness",
-                        item.StudentName, item.Grade, item.Class, item.stage,
-                        item.tardinessType, item.date, item.NoorStatus,
+                        item.StudentName, Grade = NoorMappings.CombineGradeStage(item.Grade, item.stage), item.Class, item.stage,
+                        item.tardinessType,
+                        description = "تأخر صباحي",
+                        degree = 1,
+                        degreeName = "الأولى",
+                        item.date, item.NoorStatus,
                         _noorValue = mapping.noorValue,
                         _noorText = mapping.noorText,
                         _noorMode = new { mowadaba = "1", deductType = "1" }
@@ -155,7 +161,7 @@ public class NoorController : ControllerBase
         {
             var q = isExcluded
                 ? _db.PositiveBehaviors.Where(p => p.NoorStatus == "مستبعد")
-                : _db.PositiveBehaviors.Where(p => p.NoorStatus == "" || p.NoorStatus == "معلق" || p.NoorStatus == "failed");
+                : _db.PositiveBehaviors.Where(p => p.NoorStatus == null || p.NoorStatus == "" || p.NoorStatus == "معلق" || p.NoorStatus == "failed");
             if (stageEnum != null) q = q.Where(p => p.Stage == stageEnum);
             if (!isExcluded && filterMode == "today") q = q.Where(p => p.RecordedAt >= today);
 
@@ -194,7 +200,7 @@ public class NoorController : ControllerBase
                     records.Add(new
                     {
                         p.Id, _type = recType,
-                        p.StudentName, p.Grade, p.Class, p.stage,
+                        p.StudentName, Grade = NoorMappings.CombineGradeStage(p.Grade, p.stage), p.Class, p.stage,
                         p.behaviorType, p.details, p.recordedBy,
                         p.date, p.NoorStatus,
                         _noorValue = noorValue,
@@ -213,7 +219,7 @@ public class NoorController : ControllerBase
         {
             var q = isExcluded
                 ? _db.DailyAbsences.Where(a => a.NoorStatus == "مستبعد")
-                : _db.DailyAbsences.Where(a => a.NoorStatus == "" || a.NoorStatus == "معلق" || a.NoorStatus == "failed");
+                : _db.DailyAbsences.Where(a => a.NoorStatus == null || a.NoorStatus == "" || a.NoorStatus == "معلق" || a.NoorStatus == "failed");
             if (stageEnum != null) q = q.Where(a => a.Stage == stageEnum);
 
             // فلتر اليوم: الغياب يُفلتر بالتاريخ الهجري (كما في الأصل) وليس بالميلادي
@@ -285,7 +291,7 @@ public class NoorController : ControllerBase
             records.Add(new
             {
                 a.Id, _type = "absence",
-                a.StudentName, a.Grade, a.Class, a.stage,
+                a.StudentName, Grade = NoorMappings.CombineGradeStage(a.Grade, a.stage), a.Class, a.stage,
                 a.absenceType, excuseType = a.excuseType.ToString(),
                 a.hijriDate, a.date, a.NoorStatus,
                 _noorValue = noorValue,
@@ -317,8 +323,10 @@ public class NoorController : ControllerBase
         [FromQuery] string? stage = null,
         [FromQuery] string? filterMode = null)
     {
+        // ★ عزل المراحل
+        var effectiveStage = EnforceScopeStage(stage);
         Stage? stageEnum = null;
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var parsed))
+        if (!string.IsNullOrEmpty(effectiveStage) && Enum.TryParse<Stage>(effectiveStage, true, out var parsed))
             stageEnum = parsed;
 
         var today = DateTime.UtcNow.Date;
@@ -370,9 +378,9 @@ public class NoorController : ControllerBase
         var stats = new NoorPendingStats();
 
         var vQ = _db.Violations.Where(v => (v.NoorStatus == null || v.NoorStatus == "" || v.NoorStatus == "معلق" || v.NoorStatus == "failed"));
-        var tQ = _db.TardinessRecords.Where(t => t.NoorStatus == "" || t.NoorStatus == "معلق" || t.NoorStatus == "failed");
-        var pQ = _db.PositiveBehaviors.Where(p => p.NoorStatus == "" || p.NoorStatus == "معلق" || p.NoorStatus == "failed");
-        var aQ = _db.DailyAbsences.Where(a => a.NoorStatus == "" || a.NoorStatus == "معلق" || a.NoorStatus == "failed");
+        var tQ = _db.TardinessRecords.Where(t => t.NoorStatus == null || t.NoorStatus == "" || t.NoorStatus == "معلق" || t.NoorStatus == "failed");
+        var pQ = _db.PositiveBehaviors.Where(p => p.NoorStatus == null || p.NoorStatus == "" || p.NoorStatus == "معلق" || p.NoorStatus == "failed");
+        var aQ = _db.DailyAbsences.Where(a => a.NoorStatus == null || a.NoorStatus == "" || a.NoorStatus == "معلق" || a.NoorStatus == "failed");
 
         if (stageEnum != null)
         {
@@ -402,13 +410,13 @@ public class NoorController : ControllerBase
         return stats;
     }
 
-    /// <summary>عد الموثق اليوم</summary>
+    /// <summary>عد الموثق اليوم — يستخدم NoorDocumentedAt</summary>
     private async Task<int> CountDocumentedToday(Stage? stageEnum, DateTime today)
     {
-        var docVQ = _db.Violations.Where(v => (v.NoorStatus == "تم" || v.NoorStatus == "failed") && v.RecordedAt >= today);
-        var docTQ = _db.TardinessRecords.Where(t => (t.NoorStatus == "تم" || t.NoorStatus == "failed") && t.RecordedAt >= today);
-        var docPQ = _db.PositiveBehaviors.Where(p => (p.NoorStatus == "تم" || p.NoorStatus == "failed") && p.RecordedAt >= today);
-        var docAQ = _db.DailyAbsences.Where(a => (a.NoorStatus == "تم" || a.NoorStatus == "failed") && a.RecordedAt >= today);
+        var docVQ = _db.Violations.Where(v => (v.NoorStatus == "تم" || v.NoorStatus == "failed") && v.NoorDocumentedAt != null && v.NoorDocumentedAt >= today);
+        var docTQ = _db.TardinessRecords.Where(t => (t.NoorStatus == "تم" || t.NoorStatus == "failed") && t.NoorDocumentedAt != null && t.NoorDocumentedAt >= today);
+        var docPQ = _db.PositiveBehaviors.Where(p => (p.NoorStatus == "تم" || p.NoorStatus == "failed") && p.NoorDocumentedAt != null && p.NoorDocumentedAt >= today);
+        var docAQ = _db.DailyAbsences.Where(a => (a.NoorStatus == "تم" || a.NoorStatus == "failed") && a.NoorDocumentedAt != null && a.NoorDocumentedAt >= today);
 
         if (stageEnum != null)
         {
@@ -429,6 +437,11 @@ public class NoorController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> UpdateStatus(
         [FromBody] NoorStatusUpdateRequest request)
     {
+        // تحقق: القيم المسموحة فقط
+        var allowedStatuses = new HashSet<string> { "تم", "failed", "لا يحتاج" };
+        if (request.Updates.Any(u => !allowedStatuses.Contains(u.Status)))
+            return BadRequest(ApiResponse<object>.Fail("قيمة حالة غير صالحة"));
+
         int updated = 0, failed = 0;
 
         foreach (var update in request.Updates)
@@ -444,6 +457,8 @@ public class NoorController : ControllerBase
                             if (v.NoorStatus == "مستبعد" || v.NoorStatus == "لا يحتاج")
                             { failed++; continue; }
                             v.NoorStatus = update.Status;
+                            if (update.Status is "تم" or "failed")
+                                v.NoorDocumentedAt = DateTime.UtcNow;
                             updated++;
                         }
                         else failed++;
@@ -456,6 +471,8 @@ public class NoorController : ControllerBase
                             if (t.NoorStatus == "مستبعد" || t.NoorStatus == "لا يحتاج")
                             { failed++; continue; }
                             t.NoorStatus = update.Status;
+                            if (update.Status is "تم" or "failed")
+                                t.NoorDocumentedAt = DateTime.UtcNow;
                             updated++;
                         }
                         else failed++;
@@ -470,6 +487,8 @@ public class NoorController : ControllerBase
                             if (p.NoorStatus == "مستبعد" || p.NoorStatus == "لا يحتاج")
                             { failed++; continue; }
                             p.NoorStatus = update.Status;
+                            if (update.Status is "تم" or "failed")
+                                p.NoorDocumentedAt = DateTime.UtcNow;
                             updated++;
                         }
                         else failed++;
@@ -482,6 +501,8 @@ public class NoorController : ControllerBase
                             if (a.NoorStatus == "مستبعد" || a.NoorStatus == "لا يحتاج")
                             { failed++; continue; }
                             a.NoorStatus = update.Status;
+                            if (update.Status is "تم" or "failed")
+                                a.NoorDocumentedAt = DateTime.UtcNow;
                             updated++;
                         }
                         else failed++;
@@ -544,6 +565,7 @@ public class NoorController : ControllerBase
             catch { /* skip */ }
         }
         await _db.SaveChangesAsync();
+        await _notifications.SendAsync("noor-status-updated", new { updated });
         return Ok(ApiResponse<object>.Ok(new { updated }));
     }
 
@@ -588,6 +610,7 @@ public class NoorController : ControllerBase
             catch { /* skip */ }
         }
         await _db.SaveChangesAsync();
+        await _notifications.SendAsync("noor-status-updated", new { updated });
         return Ok(ApiResponse<object>.Ok(new { updated }));
     }
 
@@ -596,31 +619,54 @@ public class NoorController : ControllerBase
     // ====================================================================
     [HttpGet("documented-today")]
     public async Task<ActionResult<ApiResponse<object>>> GetDocumentedToday(
-        [FromQuery] string type = "all")
+        [FromQuery] string type = "all",
+        [FromQuery] string period = "today",
+        [FromQuery] string? stage = null)
     {
-        var today = DateTime.Today;
+        // ★ عزل المراحل
+        var effectiveStage = EnforceScopeStage(stage);
+        // period: "today" = الموثق اليوم, "all" = كل الموثق
+        Stage? stageEnum = null;
+        if (!string.IsNullOrEmpty(effectiveStage) && Enum.TryParse<Stage>(effectiveStage, true, out var parsed))
+            stageEnum = parsed;
+
+        var today = DateTime.UtcNow.Date;
         var records = new List<object>();
 
         if (type is "all" or "violations")
         {
-            var violations = await _db.Violations
-                .Where(v => (v.NoorStatus == "تم" || v.NoorStatus == "failed") && v.RecordedAt >= today)
+            var q = _db.Violations
+                .Where(v => v.NoorStatus == "تم" || v.NoorStatus == "failed");
+            if (stageEnum != null) q = q.Where(v => v.Stage == stageEnum);
+            if (period == "today")
+                q = q.Where(v => v.NoorDocumentedAt != null && v.NoorDocumentedAt >= today);
+
+            var violations = await q
+                .OrderByDescending(v => v.NoorDocumentedAt ?? v.RecordedAt)
                 .Select(v => new {
                     v.Id, _type = "violation",
                     v.StudentName, v.Grade, v.Class,
                     description = v.Description ?? v.ViolationCode ?? "",
                     date = v.RecordedAt.ToString("yyyy-MM-dd"),
+                    documentedAt = v.NoorDocumentedAt != null ? v.NoorDocumentedAt.Value.ToString("yyyy-MM-dd HH:mm") : "",
                     result = v.NoorStatus == "تم" ? "نجح" : "فشل"
                 }).ToListAsync();
             records.AddRange(violations);
 
-            var tardiness = await _db.TardinessRecords
-                .Where(t => (t.NoorStatus == "تم" || t.NoorStatus == "failed") && t.RecordedAt >= today)
+            var qt = _db.TardinessRecords
+                .Where(t => t.NoorStatus == "تم" || t.NoorStatus == "failed");
+            if (stageEnum != null) qt = qt.Where(t => t.Stage == stageEnum);
+            if (period == "today")
+                qt = qt.Where(t => t.NoorDocumentedAt != null && t.NoorDocumentedAt >= today);
+
+            var tardiness = await qt
+                .OrderByDescending(t => t.NoorDocumentedAt ?? t.RecordedAt)
                 .Select(t => new {
                     t.Id, _type = "tardiness",
                     t.StudentName, t.Grade, t.Class,
                     description = t.TardinessType.ToString(),
                     date = t.RecordedAt.ToString("yyyy-MM-dd"),
+                    documentedAt = t.NoorDocumentedAt != null ? t.NoorDocumentedAt.Value.ToString("yyyy-MM-dd HH:mm") : "",
                     result = t.NoorStatus == "تم" ? "نجح" : "فشل"
                 }).ToListAsync();
             records.AddRange(tardiness);
@@ -628,14 +674,21 @@ public class NoorController : ControllerBase
 
         if (type is "all" or "compensation" or "excellent")
         {
-            var allPositive = await _db.PositiveBehaviors
-                .Where(p => (p.NoorStatus == "تم" || p.NoorStatus == "failed") && p.RecordedAt >= today)
+            var qp = _db.PositiveBehaviors
+                .Where(p => p.NoorStatus == "تم" || p.NoorStatus == "failed");
+            if (stageEnum != null) qp = qp.Where(p => p.Stage == stageEnum);
+            if (period == "today")
+                qp = qp.Where(p => p.NoorDocumentedAt != null && p.NoorDocumentedAt >= today);
+
+            var allPositive = await qp
+                .OrderByDescending(p => p.NoorDocumentedAt ?? p.RecordedAt)
                 .Select(p => new {
                     p.Id, p.StudentName, p.Grade, p.Class,
                     behaviorType = p.BehaviorType ?? "",
                     details = p.Details ?? "",
                     degree = p.Degree.ToString(),
                     date = p.RecordedAt.ToString("yyyy-MM-dd"),
+                    documentedAt = p.NoorDocumentedAt != null ? p.NoorDocumentedAt.Value.ToString("yyyy-MM-dd HH:mm") : "",
                     p.NoorStatus
                 }).ToListAsync();
 
@@ -650,7 +703,7 @@ public class NoorController : ControllerBase
                         p.Id, _type = recType,
                         p.StudentName, p.Grade, p.Class,
                         description = p.behaviorType != "" ? p.behaviorType : p.details,
-                        p.date,
+                        p.date, p.documentedAt,
                         result = p.NoorStatus == "تم" ? "نجح" : "فشل"
                     });
                 }
@@ -659,13 +712,21 @@ public class NoorController : ControllerBase
 
         if (type is "all" or "absence")
         {
-            var absences = await _db.DailyAbsences
-                .Where(a => (a.NoorStatus == "تم" || a.NoorStatus == "failed") && a.RecordedAt >= today)
+            var qa = _db.DailyAbsences
+                .Where(a => a.NoorStatus == "تم" || a.NoorStatus == "failed");
+            if (stageEnum != null) qa = qa.Where(a => a.Stage == stageEnum);
+            if (period == "today")
+                qa = qa.Where(a => a.NoorDocumentedAt != null && a.NoorDocumentedAt >= today);
+
+            var absences = await qa
+                .OrderByDescending(a => a.NoorDocumentedAt ?? a.RecordedAt)
                 .Select(a => new {
                     a.Id, _type = "absence",
                     a.StudentName, a.Grade, a.Class,
                     description = a.AbsenceType.ToString(),
+                    excuseType = a.ExcuseType.ToString(),
                     date = a.RecordedAt.ToString("yyyy-MM-dd"),
+                    documentedAt = a.NoorDocumentedAt != null ? a.NoorDocumentedAt.Value.ToString("yyyy-MM-dd HH:mm") : "",
                     result = a.NoorStatus == "تم" ? "نجح" : "فشل"
                 }).ToListAsync();
             records.AddRange(absences);
@@ -712,6 +773,18 @@ public class NoorController : ControllerBase
                 extensionMinVersion = "7.0.0"
             }
         });
+    }
+
+    /// <summary>
+    /// ★ عزل المراحل — الوكيل يرى مرحلته فقط
+    /// </summary>
+    private string? EnforceScopeStage(string? requestedStage)
+    {
+        var scopeType = User.FindFirst("scope_type")?.Value;
+        var scopeValue = User.FindFirst("scope_value")?.Value;
+        if (string.IsNullOrEmpty(scopeType) || scopeType == "all") return requestedStage;
+        if (scopeType == "stage" && !string.IsNullOrEmpty(scopeValue)) return scopeValue;
+        return requestedStage;
     }
 }
 
@@ -1357,6 +1430,22 @@ public static class NoorMappings
         s = System.Text.RegularExpressions.Regex.Replace(s, @"(^|\s)الثانوي(\s|$)", "$1ثانوي$2");
         s = System.Text.RegularExpressions.Regex.Replace(s, @"(^|\s)الابتدائي(\s|$)", "$1ابتدائي$2");
         return System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ").Trim();
+    }
+
+    /// <summary>دمج الصف مع المرحلة: "الأول" + "Intermediate" → "الأول متوسط"</summary>
+    public static string CombineGradeStage(string grade, string stageStr)
+    {
+        if (string.IsNullOrEmpty(grade)) return grade;
+        // إذا الصف يحتوي المرحلة مسبقاً لا نكررها
+        if (grade.Contains("متوسط") || grade.Contains("ثانو") || grade.Contains("ابتدا")) return grade;
+        var arabic = stageStr switch
+        {
+            "Intermediate" or "متوسط" => "متوسط",
+            "Secondary" or "ثانوي" => "ثانوي",
+            "Primary" or "ابتدائي" => "ابتدائي",
+            _ => ""
+        };
+        return string.IsNullOrEmpty(arabic) ? grade : $"{grade} {arabic}";
     }
 
     /// <summary>اكتشاف المرحلة من اسم الصف</summary>

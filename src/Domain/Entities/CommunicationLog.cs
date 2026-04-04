@@ -23,6 +23,8 @@ public class CommunicationLog : ITenantEntity
     public string SendStatus { get; set; } = "";         // تم / فشل
     public string SentBy { get; set; } = "";
     public string Notes { get; set; } = "";
+    public int Semester { get; set; } = 1;               // الفصل الدراسي
+    public string AcademicYear { get; set; } = "";       // السنة الهجرية
 
     public Student Student { get; set; } = null!;
 }

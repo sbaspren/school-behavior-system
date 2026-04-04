@@ -24,12 +24,9 @@ public class TenantService : ITenantService
 
     public int GetCurrentTenantId()
     {
-        // ★ Multi-Tenant: غيّر هذا السطر فقط ليقرأ من JWT
-        // var claim = _httpContext.HttpContext?.User?.FindFirst("tenant_id");
-        // return claim != null ? int.Parse(claim.Value) : 1;
-
-        // Single-Tenant: دائماً 1
-        return 1;
+        // ★ Multi-Tenant: يقرأ tenant_id من JWT claim
+        var claim = _httpContext.HttpContext?.User?.FindFirst("tenant_id");
+        return claim != null ? int.Parse(claim.Value) : 1;
     }
 
     public async Task<Tenant?> GetCurrentTenantAsync()

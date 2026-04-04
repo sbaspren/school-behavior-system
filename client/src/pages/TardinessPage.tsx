@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import MI from '../components/shared/MI';
 import PageHero from '../components/shared/PageHero';
 import TabBar from '../components/shared/TabBar';
@@ -8,81 +8,38 @@ import EmptyState from '../components/shared/EmptyState';
 import ActionIcon from '../components/shared/ActionIcon';
 import InputModal from '../components/shared/InputModal';
 import StudentSelector from '../components/shared/StudentSelector';
+import FilterBtn from '../components/shared/FilterBtn';
+import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { tardinessApi, TardinessData } from '../api/tardiness';
-import { settingsApi, StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
-import { SETTINGS_STAGES } from '../utils/constants';
+import { SETTINGS_STAGES, TARDINESS_TYPES, PERIODS, SECTION_THEMES } from '../utils/constants';
+import { StageConfigData } from '../api/settings';
 import { printForm, printListReport, ListReportRow } from '../utils/printTemplates';
 import { printDailyReport } from '../utils/printDaily';
-import { toIndic, escapeHtml } from '../utils/printUtils';
+import { toIndic, escapeHtml, classToLetter } from '../utils/printUtils';
 import { templatesApi } from '../api/templates';
+import { usePageData, getHijriDate } from '../hooks/usePageData';
+import type { TardinessRow, StudentOption } from '../types';
 
-const TARDINESS_TYPES: Record<string, { label: string; color: string; bg: string }> = {
-  Morning: { label: 'تأخر صباحي', color: '#dc2626', bg: '#fee2e2' },
-  Period: { label: 'تأخر عن الحصة', color: '#ea580c', bg: '#ffedd5' },
-  Assembly: { label: 'تأخر عن الاصطفاف', color: '#ca8a04', bg: '#fef9c3' },
-};
-
-const PERIODS = ['الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة', 'السادسة', 'السابعة'];
-
-interface TardinessRow {
-  id: number; studentId: number; studentNumber: string; studentName: string;
-  grade: string; className: string; stage: string; mobile: string;
-  tardinessType: string; period: string; hijriDate: string;
-  recordedBy: string; recordedAt: string; isSent: boolean;
-}
-
-interface StudentOption {
-  id: number; studentNumber: string; name: string;
-  stage: string; grade: string; className: string;
-}
-
-type TabType = 'today' | 'approved' | 'reports';
-
-function getHijriDate(): string {
-  try { return new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); }
-  catch { return ''; }
-}
+type TabType = 'today' | 'approved';
 
 // ============================== Main Page ==============================
 const TardinessPage: React.FC = () => {
-  const [records, setRecords] = useState<TardinessRow[]>([]);
-  const [stages, setStages] = useState<StageConfigData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [stageFilter, setStageFilter] = useState('__all__');
+  const {
+    records, setRecords, stages, loading, schoolSettings,
+    stageFilter, setStageFilter, enabledStages,
+    filteredByStage, todayRecords, refresh,
+  } = usePageData<TardinessRow>({ fetchRecords: () => tardinessApi.getAll() });
+
   const [activeTab, setActiveTab] = useState<TabType>('today');
   const [modalOpen, setModalOpen] = useState(false);
-  const [schoolSettings, setSchoolSettings] = useState<Record<string, string>>({});
-
-  const enabledStages = useMemo(() => stages.filter((s) => s.isEnabled && s.grades.some((g) => g.isEnabled && g.classCount > 0)), [stages]);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [rRes, sRes, seRes] = await Promise.all([tardinessApi.getAll(), settingsApi.getStructure(), settingsApi.getSettings()]);
-      if (rRes.data?.data) setRecords(rRes.data.data);
-      if (sRes.data?.data?.stages) setStages(Array.isArray(sRes.data.data.stages) ? sRes.data.data.stages : []);
-      if (seRes.data?.data) setSchoolSettings(seRes.data.data);
-    } catch { /* empty */ } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  const filteredByStage = useMemo(() => {
-    if (stageFilter === '__all__') return records;
-    const stageId = SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter;
-    return records.filter((r) => r.stage === stageId);
-  }, [records, stageFilter]);
-
-  const todayDate = new Date().toISOString().split('T')[0];
-  const todayRecords = useMemo(() => filteredByStage.filter((r) => r.recordedAt?.startsWith(todayDate)), [filteredByStage, todayDate]);
 
   // ★ عنوان ديناميكي مطابق: "التأخر — المرحلة المتوسطة"
   const heroTitle = stageFilter === '__all__' ? 'التأخر' : `التأخر — ${stageFilter}`;
   // ★ إحصائية "لم تُرسل" بدل "تم الإرسال"
   const unsentCount = filteredByStage.filter((r) => !r.isSent).length;
 
-  if (loading) return (<div style={{ textAlign: 'center', padding: '60px' }}><div className="spinner" /><p style={{ color: '#666', marginTop: '16px' }}>جاري التحميل...</p></div>);
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="sec-tardiness">
@@ -93,7 +50,7 @@ const TardinessPage: React.FC = () => {
           { icon: 'send', label: 'لم تُرسل', value: unsentCount, color: '#60a5fa' },
         ]}
       />
-      <TabBar tabs={[{ id: 'today', label: 'اليومي', icon: 'today' }, { id: 'approved', label: 'المعتمد', icon: 'verified' }, { id: 'reports', label: 'التقارير', icon: 'bar_chart' }]}
+      <TabBar tabs={[{ id: 'today', label: 'اليومي', icon: 'today' }, { id: 'approved', label: 'المعتمد', icon: 'verified' }]}
         activeTab={activeTab} onTabChange={(id) => setActiveTab(id as TabType)} sectionColor="#dc2626" />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
@@ -108,11 +65,9 @@ const TardinessPage: React.FC = () => {
         </div>
       </div>
 
-      {activeTab === 'today' && <TodayTab records={todayRecords} allRecords={filteredByStage} onRefresh={loadData} stageFilter={stageFilter} schoolSettings={schoolSettings} onAdd={() => setModalOpen(true)} />}
-      {activeTab === 'approved' && <ApprovedTab records={filteredByStage} onRefresh={loadData} schoolSettings={schoolSettings} stageFilter={stageFilter} />}
-      {activeTab === 'reports' && <ReportsTab records={filteredByStage} schoolSettings={schoolSettings} />}
-
-      {modalOpen && <AddTardinessModal stages={enabledStages} stageFilter={stageFilter} onClose={() => setModalOpen(false)} onSaved={() => { setModalOpen(false); loadData(); }} />}
+      {activeTab === 'today' && <TodayTab records={todayRecords} allRecords={filteredByStage} onRefresh={refresh} stageFilter={stageFilter} schoolSettings={schoolSettings} onAdd={() => setModalOpen(true)} />}
+      {activeTab === 'approved' && <ApprovedTab records={filteredByStage} onRefresh={refresh} schoolSettings={schoolSettings} stageFilter={stageFilter} />}
+      {modalOpen && <AddTardinessModal stages={enabledStages} stageFilter={stageFilter} onClose={() => setModalOpen(false)} onSaved={() => { setModalOpen(false); refresh(); }} />}
     </div>
   );
 };
@@ -174,7 +129,7 @@ const TodayTab: React.FC<{ records: TardinessRow[]; allRecords: TardinessRow[]; 
           <button onClick={handlePrintToday} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>print</span> طباعة</button>
           <button onClick={handleSendBulk} style={{ background: 'none', border: 'none', color: '#a7f3d0', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>smartphone</span> إرسال</button>
           <button onClick={handleDeleteBulk} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>delete</span> حذف</button>
-          <button onClick={() => setSelected(new Set())} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.6)', cursor: 'pointer', fontSize: 16 }}>✕</button>
+          <button onClick={() => setSelected(new Set())} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.6)', cursor: 'pointer', fontSize: 16 }}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span></button>
         </div>
       )}
 
@@ -199,14 +154,14 @@ const TodayTab: React.FC<{ records: TardinessRow[]; allRecords: TardinessRow[]; 
                   <tr key={r.id} style={{ background: selected.has(r.id) ? '#eff6ff' : undefined }}>
                     <td><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
                     <td><div style={{ fontWeight: 700, color: '#1f2937' }}>{r.studentName}</div><div style={{ fontSize: 12, color: '#9ca3af' }}>{r.studentNumber}</div></td>
-                    <td style={{ fontSize: 13 }}>{r.grade} ({r.className})</td>
+                    <td style={{ fontSize: 13 }}>{r.grade} ({classToLetter(r.className)})</td>
                     <td><span style={{ padding: '4px 10px', borderRadius: 9999, fontSize: 12, fontWeight: 700, background: tt.bg, color: tt.color }}>{tt.label}</span></td>
                     <td style={{ fontSize: 13 }}>{r.period || '-'}</td>
                     <td style={{ fontWeight: 700, textAlign: 'center', background: cntBg }}>{cnt}</td>
                     <td>{r.isSent ? <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>تم</span> : <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>لم يُرسل</span>}</td>
                     <td style={{ textAlign: 'center' }}><div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
                       <button onClick={() => handleSendWhatsApp(r)} disabled={sendingId === r.id} title="إرسال واتساب" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: sendingId === r.id ? 'not-allowed' : 'pointer', opacity: sendingId === r.id ? .5 : 1 }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>smartphone</span></button>
-                      <button onClick={() => printForm('tawtheeq_tawasol', { studentName: r.studentName, grade: r.grade + ' / ' + r.className, contactType: 'تأخر', contactReason: (tt.label) + (r.period ? ' - ' + r.period : ''), violationDate: r.hijriDate || '', contactResult: r.isSent ? 'تم التواصل' : 'لم يتم الإرسال' }, schoolSettings as any)} title="توثيق تواصل" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>contact_phone</span></button>
+                      <button onClick={() => printForm('tawtheeq_tawasol', { studentName: r.studentName, grade: r.grade + ' / ' + classToLetter(r.className), contactType: 'تأخر', contactReason: (tt.label) + (r.period ? ' - ' + r.period : ''), violationDate: r.hijriDate || '', contactResult: r.isSent ? 'تم التواصل' : 'لم يتم الإرسال' }, schoolSettings as any)} title="توثيق تواصل" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>contact_phone</span></button>
                       <button onClick={() => setConfirmDelete(r)} title="حذف" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>delete</span></button>
                     </div></td>
                   </tr>);
@@ -246,7 +201,7 @@ const MessageEditorModal: React.FC<{ record: TardinessRow; onSend: (message: str
       <div style={{ background: '#fff', borderRadius: 20, boxShadow: '0 25px 50px rgba(0,0,0,.25)', width: '100%', maxWidth: 520, overflow: 'hidden' }}>
         <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #dcfce7, #f0fdf4)', borderBottom: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div><h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#15803d' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>smartphone</span> إرسال رسالة واتساب</h3><span style={{ fontSize: 13, color: '#4b5563' }}>{record.studentName} - {record.mobile || 'لا يوجد رقم'}</span></div>
-          <button onClick={onClose} style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af' }}>✕</button>
+          <button onClick={onClose} style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span></button>
         </div>
         <div style={{ padding: '20px 24px' }}>
           <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>نص الرسالة</label>
@@ -254,7 +209,7 @@ const MessageEditorModal: React.FC<{ record: TardinessRow; onSend: (message: str
           <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
             <button onClick={handleSaveAsTemplate} style={{ padding: '4px 12px', background: '#eef2ff', color: '#4f46e5', borderRadius: 6, border: '1px solid #c7d2fe', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}><span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>save</span> حفظ كقالب</button>
             <button onClick={handleResetTemplate} style={{ padding: '4px 12px', background: '#f3f4f6', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, color: '#6b7280' }}>إعادة تعيين</button>
-            {templateLoaded && <span style={{ fontSize: 11, color: '#059669', alignSelf: 'center' }}>✓ قالب محفوظ</span>}
+            {templateLoaded && <span style={{ fontSize: 11, color: '#059669', alignSelf: 'center' }}><span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>check</span> قالب محفوظ</span>}
           </div>
         </div>
         <div style={{ padding: '16px 24px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
@@ -305,7 +260,7 @@ const ApprovedTab: React.FC<{ records: TardinessRow[]; onRefresh: () => void; sc
     const sent = allFilteredRecords.filter(r => r.isSent);
     if (sent.length === 0) { showError('لا يوجد سجلات تم إرسالها'); return; }
     const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
-    const rows: ListReportRow[] = sent.map((r, i) => ({ cells: [toIndic(i+1), `<span style="font-weight:bold">${escapeHtml(r.studentName)}</span>`, escapeHtml(r.grade+' / '+r.className), escapeHtml(TARDINESS_TYPES[r.tardinessType]?.label||r.tardinessType), toIndic(r.hijriDate||'-'), '<span style="color:green;font-weight:bold">تم</span>'] }));
+    const rows: ListReportRow[] = sent.map((r, i) => ({ cells: [toIndic(i+1), `<span style="font-weight:bold">${escapeHtml(r.studentName)}</span>`, escapeHtml(r.grade+' / '+classToLetter(r.className)), escapeHtml(TARDINESS_TYPES[r.tardinessType]?.label||r.tardinessType), toIndic(r.hijriDate||'-'), '<span style="color:green;font-weight:bold">تم</span>'] }));
     printListReport({ title: 'تقرير التواصل مع أولياء الأمور — التأخر' + (stageFilter !== '__all__' ? ' (' + stageFilter + ')' : ''), dateText: hijri + ' | عدد الطلاب: ' + toIndic(sent.length), headers: [{ label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '28%' }, { label: 'الصف', width: '12%' }, { label: 'نوع التأخر', width: '15%' }, { label: 'التاريخ', width: '15%' }, { label: 'التواصل', width: '10%' }], rows, summary: toIndic(sent.length) + ' سجل' }, schoolSettings as any);
   };
 
@@ -346,6 +301,7 @@ const ApprovedTab: React.FC<{ records: TardinessRow[]; onRefresh: () => void; sc
           {studentGroups.map(({ student, records: rList }) => {
             const morning = rList.filter(r => r.tardinessType === 'Morning').length;
             const period = rList.filter(r => r.tardinessType === 'Period').length;
+            const assembly = rList.filter(r => r.tardinessType === 'Assembly').length;
             const total = rList.length;
             const borderColor = total >= 10 ? '#dc2626' : total >= 7 ? '#f87171' : total >= 5 ? '#fb923c' : total >= 3 ? '#facc15' : '#e5e7eb';
             const badge = total >= 10 ? { t: 'متكرر جداً', bg: '#dc2626', c: '#fff' } : total >= 7 ? { t: 'متكرر', bg: '#fee2e2', c: '#991b1b' } : total >= 5 ? { t: 'ملاحظ', bg: '#ffedd5', c: '#9a3412' } : total >= 3 ? { t: 'تنبيه', bg: '#fef9c3', c: '#854d0e' } : null;
@@ -356,18 +312,19 @@ const ApprovedTab: React.FC<{ records: TardinessRow[]; onRefresh: () => void; sc
                   {badge && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 9999, background: badge.bg, color: badge.c }}>{badge.t}</span>}
                 </div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: '#1f2937' }}>{student.studentName}</div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>{student.grade} / {student.className}</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>{student.grade} / {classToLetter(student.className)}</div>
                 <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 10 }}>
                   {morning > 0 && <div style={{ flex: 1, textAlign: 'center', borderRadius: 8, padding: '6px 4px', background: '#fee2e2', border: '1px solid #fecaca' }}><div style={{ fontSize: 16, fontWeight: 900, color: '#dc2626' }}>{morning}</div><div style={{ fontSize: 8, color: '#dc2626' }}>صباحي</div></div>}
                   {period > 0 && <div style={{ flex: 1, textAlign: 'center', borderRadius: 8, padding: '6px 4px', background: '#fef3c7', border: '1px solid #fde68a' }}><div style={{ fontSize: 16, fontWeight: 900, color: '#d97706' }}>{period}</div><div style={{ fontSize: 8, color: '#d97706' }}>حصة</div></div>}
+                  {assembly > 0 && <div style={{ flex: 1, textAlign: 'center', borderRadius: 8, padding: '6px 4px', background: '#fef9c3', border: '1px solid #fde68a' }}><div style={{ fontSize: 16, fontWeight: 900, color: '#ca8a04' }}>{assembly}</div><div style={{ fontSize: 8, color: '#ca8a04' }}>اصطفاف</div></div>}
                 </div>
                 <div style={{ textAlign: 'center', fontSize: 11, color: '#7c3aed', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><span className="material-symbols-outlined" style={{ fontSize: 14 }}>open_in_new</span> عرض التفاصيل</div>
               </div>);
           })}
         </div>
       ) : (
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}><table className="data-table"><thead><tr><th>الطالب</th><th>الصف</th><th>العدد</th><th>صباحي</th><th>حصة</th><th style={{ textAlign: 'center' }}>تفاصيل</th></tr></thead><tbody>
-          {studentGroups.map(({ student, records: rList }) => (<tr key={student.studentId}><td style={{ fontWeight: 700 }}>{student.studentName}</td><td>{student.grade} ({student.className})</td><td style={{ fontWeight: 700, color: '#ea580c' }}>{rList.length}</td><td>{rList.filter(r => r.tardinessType === 'Morning').length}</td><td>{rList.filter(r => r.tardinessType === 'Period').length}</td><td style={{ textAlign: 'center' }}><button onClick={() => setDetailStudent({ studentId: student.studentId, studentName: student.studentName })} style={{ padding: '4px 12px', background: '#fff7ed', color: '#ea580c', borderRadius: 6, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>عرض</button></td></tr>))}
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}><table className="data-table"><thead><tr><th>الطالب</th><th>الصف</th><th>العدد</th><th>صباحي</th><th>حصة</th><th>اصطفاف</th><th style={{ textAlign: 'center' }}>تفاصيل</th></tr></thead><tbody>
+          {studentGroups.map(({ student, records: rList }) => (<tr key={student.studentId}><td style={{ fontWeight: 700 }}>{student.studentName}</td><td>{student.grade} ({classToLetter(student.className)})</td><td style={{ fontWeight: 700, color: '#ea580c' }}>{rList.length}</td><td>{rList.filter(r => r.tardinessType === 'Morning').length}</td><td>{rList.filter(r => r.tardinessType === 'Period').length}</td><td>{rList.filter(r => r.tardinessType === 'Assembly').length}</td><td style={{ textAlign: 'center' }}><button onClick={() => setDetailStudent({ studentId: student.studentId, studentName: student.studentName })} style={{ padding: '4px 12px', background: '#fff7ed', color: '#ea580c', borderRadius: 6, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>عرض</button></td></tr>))}
         </tbody></table></div>
       )}
 
@@ -383,10 +340,10 @@ const StudentDetailModal: React.FC<{ studentName: string; records: TardinessRow[
   const handlePrint = () => {
     const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
     const rows: ListReportRow[] = records.map((r, i) => ({ cells: [toIndic(i+1), toIndic(r.hijriDate||'-'), escapeHtml(TARDINESS_TYPES[r.tardinessType]?.label||r.tardinessType), toIndic(r.period||'-'), r.isSent ? '<span style="color:green;font-weight:bold">تم</span>' : '<span style="color:#999">لا</span>'] }));
-    printListReport({ title: `سجل التأخر — ${studentName}`, dateText: hijri, statsBar: `إجمالي: ${toIndic(records.length)} | صباحي: ${toIndic(records.filter(r=>r.tardinessType==='Morning').length)} | حصة: ${toIndic(records.filter(r=>r.tardinessType==='Period').length)}`, headers: [{ label: 'م', width: '8%' }, { label: 'التاريخ', width: '25%' }, { label: 'النوع', width: '25%' }, { label: 'الحصة', width: '20%' }, { label: 'الإرسال', width: '12%' }], rows, summary: `إجمالي: ${toIndic(records.length)} تأخر` }, schoolSettings as any);
+    printListReport({ title: `سجل التأخر — ${studentName}`, dateText: hijri, statsBar: `إجمالي: ${toIndic(records.length)} | صباحي: ${toIndic(records.filter(r=>r.tardinessType==='Morning').length)} | حصة: ${toIndic(records.filter(r=>r.tardinessType==='Period').length)} | اصطفاف: ${toIndic(records.filter(r=>r.tardinessType==='Assembly').length)}`, headers: [{ label: 'م', width: '8%' }, { label: 'التاريخ', width: '25%' }, { label: 'النوع', width: '25%' }, { label: 'الحصة', width: '20%' }, { label: 'الإرسال', width: '12%' }], rows, summary: `إجمالي: ${toIndic(records.length)} تأخر` }, schoolSettings as any);
   };
-  const handlePrintContact = () => { printForm('tawtheeq_tawasol', { studentName, grade: records[0] ? records[0].grade + ' / ' + records[0].className : '', contactType: 'تأخر', contactReason: 'تأخر متكرر', violationDate: new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura'), contactResult: 'تم التواصل عبر الواتساب' }, schoolSettings as any); };
-  const mc = records.filter(r => r.tardinessType === 'Morning').length, pc = records.filter(r => r.tardinessType === 'Period').length, sc = records.filter(r => r.isSent).length;
+  const handlePrintContact = () => { printForm('tawtheeq_tawasol', { studentName, grade: records[0] ? records[0].grade + ' / ' + classToLetter(records[0].className) : '', contactType: 'تأخر', contactReason: 'تأخر متكرر', violationDate: new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura'), contactResult: 'تم التواصل عبر الواتساب' }, schoolSettings as any); };
+  const mc = records.filter(r => r.tardinessType === 'Morning').length, pc = records.filter(r => r.tardinessType === 'Period').length, ac = records.filter(r => r.tardinessType === 'Assembly').length, sc = records.filter(r => r.isSent).length;
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,.6)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: '#fff', borderRadius: 20, boxShadow: '0 25px 50px rgba(0,0,0,.25)', width: '100%', maxWidth: 700, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -394,19 +351,20 @@ const StudentDetailModal: React.FC<{ studentName: string; records: TardinessRow[
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}><span className="material-symbols-outlined" style={{ fontSize: 20 }}>timer_off</span> {studentName}</h3>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={handlePrintContact} style={{ padding: '6px 12px', background: 'rgba(255,255,255,.2)', color: '#fff', borderRadius: 8, border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>contact_phone</span> توثيق تواصل</button>
-            <button onClick={onClose} style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.8)', fontSize: 24 }}>✕</button>
+            <button onClick={onClose} style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.8)', fontSize: 24 }}><span className="material-symbols-outlined" style={{ fontSize: 24 }}>close</span></button>
           </div>
         </div>
         <div style={{ padding: '16px 24px', overflowY: 'auto', flex: 1 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
             <div style={{ textAlign: 'center', padding: 10, background: '#fee2e2', borderRadius: 12, border: '1px solid #fecaca' }}><div style={{ fontSize: 20, fontWeight: 900, color: '#dc2626' }}>{records.length}</div><div style={{ fontSize: 10, color: '#dc2626' }}>الإجمالي</div></div>
             <div style={{ textAlign: 'center', padding: 10, background: '#ffedd5', borderRadius: 12, border: '1px solid #fed7aa' }}><div style={{ fontSize: 20, fontWeight: 900, color: '#ea580c' }}>{mc}</div><div style={{ fontSize: 10, color: '#ea580c' }}>صباحي</div></div>
             <div style={{ textAlign: 'center', padding: 10, background: '#fef3c7', borderRadius: 12, border: '1px solid #fde68a' }}><div style={{ fontSize: 20, fontWeight: 900, color: '#d97706' }}>{pc}</div><div style={{ fontSize: 10, color: '#d97706' }}>حصة</div></div>
+            <div style={{ textAlign: 'center', padding: 10, background: '#fef9c3', borderRadius: 12, border: '1px solid #fde68a' }}><div style={{ fontSize: 20, fontWeight: 900, color: '#ca8a04' }}>{ac}</div><div style={{ fontSize: 10, color: '#ca8a04' }}>اصطفاف</div></div>
             <div style={{ textAlign: 'center', padding: 10, background: '#dcfce7', borderRadius: 12, border: '1px solid #bbf7d0' }}><div style={{ fontSize: 20, fontWeight: 900, color: '#15803d' }}>{sc}</div><div style={{ fontSize: 10, color: '#15803d' }}>تم إرسالها</div></div>
           </div>
           <table className="data-table"><thead><tr><th>#</th><th>النوع</th><th>الحصة</th><th>التاريخ</th><th>المسجل</th><th>الإرسال</th></tr></thead><tbody>
             {records.map((r, i) => { const tt = TARDINESS_TYPES[r.tardinessType] || { label: r.tardinessType, color: '#374151', bg: '#f3f4f6' }; return (
-              <tr key={r.id}><td style={{ color: '#6b7280', textAlign: 'center' }}>{i+1}</td><td><span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, fontWeight: 700, background: tt.bg, color: tt.color }}>{tt.label}</span></td><td>{r.period||'-'}</td><td style={{ fontSize: 13 }}>{r.hijriDate}</td><td style={{ fontSize: 12, color: '#6b7280' }}>{r.recordedBy}</td><td>{r.isSent ? <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#15803d' }}>check_circle</span> : <span style={{ color: '#ea580c' }}>✗</span>}</td></tr>); })}
+              <tr key={r.id}><td style={{ color: '#6b7280', textAlign: 'center' }}>{i+1}</td><td><span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, fontWeight: 700, background: tt.bg, color: tt.color }}>{tt.label}</span></td><td>{r.period||'-'}</td><td style={{ fontSize: 13 }}>{r.hijriDate}</td><td style={{ fontSize: 12, color: '#6b7280' }}>{r.recordedBy}</td><td>{r.isSent ? <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#15803d' }}>check_circle</span> : <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#ea580c' }}>close</span>}</td></tr>); })}
           </tbody></table>
         </div>
         <div style={{ padding: '12px 24px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between' }}>
@@ -428,16 +386,16 @@ const ReportsTab: React.FC<{ records: TardinessRow[]; schoolSettings: Record<str
   const classes = useMemo(() => { if (!gradeFilter) return []; return Array.from(new Set(records.filter(r => r.grade === gradeFilter).map(r => r.className))).sort(); }, [records, gradeFilter]);
   const handleUpdate = () => { let l = records; if (gradeFilter) l = l.filter(r => r.grade === gradeFilter); if (classFilter) l = l.filter(r => r.className === classFilter); setFiltered(l); };
   useEffect(() => { setFiltered(records); }, [records]);
-  const mc = filtered.filter(r => r.tardinessType === 'Morning').length, pc = filtered.filter(r => r.tardinessType === 'Period').length;
+  const mc = filtered.filter(r => r.tardinessType === 'Morning').length, pc = filtered.filter(r => r.tardinessType === 'Period').length, ac = filtered.filter(r => r.tardinessType === 'Assembly').length;
   const uniqueStudents = new Set(filtered.map(r => r.studentId)).size;
-  const topStudents = useMemo(() => { const g = new Map<number, { name: string; grade: string; cls: string; count: number }>(); for (const r of filtered) { const x = g.get(r.studentId) || { name: r.studentName, grade: r.grade, cls: r.className, count: 0 }; x.count++; g.set(r.studentId, x); } return Array.from(g.entries()).map(([id, x]) => ({ id, ...x })).sort((a, b) => b.count - a.count).slice(0, 10); }, [filtered]);
-  const byClass = useMemo(() => { const g = new Map<string, number>(); for (const r of filtered) { const k = `${r.grade} ${r.className}`; g.set(k, (g.get(k)||0)+1); } return Array.from(g.entries()).map(([n, c]) => ({ name: n, count: c })).sort((a, b) => b.count - a.count); }, [filtered]);
+  const topStudents = useMemo(() => { const g = new Map<number, { name: string; grade: string; cls: string; count: number }>(); for (const r of filtered) { const x = g.get(r.studentId) || { name: r.studentName, grade: r.grade, cls: classToLetter(r.className), count: 0 }; x.count++; g.set(r.studentId, x); } return Array.from(g.entries()).map(([id, x]) => ({ id, ...x })).sort((a, b) => b.count - a.count).slice(0, 10); }, [filtered]);
+  const byClass = useMemo(() => { const g = new Map<string, number>(); for (const r of filtered) { const k = `${r.grade} ${classToLetter(r.className)}`; g.set(k, (g.get(k)||0)+1); } return Array.from(g.entries()).map(([n, c]) => ({ name: n, count: c })).sort((a, b) => b.count - a.count); }, [filtered]);
   const maxC = Math.max(...byClass.map(c => c.count), 1);
   const handlePrint = () => {
     if (topStudents.length === 0) { showError('لا يوجد بيانات'); return; }
     const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
     const rows: ListReportRow[] = topStudents.map((s, i) => ({ cells: [toIndic(i+1), `<span style="font-weight:bold">${escapeHtml(s.name)}</span>`, escapeHtml(s.grade+' '+s.cls), `<span style="font-weight:bold;color:#dc2626">${toIndic(s.count)}</span>`] }));
-    printListReport({ title: 'تقرير التأخر', dateText: hijri, statsBar: `الإجمالي: ${toIndic(filtered.length)} | صباحي: ${toIndic(mc)} | حصة: ${toIndic(pc)}`, headers: [{ label: 'م', width: '8%' }, { label: 'الطالب', width: '40%' }, { label: 'الصف', width: '25%' }, { label: 'العدد', width: '15%' }], rows, summary: `${toIndic(topStudents.length)} طالب` }, schoolSettings as any);
+    printListReport({ title: 'تقرير التأخر', dateText: hijri, statsBar: `الإجمالي: ${toIndic(filtered.length)} | صباحي: ${toIndic(mc)} | حصة: ${toIndic(pc)} | اصطفاف: ${toIndic(ac)}`, headers: [{ label: 'م', width: '8%' }, { label: 'الطالب', width: '40%' }, { label: 'الصف', width: '25%' }, { label: 'العدد', width: '15%' }], rows, summary: `${toIndic(topStudents.length)} طالب` }, schoolSettings as any);
   };
 
   return (
@@ -451,11 +409,12 @@ const ReportsTab: React.FC<{ records: TardinessRow[]; schoolSettings: Record<str
         </div>
       </div>
       {/* ★ 4 بطاقات: إجمالي(أحمر) + طلاب(أزرق) + صباحي(أصفر) + حصة(بنفسجي) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
         <div style={{ background: '#fff', padding: 16, borderRadius: 12, border: '1px solid #e5e7eb', borderRight: '4px solid #dc2626' }}><div style={{ fontSize: 28, fontWeight: 800, color: '#dc2626', marginBottom: 4 }}>{filtered.length}</div><div style={{ fontSize: 13, color: '#6b7280' }}>إجمالي التأخر</div></div>
         <div style={{ background: '#fff', padding: 16, borderRadius: 12, border: '1px solid #e5e7eb', borderRight: '4px solid #3b82f6' }}><div style={{ fontSize: 28, fontWeight: 800, color: '#3b82f6', marginBottom: 4 }}>{uniqueStudents}</div><div style={{ fontSize: 13, color: '#6b7280' }}>عدد الطلاب</div></div>
         <div style={{ background: '#fff', padding: 16, borderRadius: 12, border: '1px solid #e5e7eb', borderRight: '4px solid #f59e0b' }}><div style={{ fontSize: 28, fontWeight: 800, color: '#f59e0b', marginBottom: 4 }}>{mc}</div><div style={{ fontSize: 13, color: '#6b7280' }}>تأخر صباحي</div></div>
         <div style={{ background: '#fff', padding: 16, borderRadius: 12, border: '1px solid #e5e7eb', borderRight: '4px solid #8b5cf6' }}><div style={{ fontSize: 28, fontWeight: 800, color: '#8b5cf6', marginBottom: 4 }}>{pc}</div><div style={{ fontSize: 13, color: '#6b7280' }}>تأخر حصة</div></div>
+        <div style={{ background: '#fff', padding: 16, borderRadius: 12, border: '1px solid #e5e7eb', borderRight: '4px solid #ca8a04' }}><div style={{ fontSize: 28, fontWeight: 800, color: '#ca8a04', marginBottom: 4 }}>{ac}</div><div style={{ fontSize: 13, color: '#6b7280' }}>تأخر اصطفاف</div></div>
       </div>
       {/* ★ عمودين: أكثر الطلاب + حسب الفصل */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
@@ -483,11 +442,6 @@ const ReportsTab: React.FC<{ records: TardinessRow[]; schoolSettings: Record<str
 };
 
 // ============================== Shared ==============================
-const FilterBtn: React.FC<{ label: string; count: number; active: boolean; onClick: () => void; color: string }> = ({ label, count, active, onClick, color }) => (
-  <button onClick={onClick} style={{ padding: '6px 16px', borderRadius: 8, fontSize: 14, fontWeight: 700, background: active ? '#fff' : 'transparent', color: active ? color : '#6b7280', boxShadow: active ? '0 1px 3px rgba(0,0,0,.1)' : 'none', border: 'none', cursor: 'pointer' }}>
-    {label} <span style={{ fontSize: 12, color: active ? color : '#9ca3af' }}>({count})</span>
-  </button>
-);
 const ConfirmModal: React.FC<{ title: string; message: string; onConfirm: () => void; onCancel: () => void }> = ({ title, message, onConfirm, onCancel }) => (
   <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,.6)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
     <div style={{ background: '#fff', borderRadius: 20, boxShadow: '0 25px 50px rgba(0,0,0,.25)', width: '100%', maxWidth: 400, padding: 24 }}>
@@ -503,7 +457,7 @@ const ConfirmModal: React.FC<{ title: string; message: string; onConfirm: () => 
 
 // ============================== Add Tardiness Modal ==============================
 const AddTardinessModal: React.FC<{ stages: StageConfigData[]; stageFilter: string; onClose: () => void; onSaved: () => void }> = ({ stageFilter, onClose, onSaved }) => {
-  const [selectedStudents, setSelectedStudents] = useState<import('../components/shared/StudentSelector').StudentOption[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<StudentOption[]>([]);
   const [tardinessType, setTardinessType] = useState('Morning');
   const [period, setPeriod] = useState('');
   const [saving, setSaving] = useState(false);
@@ -553,6 +507,10 @@ const AddTardinessModal: React.FC<{ stages: StageConfigData[]; stageFilter: stri
           <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', border: `2px solid ${tardinessType === 'Period' ? '#f59e0b' : '#d1d5db'}`, background: tardinessType === 'Period' ? '#fffbeb' : '#fff', borderRadius: 8, cursor: 'pointer' }}>
             <input type="radio" name="tard-type" checked={tardinessType === 'Period'} onChange={() => setTardinessType('Period')} />
             <span style={{ fontWeight: 700, color: tardinessType === 'Period' ? '#d97706' : '#374151' }}>تأخر حصة</span>
+          </label>
+          <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', border: `2px solid ${tardinessType === 'Assembly' ? '#ca8a04' : '#d1d5db'}`, background: tardinessType === 'Assembly' ? '#fef9c3' : '#fff', borderRadius: 8, cursor: 'pointer' }}>
+            <input type="radio" name="tard-type" checked={tardinessType === 'Assembly'} onChange={() => { setTardinessType('Assembly'); setPeriod(''); }} />
+            <span style={{ fontWeight: 700, color: tardinessType === 'Assembly' ? '#ca8a04' : '#374151' }}>تأخر اصطفاف</span>
           </label>
         </div>
       </div>

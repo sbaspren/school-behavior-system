@@ -3,7 +3,7 @@ using SchoolBehaviorSystem.Domain.Interfaces;
 
 namespace SchoolBehaviorSystem.Domain.Entities;
 
-public class PermissionRecord : ITenantEntity
+public class PermissionRecord : ITenantEntity, IStudentRecord
 {
     public int Id { get; set; }
     public int TenantId { get; set; } = 1;
@@ -23,6 +23,8 @@ public class PermissionRecord : ITenantEntity
     public DateTime RecordedAt { get; set; } = DateTime.UtcNow;
     public string ConfirmationTime { get; set; } = "";   // وقت التأكيد
     public bool IsSent { get; set; }
+    public int Semester { get; set; } = 1;               // الفصل الدراسي
+    public string AcademicYear { get; set; } = "";       // السنة الهجرية
 
     public Student Student { get; set; } = null!;
 }

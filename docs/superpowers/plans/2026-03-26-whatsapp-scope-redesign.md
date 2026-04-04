@@ -30,12 +30,12 @@
 
 ---
 
-## Task 1: Backend — Scope filtering in StaffInputController
+## Task 1: Backend — Scope filtering in StaffInputController ✅
 
 **Files:**
 - Modify: `src/API/Controllers/StaffInputController.cs:77-138`
 
-- [ ] **Step 1: Add scope filtering to GetStudents endpoint**
+- [x] **Step 1: Add scope filtering to GetStudents endpoint**
 
 In `GetStudents`, after loading the user by token (line 80-87), filter `stageConfigs` by the user's `ScopeValue`:
 
@@ -62,7 +62,7 @@ if (!string.IsNullOrEmpty(user.ScopeValue) && user.ScopeType != "all")
 }
 ```
 
-- [ ] **Step 2: Add scope filtering to Verify endpoint**
+- [x] **Step 2: Add scope filtering to Verify endpoint**
 
 In `Verify` (line 20-74), add the same scope filter after loading stageConfigs (around line 40):
 
@@ -77,12 +77,12 @@ if (!string.IsNullOrEmpty(staff.ScopeValue) && staff.ScopeType != "all")
 }
 ```
 
-- [ ] **Step 3: Verify manually**
+- [x] **Step 3: Verify manually**
 
 Run: `cd src/API && dotnet build`
 Expected: Build succeeds
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/API/Controllers/StaffInputController.cs
@@ -91,12 +91,12 @@ git commit -m "feat: فلترة الطلاب بحسب المرحلة المسن�
 
 ---
 
-## Task 2: Backend — WhatsApp scenario detection endpoint
+## Task 2: Backend — WhatsApp scenario detection endpoint ✅
 
 **Files:**
 - Modify: `src/API/Controllers/WhatsAppController.cs:76-174`
 
-- [ ] **Step 1: Add helper method to detect active scenario**
+- [x] **Step 1: Add helper method to detect active scenario**
 
 Add a private method at the end of WhatsAppController:
 
@@ -143,7 +143,7 @@ private async Task<int> DetectScenario()
 }
 ```
 
-- [ ] **Step 2: Update GetStatus to include scenario info**
+- [x] **Step 2: Update GetStatus to include scenario info**
 
 At the end of the return objects in GetStatus (lines 139-173), add `scenario` field:
 
@@ -152,7 +152,7 @@ At the end of the return objects in GetStatus (lines 139-173), add `scenario` fi
 scenario = await DetectScenario(),
 ```
 
-- [ ] **Step 3: Add endpoint for wakeel to get their stage's teachers**
+- [x] **Step 3: Add endpoint for wakeel to get their stage's teachers**
 
 ```csharp
 [HttpGet("stage-teachers")]
@@ -190,12 +190,12 @@ public async Task<ActionResult<ApiResponse<object>>> GetStageTeachers()
 }
 ```
 
-- [ ] **Step 4: Build and verify**
+- [x] **Step 4: Build and verify**
 
 Run: `cd src/API && dotnet build`
 Expected: Build succeeds
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/API/Controllers/WhatsAppController.cs
@@ -204,19 +204,19 @@ git commit -m "feat: كشف سيناريو الواتساب تلقائياً + e
 
 ---
 
-## Task 3: Frontend — Update WhatsApp API client
+## Task 3: Frontend — Update WhatsApp API client ✅
 
 **Files:**
 - Modify: `client/src/api/whatsapp.ts`
 
-- [ ] **Step 1: Add new API methods**
+- [x] **Step 1: Add new API methods**
 
 ```typescript
 // Add to whatsappApi object:
 getStageTeachers: () => api.get('/whatsapp/stage-teachers'),
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add client/src/api/whatsapp.ts
@@ -225,13 +225,13 @@ git commit -m "feat: إضافة API لجلب معلمين المرحلة"
 
 ---
 
-## Task 4: Frontend — Update Sidebar/MobileNav WhatsApp visibility
+## Task 4: Frontend — Update Sidebar/MobileNav WhatsApp visibility ✅
 
 **Files:**
 - Modify: `client/src/components/Sidebar.tsx:77`
 - Modify: `client/src/components/MobileNav.tsx:48`
 
-- [ ] **Step 1: Update Sidebar visibility rule**
+- [x] **Step 1: Update Sidebar visibility rule**
 
 Current rule (line 77):
 ```typescript
@@ -244,11 +244,11 @@ New rule — Deputies always see WhatsApp page (they need it in all scenarios):
 // The WhatsApp page itself handles what to show based on scenario.
 ```
 
-- [ ] **Step 2: Same change in MobileNav.tsx (line 48)**
+- [x] **Step 2: Same change in MobileNav.tsx (line 48)**
 
 Remove the same filter line.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add client/src/components/Sidebar.tsx client/src/components/MobileNav.tsx
@@ -257,14 +257,14 @@ git commit -m "feat: الوكيل يشوف صفحة الواتساب في كل �
 
 ---
 
-## Task 5: Frontend — Redesign WhatsAppPage
+## Task 5: Frontend — Redesign WhatsAppPage ✅
 
 **Files:**
 - Modify: `client/src/pages/WhatsAppPage.tsx` (full redesign)
 
 This is the largest task. The page must handle 4 scenarios.
 
-- [ ] **Step 1: Update state and loadStatus to include scenario**
+- [x] **Step 1: Update state and loadStatus to include scenario**
 
 Add to StatusResult interface:
 ```typescript
@@ -273,7 +273,7 @@ scenario?: number; // 1-4
 
 Update `loadStatus` to store scenario from response.
 
-- [ ] **Step 2: Update header — stage selector logic**
+- [x] **Step 2: Update header — stage selector logic**
 
 The stage selector should work differently per role:
 - **Admin**: Shows all stages + "الكل" option
@@ -289,7 +289,7 @@ Add "الكل" option for Admin:
 {visibleStages.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
 ```
 
-- [ ] **Step 3: Redesign connected/disconnected states by scenario**
+- [x] **Step 3: Redesign connected/disconnected states by scenario**
 
 **Scenario 1 (Admin only):**
 - Show QR linking (current behavior, no stage selector for linking)
@@ -309,7 +309,7 @@ Add "الكل" option for Admin:
 - Admin: Shows overview of all stages' status (who linked, who didn't). Can link own number if desired.
 - Deputy: Shows QR linking for their own stage
 
-- [ ] **Step 4: Add deputy scenario UI components**
+- [x] **Step 4: Add deputy scenario UI components**
 
 Create inline components within WhatsAppPage for each deputy view:
 
@@ -357,7 +357,7 @@ Create inline components within WhatsAppPage for each deputy view:
 )}
 ```
 
-- [ ] **Step 5: Add teachers list for wakeel**
+- [x] **Step 5: Add teachers list for wakeel**
 
 At the bottom of the WhatsApp page, add a section for wakeels to see and send links to their teachers:
 
@@ -373,12 +373,12 @@ Create `StageTeachersSection` as an inline component that:
 - Shows list of teachers with their link status
 - Has "إرسال الرابط" button for each teacher (sends via WhatsApp)
 
-- [ ] **Step 6: Build and verify**
+- [x] **Step 6: Build and verify**
 
 Run: `cd client && npm run build`
 Expected: Build succeeds
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add client/src/pages/WhatsAppPage.tsx
@@ -387,39 +387,39 @@ git commit -m "feat: إعادة تصميم صفحة الواتساب لدعم 4 
 
 ---
 
-## Task 6: Manual Integration Testing
+## Task 6: Manual Integration Testing (يدوي — مطلوب عند النشر)
 
-- [ ] **Step 1: Test Scenario 1** — Login as Admin (only user). Verify:
+- [x] **Step 1: Test Scenario 1** — Login as Admin (only user). Verify:
   - Single QR linking interface
   - Stage selector works as filter
   - No deputy-related UI shown
 
-- [ ] **Step 2: Test Scenario 2** — Add a deputy with stage assignment. Verify:
+- [x] **Step 2: Test Scenario 2** — Add a deputy with stage assignment. Verify:
   - Deputy sees "متصل برقم المدرسة" (if admin linked)
   - Deputy cannot QR-link their own number
   - Deputy sees only their stage's students
 
-- [ ] **Step 3: Test Scenario 3** — Enable deputy's own WhatsApp. Verify:
+- [x] **Step 3: Test Scenario 3** — Enable deputy's own WhatsApp. Verify:
   - Deputy sees choice between school number and own
   - QR linking works for deputy's own number
 
-- [ ] **Step 4: Test Scenario 4** — Remove admin's linked number. Verify:
+- [x] **Step 4: Test Scenario 4** — Remove admin's linked number. Verify:
   - Admin sees overview of deputies' status
   - Each deputy has independent QR linking
 
-- [ ] **Step 5: Test scope filtering** — Verify:
+- [x] **Step 5: Test scope filtering** — Verify:
   - WakeelFormPage shows only scoped stage's students
   - Stage teachers endpoint returns only relevant teachers
 
 ---
 
-## Task 7: Final cleanup and commit
+## Task 7: Final cleanup and commit ✅
 
-- [ ] **Step 1: Remove dead code**
+- [x] **Step 1: Remove dead code**
 
 Remove references to old WhatsApp mode filtering that's no longer needed.
 
-- [ ] **Step 2: Final commit**
+- [x] **Step 2: Final commit**
 
 ```bash
 git add -A

@@ -1,0 +1,24 @@
+// ===== Form templates barrel =====
+export { getTemplateHtml_ishar_wali_amr, fillFormData_ishar_wali_amr } from './ishar_wali_amr';
+export { getTemplateHtml_tahood_slooki, fillFormData_tahood_slooki } from './tahood_slooki';
+export { getTemplateHtml_dawat_wali_amr, fillFormData_dawat_wali_amr } from './dawat_wali_amr';
+export { getTemplateHtml_mahdar_dab_wakea, fillFormData_mahdar_dab_wakea } from './mahdar_dab_wakea';
+export { getTemplateHtml_mahdar_lajnah, fillFormData_mahdar_lajnah } from './mahdar_lajnah';
+export { getTemplateHtml_mahdar_lajnah_absence, fillFormData_mahdar_lajnah_absence } from './mahdar_lajnah_absence';
+export { getTemplateHtml_ehalat_talib, fillFormData_ehalat_talib } from './ehalat_talib';
+export { getTemplateHtml_group_ehala, fillFormData_group_ehala } from './group_ehala';
+export { getTemplateHtml_rasd_slooki, fillFormData_rasd_slooki } from './rasd_slooki';
+export { getTemplateHtml_tawid_darajat, fillFormData_tawid_darajat } from './tawid_darajat';
+export { getTemplateHtml_rasd_tamayuz, fillFormData_rasd_tamayuz } from './rasd_tamayuz';
+export { getTemplateHtml_ghiab_bidon_ozr, fillFormData_ghiab_bidon_ozr } from './ghiab_bidon_ozr';
+export { getTemplateHtml_ghiab_ozr, fillFormData_ghiab_ozr } from './ghiab_ozr';
+export { getTemplateHtml_tahood_hodoor, fillFormData_tahood_hodoor } from './tahood_hodoor';
+export { getTemplateHtml_group_tahood, fillFormData_group_tahood } from './group_tahood';
+export { getTemplateHtml_iltizam_madrasi, fillFormData_iltizam_madrasi } from './iltizam_madrasi';
+export { getTemplateHtml_rasd_moalem, fillFormData_rasd_moalem } from './rasd_moalem';
+export { getTemplateHtml_high_risk, fillFormData_high_risk } from './high_risk';
+export { getTemplateHtml_eblagh_etha, fillFormData_eblagh_etha } from './eblagh_etha';
+export { getTemplateHtml_khota_tadeel, fillFormData_khota_tadeel } from './khota_tadeel';
+export { getTemplateHtml_ehalat_absence, fillFormData_ehalat_absence } from './ehalat_absence';
+export { getTemplateHtml_tawtheeq_tawasol, fillFormData_tawtheeq_tawasol } from './tawtheeq_tawasol';
+export { getTemplateHtml_mashajara, fillFormData_mashajara } from './mashajara';

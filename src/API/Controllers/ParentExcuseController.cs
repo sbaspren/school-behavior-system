@@ -17,7 +17,8 @@ public class ParentExcuseController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IWhatsAppServerService _wa;
-    public ParentExcuseController(AppDbContext db, IWhatsAppServerService wa) { _db = db; _wa = wa; }
+    private readonly IHijriDateService _hijri;
+    public ParentExcuseController(AppDbContext db, IWhatsAppServerService wa, IHijriDateService hijri) { _db = db; _wa = wa; _hijri = hijri; }
 
     // ── 1. Get all excuses (admin view) ──
     [HttpGet]
@@ -26,7 +27,9 @@ public class ParentExcuseController : ControllerBase
     {
         var q = _db.ParentExcuses.AsQueryable();
 
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
+        // ★ عزل المراحل — الوكيل يرى مرحلته فقط
+        var effectiveStage = EnforceScopeStage(stage);
+        if (!string.IsNullOrEmpty(effectiveStage) && Enum.TryParse<Stage>(effectiveStage, true, out var stageEnum))
             q = q.Where(e => e.Stage == stageEnum);
         if (!string.IsNullOrEmpty(status))
             q = q.Where(e => e.Status == status);
@@ -40,7 +43,9 @@ public class ParentExcuseController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> GetPendingCount([FromQuery] string? stage = null)
     {
         var q = _db.ParentExcuses.Where(e => e.Status == "معلق");
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
+        // ★ عزل المراحل
+        var effectiveStage = EnforceScopeStage(stage);
+        if (!string.IsNullOrEmpty(effectiveStage) && Enum.TryParse<Stage>(effectiveStage, true, out var stageEnum))
             q = q.Where(e => e.Stage == stageEnum);
 
         var count = await q.CountAsync();
@@ -111,7 +116,8 @@ public class ParentExcuseController : ControllerBase
         if (string.IsNullOrEmpty(token))
             return BadRequest(ApiResponse<object>.Fail("الرمز مطلوب"));
 
-        var accessCode = await _db.ParentAccessCodes
+        // ★ IgnoreQueryFilters — بدون JWT لا يوجد TenantId، نفلتر يدوياً
+        var accessCode = await _db.ParentAccessCodes.IgnoreQueryFilters()
             .FirstOrDefaultAsync(c => c.Code == token);
 
         if (accessCode == null)
@@ -123,24 +129,29 @@ public class ParentExcuseController : ControllerBase
         if (accessCode.IsUsed)
             return BadRequest(ApiResponse<object>.Fail("تم تقديم العذر مسبقا عبر هذا الرابط. شكرا لتعاونكم."));
 
-        // Get student info
-        var student = await _db.Students
-            .FirstOrDefaultAsync(s => s.StudentNumber == accessCode.StudentNumber && s.Stage == accessCode.Stage);
+        // ★ نستخرج TenantId من الـ AccessCode
+        var codeTenantId = accessCode.TenantId;
+        HttpContext.Items["OverrideTenantId"] = codeTenantId;
+
+        // Get student info — IgnoreQueryFilters + manual TenantId filter
+        var student = await _db.Students.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(s => s.TenantId == codeTenantId && s.StudentNumber == accessCode.StudentNumber && s.Stage == accessCode.Stage);
 
         if (student == null)
             return NotFound(ApiResponse<object>.Fail("لم يتم العثور على بيانات الطالب"));
 
         // Get absence stats from cumulative
-        var cumAbsence = await _db.CumulativeAbsences
-            .FirstOrDefaultAsync(a => a.StudentId == student.Id && a.Stage == accessCode.Stage);
+        var cumAbsence = await _db.CumulativeAbsences.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(a => a.TenantId == codeTenantId && a.StudentId == student.Id && a.Stage == accessCode.Stage);
 
         // Get school name
-        var schoolSettings = await _db.SchoolSettings.FirstOrDefaultAsync();
+        var schoolSettings = await _db.SchoolSettings.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(s => s.TenantId == codeTenantId);
 
         // مطابق لـ getParentExcusePageData_ في Server_ParentExcuse.gs سطر 102-137
         var dayNames = new[] { "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت" };
         var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
-            TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time"));
+            TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh"));
         var hijriDate = now.ToString("yyyy/MM/dd", new CultureInfo("ar-SA"));
         var dayName = dayNames[(int)now.DayOfWeek];
 
@@ -183,7 +194,8 @@ public class ParentExcuseController : ControllerBase
         if (request.Reason.Length > 500)
             return BadRequest(ApiResponse<object>.Fail("سبب الغياب يجب أن لا يتجاوز 500 حرف"));
 
-        var accessCode = await _db.ParentAccessCodes
+        // ★ IgnoreQueryFilters — بدون JWT
+        var accessCode = await _db.ParentAccessCodes.IgnoreQueryFilters()
             .FirstOrDefaultAsync(c => c.Code == request.Token);
 
         if (accessCode == null)
@@ -195,9 +207,12 @@ public class ParentExcuseController : ControllerBase
         if (accessCode.IsUsed)
             return BadRequest(ApiResponse<object>.Fail("تم تقديم العذر مسبقا عبر هذا الرابط. لا يمكن إرساله مرة أخرى."));
 
-        // Get student
-        var student = await _db.Students
-            .FirstOrDefaultAsync(s => s.StudentNumber == accessCode.StudentNumber && s.Stage == accessCode.Stage);
+        // ★ نستخرج TenantId من الـ AccessCode لـ SaveChangesAsync
+        HttpContext.Items["OverrideTenantId"] = accessCode.TenantId;
+
+        // Get student — IgnoreQueryFilters + manual TenantId filter
+        var student = await _db.Students.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(s => s.TenantId == accessCode.TenantId && s.StudentNumber == accessCode.StudentNumber && s.Stage == accessCode.Stage);
 
         if (student == null)
             return NotFound(ApiResponse<object>.Fail("لم يتم العثور على الطالب"));
@@ -314,6 +329,7 @@ public class ParentExcuseController : ControllerBase
                 MessageTitle = "رد على عذر غياب",
                 MessageBody = request.Message,
                 SendStatus = "تم",
+                HijriDate = _hijri.GetHijriDate(),
                 MiladiDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
                 SentBy = request.SentBy ?? ""
             });
@@ -321,6 +337,18 @@ public class ParentExcuseController : ControllerBase
         }
 
         return Ok(ApiResponse<object>.Ok(new { success = sent }));
+    }
+
+    /// <summary>
+    /// ★ عزل المراحل — الوكيل يرى مرحلته فقط
+    /// </summary>
+    private string? EnforceScopeStage(string? requestedStage)
+    {
+        var scopeType = User.FindFirst("scope_type")?.Value;
+        var scopeValue = User.FindFirst("scope_value")?.Value;
+        if (string.IsNullOrEmpty(scopeType) || scopeType == "all") return requestedStage;
+        if (scopeType == "stage" && !string.IsNullOrEmpty(scopeValue)) return scopeValue;
+        return requestedStage;
     }
 }
 

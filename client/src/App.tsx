@@ -35,6 +35,7 @@ import ReportsPage from './pages/ReportsPage';
 import GeneralFormsPage from './pages/GeneralFormsPage';
 import HistoryPage from './pages/HistoryPage';
 import ParentExcusePublicPage from './pages/ParentExcusePublicPage';
+import PortfolioPage from './pages/portfolio';
 import './App.css';
 
 function getStoredUser(): AuthUser | null {
@@ -55,6 +56,7 @@ const ROUTE_ROLES: Record<string, string[]> = {
   '/noor':           ['Admin', 'Deputy', 'Counselor'],
   '/communication':  ['Admin', 'Deputy', 'Counselor'],
   '/parent-excuse':  ['Admin', 'Deputy', 'Counselor'],
+  '/portfolio':      ['Admin', 'Deputy', 'Counselor'],
 };
 
 function ProtectedRoute({ role, path, children }: { role: string; path: string; children: React.ReactNode }) {
@@ -71,14 +73,8 @@ function AuthenticatedLayout({ user, onLogout, expiringBanner }: {
   onLogout: () => void;
   expiringBanner: { days: number } | null;
 }) {
-  const { schoolSettings, refresh } = useAppContext();
+  const { schoolSettings } = useAppContext();
   const schoolName = schoolSettings.schoolName || '';
-  const [refreshing, setRefreshing] = useState(false);
-
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try { await refresh(); } finally { setRefreshing(false); }
-  }, [refresh]);
 
   return (
     <div style={{ display: 'flex', direction: 'rtl', fontFamily: "'Cairo', 'IBM Plex Sans Arabic', sans-serif", minHeight: '100vh' }}>
@@ -92,24 +88,16 @@ function AuthenticatedLayout({ user, onLogout, expiringBanner }: {
           boxShadow: '0 1px 3px rgba(0,0,0,.04)', zIndex: 10, gap: '8px',
         }}>
           <NotificationBell />
-          <button
-            id="refreshBtn"
-            onClick={handleRefresh}
-            style={{
-              opacity: refreshing ? 0.5 : 1, pointerEvents: refreshing ? 'none' : 'auto',
-              display: 'flex', alignItems: 'center', gap: '4px',
-              padding: '6px 12px', background: '#f8f7ff', color: '#4f46e5',
-              borderRadius: '8px', border: '1px solid #e8e8ff', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-              transition: 'all .2s ease',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>refresh</span>
-            تحديث
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 12px', background: '#fafbfc', borderRadius: '10px', border: '1px solid #f0f2f7' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 14px', background: '#fafbfc', borderRadius: '10px', border: '1px solid #f0f2f7' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#6b7280' }}>person</span>
             <span style={{ fontSize: '13px', color: '#1a1d2e', fontWeight: 700 }}>{user.name}</span>
-            <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#d1d5db' }} />
-            <span style={{ fontSize: '11px', color: '#9da3b8', fontWeight: 600 }}>{user.role}</span>
+            <span style={{
+              fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px',
+              background: user.role === 'Admin' ? '#eef2ff' : '#f0fdf4',
+              color: user.role === 'Admin' ? '#4f46e5' : '#15803d',
+            }}>
+              {{ Admin: 'مدير', Teacher: 'معلم', Counselor: 'مرشد', Wakeel: 'وكيل' }[user.role] || user.role}
+            </span>
           </div>
           <button onClick={onLogout} style={{
             display: 'flex', alignItems: 'center', gap: '4px',
@@ -157,6 +145,7 @@ function AuthenticatedLayout({ user, onLogout, expiringBanner }: {
             <Route path="/audit-log" element={<AuditLogPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/general-forms" element={<ProtectedRoute role={user.role} path="/general-forms"><GeneralFormsPage /></ProtectedRoute>} />
+            <Route path="/portfolio" element={<ProtectedRoute role={user.role} path="/portfolio"><PortfolioPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute role={user.role} path="/settings"><SettingsPage /></ProtectedRoute>} />
             <Route path="/" element={<DashboardPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

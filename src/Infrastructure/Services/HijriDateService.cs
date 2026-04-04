@@ -9,6 +9,9 @@ namespace SchoolBehaviorSystem.Infrastructure.Services;
 /// </summary>
 public class HijriDateService : IHijriDateService
 {
+    private static readonly TimeZoneInfo SaudiTz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh");
+    private static DateTime SaudiNow => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, SaudiTz);
+
     private static readonly string[] HijriMonths =
     [
         "محرم", "صفر", "ربيع الأول", "ربيع الآخر",
@@ -164,13 +167,13 @@ public class HijriDateService : IHijriDateService
     {
         try
         {
-            var d = date ?? DateTime.Now;
+            var d = date ?? SaudiNow;
             var h = ConvertToHijri(d);
-            return $"{h.Year}/{h.Month}/{h.Day}";
+            return $"{h.Year}/{h.Month:D2}/{h.Day:D2}";
         }
         catch
         {
-            return (date ?? DateTime.Now).ToString("yyyy/MM/dd");
+            return (date ?? SaudiNow).ToString("yyyy/MM/dd");
         }
     }
 
@@ -179,7 +182,7 @@ public class HijriDateService : IHijriDateService
     {
         try
         {
-            var d = date ?? DateTime.Now;
+            var d = date ?? SaudiNow;
             var h = ConvertToHijri(d);
             return new HijriDateFull
             {

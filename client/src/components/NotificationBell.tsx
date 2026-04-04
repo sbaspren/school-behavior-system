@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSignalR } from '../hooks/useSignalR';
+import { classToLetter } from '../utils/printUtils';
 
 const NOTIF_ICONS: Record<string, string> = {
   violation: 'gavel',
@@ -46,7 +47,7 @@ function buildMessage(type: string, data: any): string {
     case 'violation':
       return `${data.studentName} — ${data.violation} (درجة ${data.degree})`;
     case 'absence':
-      return `${data.studentName} — ${data.className}`;
+      return `${data.studentName} — ${classToLetter(data.className)}`;
     case 'permission':
       return `${data.studentName} — ${data.reason}`;
     case 'tardiness':

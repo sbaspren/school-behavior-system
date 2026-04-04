@@ -49,6 +49,7 @@ export const whatsappApi = {
 
   // QR Code
   getQR: () => api.get('/whatsapp/qr'),
+  pollQR: (sessionId: string) => api.get(`/whatsapp/qr/poll?sessionId=${encodeURIComponent(sessionId)}`),
   // inspectQREndpoint — تشخيص صفحة QR من السيرفر (مطابق GAS سطر 601)
   inspectQR: () => api.get('/whatsapp/qr/inspect'),
 

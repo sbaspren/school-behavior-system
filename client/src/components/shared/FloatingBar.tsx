@@ -37,7 +37,6 @@ const FloatingBar: React.FC<Props> = ({ count, actions, onCancel }) => {
       backdropFilter: 'blur(10px)',
       animation: 'floatBarIn 0.3s ease',
     }}>
-      <style>{`@keyframes floatBarIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`}</style>
       <span style={{ fontWeight: 800, fontSize: 14 }}>
         <span className="material-symbols-outlined" style={{ fontSize: 18, verticalAlign: 'middle', marginLeft: 4 }}>check_box</span>
         تم تحديد {count}

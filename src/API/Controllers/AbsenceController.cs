@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
-using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using SchoolBehaviorSystem.Application.DTOs.Responses;
 using SchoolBehaviorSystem.Application.Interfaces;
+using SchoolBehaviorSystem.API.Controllers.Base;
 using SchoolBehaviorSystem.Domain.Entities;
 using SchoolBehaviorSystem.Domain.Enums;
 using SchoolBehaviorSystem.Infrastructure.Data;
@@ -14,16 +15,10 @@ namespace SchoolBehaviorSystem.API.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class AbsenceController : ControllerBase
+public class AbsenceController : RecordControllerBase
 {
-    private readonly AppDbContext _db;
-    private readonly IWhatsAppServerService _wa;
-
-    public AbsenceController(AppDbContext db, IWhatsAppServerService wa)
-    {
-        _db = db;
-        _wa = wa;
-    }
+    public AbsenceController(AppDbContext db, IWhatsAppServerService wa, IHijriDateService hijri, ISemesterService semesterSvc, IMemoryCache cache)
+        : base(db, wa, hijri, semesterSvc, cache) { }
 
     [HttpGet]
     public async Task<ActionResult<ApiResponse<List<object>>>> GetAll(
@@ -38,31 +33,15 @@ public class AbsenceController : ControllerBase
         [FromQuery] bool? isSent = null,
         [FromQuery] string? search = null)
     {
-        var query = _db.DailyAbsences.AsQueryable();
+        var query = ApplyCommonFilters(
+            Db.DailyAbsences.AsQueryable(),
+            stage, grade, className, studentId, dateFrom, dateTo, isSent, search);
 
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
-        if (!string.IsNullOrEmpty(grade))
-            query = query.Where(r => r.Grade == grade);
-        if (!string.IsNullOrEmpty(className))
-            query = query.Where(r => r.Class == className);
-        if (studentId.HasValue)
-            query = query.Where(r => r.StudentId == studentId.Value);
+        // Entity-specific filters
         if (!string.IsNullOrEmpty(hijriDate))
             query = query.Where(r => r.HijriDate == hijriDate);
-        if (!string.IsNullOrEmpty(dateFrom))
-            query = query.Where(r => string.Compare(r.HijriDate, dateFrom) >= 0);
-        if (!string.IsNullOrEmpty(dateTo))
-            query = query.Where(r => string.Compare(r.HijriDate, dateTo) <= 0);
         if (!string.IsNullOrEmpty(excuseType) && Enum.TryParse<ExcuseType>(excuseType, true, out var et))
             query = query.Where(r => r.ExcuseType == et);
-        if (isSent.HasValue)
-            query = query.Where(r => r.IsSent == isSent.Value);
-        if (!string.IsNullOrEmpty(search))
-        {
-            var q = search.ToLower();
-            query = query.Where(r => r.StudentName.ToLower().Contains(q) || r.StudentNumber.Contains(q));
-        }
 
         var records = await query
             .OrderByDescending(r => r.RecordedAt)
@@ -90,10 +69,7 @@ public class AbsenceController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> GetDailyStats([FromQuery] string? stage = null)
     {
         var today = DateTime.UtcNow.Date;
-        var query = _db.DailyAbsences.Where(r => r.RecordedAt >= today);
-
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
+        var query = ApplyStageFilter(Db.DailyAbsences.Where(r => r.RecordedAt >= today), stage);
 
         var todayRecords = await query.ToListAsync();
 
@@ -114,7 +90,7 @@ public class AbsenceController : ControllerBase
         if (request.StudentId <= 0)
             return Ok(ApiResponse.Fail("الطالب مطلوب"));
 
-        var student = await _db.Students.FindAsync(request.StudentId);
+        var student = await Db.Students.FindAsync(request.StudentId);
         if (student == null)
             return Ok(ApiResponse.Fail("الطالب غير موجود"));
 
@@ -123,15 +99,7 @@ public class AbsenceController : ControllerBase
 
         var hijriDate = request.HijriDate;
         if (string.IsNullOrEmpty(hijriDate))
-        {
-            try
-            {
-                var cal = new UmAlQuraCalendar();
-                var now = DateTime.Now;
-                hijriDate = $"{cal.GetYear(now)}/{cal.GetMonth(now):D2}/{cal.GetDayOfMonth(now):D2}";
-            }
-            catch { hijriDate = ""; }
-        }
+            hijriDate = Hijri.GetHijriDate();
 
         var record = new DailyAbsence
         {
@@ -151,8 +119,9 @@ public class AbsenceController : ControllerBase
             Notes = request.Notes ?? ""
         };
 
-        _db.DailyAbsences.Add(record);
-        await _db.SaveChangesAsync();
+        await StampSemesterAsync(record);
+        Db.DailyAbsences.Add(record);
+        await Db.SaveChangesAsync();
 
         await UpdateCumulativeAbsence(request.StudentId, student);
 
@@ -168,25 +137,17 @@ public class AbsenceController : ControllerBase
 
         var hijriDate = request.HijriDate;
         if (string.IsNullOrEmpty(hijriDate))
-        {
-            try
-            {
-                var cal = new UmAlQuraCalendar();
-                var now = DateTime.Now;
-                hijriDate = $"{cal.GetYear(now)}/{cal.GetMonth(now):D2}/{cal.GetDayOfMonth(now):D2}";
-            }
-            catch { hijriDate = ""; }
-        }
+            hijriDate = Hijri.GetHijriDate();
 
         if (!Enum.TryParse<AbsenceType>(request.AbsenceType, true, out var absenceType))
             absenceType = AbsenceType.FullDay;
 
-        var students = await _db.Students.Where(s => request.StudentIds.Contains(s.Id)).ToListAsync();
+        var students = await Db.Students.Where(s => request.StudentIds.Contains(s.Id)).ToListAsync();
         var added = 0;
 
         foreach (var student in students)
         {
-            _db.DailyAbsences.Add(new DailyAbsence
+            var batchRecord = new DailyAbsence
             {
                 StudentId = student.Id,
                 StudentNumber = student.StudentNumber,
@@ -202,11 +163,13 @@ public class AbsenceController : ControllerBase
                 RecordedBy = request.RecordedBy ?? "",
                 RecordedAt = DateTime.UtcNow,
                 Notes = request.Notes ?? ""
-            });
+            };
+            await StampSemesterAsync(batchRecord);
+            Db.DailyAbsences.Add(batchRecord);
             added++;
         }
 
-        await _db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
 
         foreach (var student in students)
             await UpdateCumulativeAbsence(student.Id, student);
@@ -217,7 +180,7 @@ public class AbsenceController : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse>> Update(int id, [FromBody] AbsenceUpdateRequest request)
     {
-        var record = await _db.DailyAbsences.FindAsync(id);
+        var record = await Db.DailyAbsences.FindAsync(id);
         if (record == null)
             return Ok(ApiResponse.Fail("السجل غير موجود"));
 
@@ -234,9 +197,9 @@ public class AbsenceController : ControllerBase
         if (request.NoorStatus != null)
             record.NoorStatus = request.NoorStatus;
 
-        await _db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
 
-        var student = await _db.Students.FindAsync(record.StudentId);
+        var student = await Db.Students.FindAsync(record.StudentId);
         if (student != null)
             await UpdateCumulativeAbsence(record.StudentId, student);
 
@@ -247,12 +210,12 @@ public class AbsenceController : ControllerBase
     [HttpPut("{id}/late-status")]
     public async Task<ActionResult<ApiResponse>> UpdateLateStatus(int id, [FromBody] LateStatusRequest request)
     {
-        var record = await _db.DailyAbsences.FindAsync(id);
+        var record = await Db.DailyAbsences.FindAsync(id);
         if (record == null) return Ok(ApiResponse.Fail("السجل غير موجود"));
 
         record.TardinessStatus = request.Status ?? "";
         record.ArrivalTime = request.ArrivalTime ?? "";
-        await _db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
         return Ok(ApiResponse.Ok("تم تحديث حالة التأخر"));
     }
 
@@ -260,14 +223,14 @@ public class AbsenceController : ControllerBase
     [HttpPut("{id}/excuse-type")]
     public async Task<ActionResult<ApiResponse>> UpdateExcuseType(int id, [FromBody] ExcuseTypeRequest request)
     {
-        var record = await _db.DailyAbsences.FindAsync(id);
+        var record = await Db.DailyAbsences.FindAsync(id);
         if (record == null) return Ok(ApiResponse.Fail("السجل غير موجود"));
 
         if (Enum.TryParse<ExcuseType>(request.ExcuseType, true, out var et))
             record.ExcuseType = et;
-        await _db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
 
-        var student = await _db.Students.FindAsync(record.StudentId);
+        var student = await Db.Students.FindAsync(record.StudentId);
         if (student != null) await UpdateCumulativeAbsence(record.StudentId, student);
 
         return Ok(ApiResponse.Ok("تم تحديث نوع العذر"));
@@ -275,59 +238,25 @@ public class AbsenceController : ControllerBase
 
     // تحديث حالة الإرسال
     [HttpPut("{id}/sent")]
-    public async Task<ActionResult<ApiResponse>> UpdateSentStatus(int id, [FromBody] UpdateSentRequest request)
+    public async Task<ActionResult<ApiResponse>> UpdateSentStatus(int id, [FromBody] CommonUpdateSentRequest request)
     {
-        var record = await _db.DailyAbsences.FindAsync(id);
-        if (record == null) return Ok(ApiResponse.Fail("السجل غير موجود"));
-        record.IsSent = request.IsSent;
-        await _db.SaveChangesAsync();
-        return Ok(ApiResponse.Ok("تم تحديث حالة الإرسال"));
+        return await UpdateSentStatusAsync(Db.DailyAbsences, id, request.IsSent);
     }
 
     // تحديث حالة الإرسال - جماعي
     // ← مطابق لـ updateAbsenceSentStatus(stage, rowIndices) في Server_Absence_Daily.gs سطر 400
     [HttpPut("sent-batch")]
-    public async Task<ActionResult<ApiResponse<object>>> UpdateSentStatusBatch([FromBody] BulkIdsRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> UpdateSentStatusBatch([FromBody] CommonBulkIdsRequest request)
     {
-        if (request.Ids == null || request.Ids.Count == 0)
-            return Ok(ApiResponse<object>.Fail("لا توجد سجلات محددة"));
-
-        var records = await _db.DailyAbsences
-            .Where(r => request.Ids.Contains(r.Id))
-            .ToListAsync();
-
-        foreach (var r in records) r.IsSent = true;
-        await _db.SaveChangesAsync();
-
-        return Ok(ApiResponse<object>.Ok(new { updatedCount = records.Count }));
+        return await UpdateSentBatchAsync(Db.DailyAbsences, request.Ids);
     }
 
     // إرسال واتساب
     [HttpPost("{id}/send-whatsapp")]
     public async Task<ActionResult<ApiResponse<object>>> SendWhatsApp(int id, [FromBody] SendAbsWhatsAppRequest request)
     {
-        var record = await _db.DailyAbsences.FindAsync(id);
+        var record = await Db.DailyAbsences.FindAsync(id);
         if (record == null) return Ok(ApiResponse<object>.Fail("السجل غير موجود"));
-
-        if (string.IsNullOrEmpty(record.Mobile))
-            return Ok(ApiResponse<object>.Fail("لا يوجد رقم جوال"));
-
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
-        if (settings == null || string.IsNullOrEmpty(settings.ServerUrl))
-            return Ok(ApiResponse<object>.Fail("إعدادات الواتساب غير مكتملة"));
-
-        var senderPhone = request.SenderPhone;
-        if (string.IsNullOrEmpty(senderPhone))
-        {
-            var session = await _db.WhatsAppSessions
-                .Where(s => s.IsPrimary && s.Stage == record.Stage.ToString())
-                .FirstOrDefaultAsync();
-            session ??= await _db.WhatsAppSessions.Where(s => s.IsPrimary).FirstOrDefaultAsync();
-            senderPhone = session?.PhoneNumber ?? "";
-        }
-
-        if (string.IsNullOrEmpty(senderPhone))
-            return Ok(ApiResponse<object>.Fail("لا يوجد رقم مرسل"));
 
         // مطابق لـ sendSingleAbsenceWithLink في Server_Absence_Daily.gs سطر 753-829
         var message = request.Message;
@@ -336,122 +265,149 @@ public class AbsenceController : ControllerBase
             message = await BuildAbsenceWhatsAppMessage(record, request.IncludeLink);
         }
 
-        var sent = await _wa.SendMessageAsync(settings.ServerUrl, senderPhone, record.Mobile, message);
-
-        if (sent)
-        {
-            record.IsSent = true;
-            _db.CommunicationLogs.Add(new CommunicationLog
-            {
-                StudentId = record.StudentId, StudentNumber = record.StudentNumber,
-                StudentName = record.StudentName, Grade = record.Grade, Class = record.Class,
-                Stage = record.Stage, Mobile = record.Mobile,
-                MessageType = "غياب", MessageTitle = "إشعار غياب",
-                MessageBody = message, SendStatus = "تم",
-                MiladiDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
-                SentBy = request.SentBy ?? ""
-            });
-            await _db.SaveChangesAsync();
-        }
-
-        return Ok(ApiResponse<object>.Ok(new { success = sent }));
+        return await SendWhatsAppSingleAsync(
+            record, record.Mobile, message,
+            request.SenderPhone,
+            "غياب",
+            "إشعار غياب",
+            request.SentBy ?? "");
     }
 
     // إرسال جماعي
     [HttpPost("send-whatsapp-bulk")]
-    public async Task<ActionResult<ApiResponse<object>>> SendWhatsAppBulk([FromBody] BulkSendWhatsAppRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> SendWhatsAppBulk([FromBody] CommonBulkSendWhatsAppRequest request)
     {
         if (request.Ids == null || request.Ids.Count == 0)
             return Ok(ApiResponse<object>.Fail("لا توجد سجلات محددة"));
 
-        var settings = await _db.WhatsAppSettings.FirstOrDefaultAsync();
-        if (settings == null || string.IsNullOrEmpty(settings.ServerUrl))
-            return Ok(ApiResponse<object>.Fail("إعدادات الواتساب غير مكتملة"));
+        var records = await Db.DailyAbsences.Where(r => request.Ids.Contains(r.Id)).ToListAsync();
 
-        var records = await _db.DailyAbsences.Where(r => request.Ids.Contains(r.Id)).ToListAsync();
-        int sentCount = 0, failedCount = 0;
+        // مطابق لـ sendAbsenceNotifications في Server_Absence_Daily.gs سطر 630-733
+        var (sentCount, failedCount, total) = await SendWhatsAppBulkCoreAsync(
+            records,
+            r => r.Mobile,
+            async r => await BuildAbsenceWhatsAppMessage(r, true),
+            request.SenderPhone,
+            "غياب",
+            _ => "إشعار غياب",
+            request.SentBy ?? "",
+            speed: request.Speed,
+            customDelaySeconds: request.CustomDelaySeconds);
 
-        foreach (var record in records)
-        {
-            if (string.IsNullOrEmpty(record.Mobile)) { failedCount++; continue; }
-
-            var senderPhone = request.SenderPhone;
-            if (string.IsNullOrEmpty(senderPhone))
-            {
-                var session = await _db.WhatsAppSessions
-                    .Where(s => s.IsPrimary && s.Stage == record.Stage.ToString())
-                    .FirstOrDefaultAsync();
-                session ??= await _db.WhatsAppSessions.Where(s => s.IsPrimary).FirstOrDefaultAsync();
-                senderPhone = session?.PhoneNumber ?? "";
-            }
-            if (string.IsNullOrEmpty(senderPhone)) { failedCount++; continue; }
-
-            // مطابق لـ sendAbsenceNotifications في Server_Absence_Daily.gs سطر 630-733
-            var message = await BuildAbsenceWhatsAppMessage(record, true);
-
-            var sent = await _wa.SendMessageAsync(settings.ServerUrl, senderPhone, record.Mobile, message);
-            if (sent)
-            {
-                record.IsSent = true;
-                sentCount++;
-                _db.CommunicationLogs.Add(new CommunicationLog
-                {
-                    StudentId = record.StudentId, StudentNumber = record.StudentNumber,
-                    StudentName = record.StudentName, Grade = record.Grade, Class = record.Class,
-                    Stage = record.Stage, Mobile = record.Mobile,
-                    MessageType = "غياب", MessageTitle = "إشعار غياب",
-                    MessageBody = message, SendStatus = "تم",
-                    MiladiDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
-                    SentBy = request.SentBy ?? ""
-                });
-            }
-            else failedCount++;
-            await Task.Delay(10_000); // ★ 10 ثوان بين كل رسالة — مطابق لـ Utilities.sleep(10000) في Server_Absence_Daily.gs سطر 721
-        }
-
-        await _db.SaveChangesAsync();
-        return Ok(ApiResponse<object>.Ok(new { sentCount, failedCount, total = records.Count }));
+        return Ok(ApiResponse<object>.Ok(new { sentCount, failedCount, total }));
     }
 
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse>> Delete(int id)
     {
-        var record = await _db.DailyAbsences.FindAsync(id);
-        if (record == null) return Ok(ApiResponse.Fail("السجل غير موجود"));
+        return await DeleteRecordAsync(Db.DailyAbsences, id,
+            postDeleteAction: async record =>
+            {
+                var student = await Db.Students.FindAsync(record.StudentId);
+                if (student != null) await UpdateCumulativeAbsence(record.StudentId, student);
+            });
+    }
 
-        var sid = record.StudentId;
-        _db.DailyAbsences.Remove(record);
-        await _db.SaveChangesAsync();
-
-        var student = await _db.Students.FindAsync(sid);
-        if (student != null) await UpdateCumulativeAbsence(sid, student);
-
-        return Ok(ApiResponse.Ok("تم حذف السجل بنجاح"));
+    [HttpPost("update-type-bulk")]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateTypeBulk([FromBody] BulkUpdateTypeRequest request)
+    {
+        if (!Enum.TryParse<AbsenceType>(request.AbsenceType, true, out var at))
+            return BadRequest(ApiResponse.Fail("نوع غياب غير صالح"));
+        var items = await Db.DailyAbsences
+            .Where(r => request.Ids.Contains(r.Id))
+            .ToListAsync();
+        foreach (var item in items)
+            item.AbsenceType = at;
+        await Db.SaveChangesAsync();
+        var count = items.Count;
+        return Ok(ApiResponse<object>.Ok((object)new { updated = count }, $"تم تحديث {count} سجل"));
     }
 
     [HttpPost("delete-bulk")]
-    public async Task<ActionResult<ApiResponse<object>>> DeleteBulk([FromBody] BulkIdsRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> DeleteBulk([FromBody] CommonBulkIdsRequest request)
     {
-        if (request.Ids == null || request.Ids.Count == 0)
-            return Ok(ApiResponse<object>.Fail("لا توجد سجلات محددة"));
-        var records = await _db.DailyAbsences.Where(r => request.Ids.Contains(r.Id)).ToListAsync();
-        var studentIds = records.Select(r => r.StudentId).Distinct().ToList();
-        _db.DailyAbsences.RemoveRange(records);
-        await _db.SaveChangesAsync();
+        return await DeleteBulkAsync(Db.DailyAbsences, request.Ids,
+            postDeleteAction: async records =>
+            {
+                var studentIds = records.Select(r => r.StudentId).Distinct().ToList();
+                foreach (var sid in studentIds)
+                {
+                    var student = await Db.Students.FindAsync(sid);
+                    if (student != null) await UpdateCumulativeAbsence(sid, student);
+                }
+            });
+    }
 
-        foreach (var sid in studentIds)
+    // حذف جميع سجلات الاستيراد من نور — لإعادة الاستيراد بعد التصحيح
+    [HttpDelete("import-noor")]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteNoorImports()
+    {
+        var noorRecords = await Db.DailyAbsences
+            .Where(a => a.RecordedBy == "مستورد من نظام نور")
+            .ToListAsync();
+
+        if (noorRecords.Count == 0)
+            return Ok(ApiResponse<object>.Ok(new { deletedCount = 0, message = "لا توجد سجلات مستوردة من نور" }));
+
+        var affectedStudentIds = noorRecords.Select(r => r.StudentId).Distinct().ToList();
+        Db.DailyAbsences.RemoveRange(noorRecords);
+        await Db.SaveChangesAsync();
+
+        // إعادة حساب التراكمي للطلاب المتأثرين
+        foreach (var sid in affectedStudentIds)
         {
-            var student = await _db.Students.FindAsync(sid);
+            var student = await Db.Students.FindAsync(sid);
             if (student != null) await UpdateCumulativeAbsence(sid, student);
         }
 
-        return Ok(ApiResponse<object>.Ok(new { deletedCount = records.Count }));
+        return Ok(ApiResponse<object>.Ok(new { deletedCount = noorRecords.Count, message = $"تم حذف {noorRecords.Count} سجل وإعادة حساب التراكمي" }));
+    }
+
+    // حذف سجلات المنصة المستوردة (استيراد منصة)
+    [HttpDelete("import-platform")]
+    public async Task<ActionResult<ApiResponse<object>>> DeletePlatformImports()
+    {
+        var platformRecords = await Db.DailyAbsences
+            .Where(a => a.RecordedBy == "استيراد منصة")
+            .ToListAsync();
+
+        if (platformRecords.Count == 0)
+            return Ok(ApiResponse<object>.Ok(new { deletedCount = 0, message = "لا توجد سجلات مستوردة من المنصة" }));
+
+        var affectedStudentIds = platformRecords.Select(r => r.StudentId).Distinct().ToList();
+        Db.DailyAbsences.RemoveRange(platformRecords);
+        await Db.SaveChangesAsync();
+
+        // إعادة حساب التراكمي للطلاب المتأثرين
+        foreach (var sid in affectedStudentIds)
+        {
+            var student = await Db.Students.FindAsync(sid);
+            if (student != null) await UpdateCumulativeAbsence(sid, student);
+        }
+
+        return Ok(ApiResponse<object>.Ok(new { deletedCount = platformRecords.Count, message = $"تم حذف {platformRecords.Count} سجل مستورد من المنصة" }));
+    }
+
+    // حذف جميع سجلات الغياب اليومي + التراكمي
+    [HttpDelete("all")]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteAll()
+    {
+        var dailyCount = await Db.DailyAbsences.IgnoreQueryFilters().CountAsync();
+        var cumulativeCount = await Db.CumulativeAbsences.IgnoreQueryFilters().CountAsync();
+
+        var allDaily = await Db.DailyAbsences.IgnoreQueryFilters().ToListAsync();
+        var allCumulative = await Db.CumulativeAbsences.IgnoreQueryFilters().ToListAsync();
+        Db.DailyAbsences.RemoveRange(allDaily);
+        Db.CumulativeAbsences.RemoveRange(allCumulative);
+        await Db.SaveChangesAsync();
+
+        return Ok(ApiResponse<object>.Ok(new { dailyCount, cumulativeCount, message = $"تم حذف {dailyCount} سجل يومي و {cumulativeCount} سجل تراكمي" }));
     }
 
     [HttpGet("cumulative/{studentId}")]
     public async Task<ActionResult<ApiResponse<object>>> GetCumulative(int studentId)
     {
-        var cumulative = await _db.CumulativeAbsences
+        var cumulative = await Db.CumulativeAbsences
             .Where(c => c.StudentId == studentId)
             .Select(c => new
             {
@@ -469,8 +425,10 @@ public class AbsenceController : ControllerBase
     [HttpGet("cumulative")]
     public async Task<ActionResult<ApiResponse<List<object>>>> GetAllCumulative([FromQuery] string? stage = null)
     {
-        var query = _db.CumulativeAbsences.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
+        var query = Db.CumulativeAbsences.AsQueryable();
+        // ★ عزل المراحل — الوكيل يرى مرحلته فقط
+        var effectiveStage = EnforceScopeStage(stage);
+        if (!string.IsNullOrEmpty(effectiveStage) && Enum.TryParse<Stage>(effectiveStage, true, out var stageEnum))
             query = query.Where(c => c.Stage == stageEnum);
 
         var records = await query
@@ -492,8 +450,8 @@ public class AbsenceController : ControllerBase
     [HttpGet("student-count/{studentId}")]
     public async Task<ActionResult<ApiResponse<object>>> GetStudentCount(int studentId)
     {
-        var count = await _db.DailyAbsences.CountAsync(r => r.StudentId == studentId);
-        var cumulative = await _db.CumulativeAbsences.FirstOrDefaultAsync(c => c.StudentId == studentId);
+        var count = await Db.DailyAbsences.CountAsync(r => r.StudentId == studentId);
+        var cumulative = await Db.CumulativeAbsences.FirstOrDefaultAsync(c => c.StudentId == studentId);
         return Ok(ApiResponse<object>.Ok(new
         {
             total = count,
@@ -507,13 +465,15 @@ public class AbsenceController : ControllerBase
     [HttpGet("report")]
     public async Task<ActionResult<ApiResponse<object>>> GetReport([FromQuery] string? stage = null)
     {
-        var query = _db.DailyAbsences.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
+        var query = ApplyStageFilter(Db.DailyAbsences.AsQueryable(), stage);
 
-        var records = await query.ToListAsync();
+        // إحصائيات مجمّعة على مستوى قاعدة البيانات
+        var total = await query.CountAsync();
+        var excused = await query.CountAsync(r => r.ExcuseType == ExcuseType.Excused);
+        var unexcused = await query.CountAsync(r => r.ExcuseType == ExcuseType.Unexcused);
 
-        var topStudents = records.GroupBy(r => new { r.StudentId, r.StudentName, r.Grade, r.Class })
+        var topStudents = await query
+            .GroupBy(r => new { r.StudentId, r.StudentName, r.Grade, r.Class })
             .Select(g => new
             {
                 g.Key.StudentId, g.Key.StudentName, g.Key.Grade, className = g.Key.Class,
@@ -521,25 +481,26 @@ public class AbsenceController : ControllerBase
                 excused = g.Count(r => r.ExcuseType == ExcuseType.Excused),
                 unexcused = g.Count(r => r.ExcuseType == ExcuseType.Unexcused)
             })
-            .OrderByDescending(x => x.count).Take(10).ToList();
+            .OrderByDescending(x => x.count).Take(10).ToListAsync();
 
-        var byClass = records.GroupBy(r => new { r.Grade, r.Class })
+        var byClass = await query
+            .GroupBy(r => new { r.Grade, r.Class })
             .Select(g => new { g.Key.Grade, className = g.Key.Class, count = g.Count() })
-            .OrderByDescending(x => x.count).ToList();
+            .OrderByDescending(x => x.count).ToListAsync();
 
-        var byDay = records.GroupBy(r => string.IsNullOrEmpty(r.DayName) ? "غير محدد" : r.DayName)
+        var byDay = await query
+            .GroupBy(r => r.DayName == null || r.DayName == "" ? "غير محدد" : r.DayName)
             .Select(g => new { day = g.Key, count = g.Count() })
-            .OrderByDescending(x => x.count).ToList();
+            .OrderByDescending(x => x.count).ToListAsync();
 
-        var byExcuse = records.GroupBy(r => r.ExcuseType)
+        var byExcuse = await query
+            .GroupBy(r => r.ExcuseType)
             .Select(g => new { type = g.Key.ToString(), count = g.Count() })
-            .ToList();
+            .ToListAsync();
 
         return Ok(ApiResponse<object>.Ok(new
         {
-            total = records.Count,
-            excused = records.Count(r => r.ExcuseType == ExcuseType.Excused),
-            unexcused = records.Count(r => r.ExcuseType == ExcuseType.Unexcused),
+            total, excused, unexcused,
             topStudents, byClass, byDay, byExcuse
         }));
     }
@@ -548,9 +509,7 @@ public class AbsenceController : ControllerBase
     [HttpGet("export")]
     public async Task<ActionResult> ExportCsv([FromQuery] string? stage = null)
     {
-        var query = _db.DailyAbsences.AsQueryable();
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
+        var query = ApplyStageFilter(Db.DailyAbsences.AsQueryable(), stage);
 
         var records = await query.OrderByDescending(r => r.RecordedAt).ToListAsync();
         var sb = new StringBuilder();
@@ -572,15 +531,7 @@ public class AbsenceController : ControllerBase
 
         var hijriDate = request.HijriDate;
         if (string.IsNullOrEmpty(hijriDate))
-        {
-            try
-            {
-                var cal = new UmAlQuraCalendar();
-                var now = DateTime.Now;
-                hijriDate = $"{cal.GetYear(now)}/{cal.GetMonth(now):D2}/{cal.GetDayOfMonth(now):D2}";
-            }
-            catch { hijriDate = ""; }
-        }
+            hijriDate = Hijri.GetHijriDate();
 
         var dayName = request.DayName ?? "";
         var recorderLabel = request.Source == "platform" ? "استيراد منصة" : "مستورد من نظام نور";
@@ -594,20 +545,20 @@ public class AbsenceController : ControllerBase
 
             // ★ المحاولة 1: بالرقم (رقم الهوية)
             if (!string.IsNullOrEmpty(s.StudentNumber))
-                student = await _db.Students.FirstOrDefaultAsync(st => st.StudentNumber == s.StudentNumber);
+                student = await Db.Students.FirstOrDefaultAsync(st => st.StudentNumber == s.StudentNumber);
 
             if (student == null && !string.IsNullOrEmpty(s.Name))
             {
                 var cleanName = s.Name.Trim();
 
                 // ★ المحاولة 2: تطابق كامل بعد تنظيف المسافات
-                student = await _db.Students.FirstOrDefaultAsync(st => st.Name == cleanName);
+                student = await Db.Students.FirstOrDefaultAsync(st => st.Name == cleanName);
 
                 // ★ المحاولة 3: بدون "بن" / "ابن"
                 if (student == null)
                 {
                     var noBenName = cleanName.Replace(" بن ", " ").Replace(" ابن ", " ");
-                    student = await _db.Students.FirstOrDefaultAsync(st => 
+                    student = await Db.Students.FirstOrDefaultAsync(st => 
                         st.Name.Replace(" بن ", " ").Replace(" ابن ", " ") == noBenName);
                 }
 
@@ -616,7 +567,7 @@ public class AbsenceController : ControllerBase
                 {
                     var normalName = NormalizeArabicName(cleanName);
                     var firstName = cleanName.Split(' ')[0];
-                    var candidates = await _db.Students
+                    var candidates = await Db.Students
                         .Where(st => st.Name.Contains(firstName))
                         .ToListAsync();
                     student = candidates.FirstOrDefault(c => NormalizeArabicName(c.Name) == normalName);
@@ -630,7 +581,7 @@ public class AbsenceController : ControllerBase
                     {
                         var first = parts[0];
                         var last = parts[^1];
-                        var matches = await _db.Students
+                        var matches = await Db.Students
                             .Where(st => st.Name.StartsWith(first) && st.Name.EndsWith(last))
                             .ToListAsync();
                         if (matches.Count == 1)
@@ -644,7 +595,10 @@ public class AbsenceController : ControllerBase
             if (!Enum.TryParse<AbsenceType>(s.AbsenceType, true, out var absType))
                 absType = AbsenceType.FullDay;
 
-            _db.DailyAbsences.Add(new DailyAbsence
+            if (!Enum.TryParse<ExcuseType>(s.ExcuseType, true, out var excType))
+                excType = ExcuseType.Unexcused;
+
+            var importRecord = new DailyAbsence
             {
                 StudentId = student.Id,
                 StudentNumber = student.StudentNumber,
@@ -654,20 +608,23 @@ public class AbsenceController : ControllerBase
                 Stage = student.Stage,
                 Mobile = student.Mobile,
                 AbsenceType = absType,
+                ExcuseType = excType,
                 Period = "",
                 HijriDate = hijriDate,
                 DayName = dayName,
                 RecordedBy = recorderLabel,
                 RecordedAt = DateTime.UtcNow,
                 Notes = notes
-            });
+            };
+            await StampSemesterAsync(importRecord);
+            Db.DailyAbsences.Add(importRecord);
             saved++;
         }
 
-        await _db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
 
         // Update cumulative for saved students
-        var savedStudentIds = await _db.DailyAbsences
+        var savedStudentIds = await Db.DailyAbsences
             .Where(a => a.Notes == notes && a.RecordedBy == recorderLabel)
             .OrderByDescending(a => a.RecordedAt)
             .Take(saved)
@@ -677,7 +634,7 @@ public class AbsenceController : ControllerBase
 
         foreach (var sid in savedStudentIds)
         {
-            var st = await _db.Students.FindAsync(sid);
+            var st = await Db.Students.FindAsync(sid);
             if (st != null) await UpdateCumulativeAbsence(sid, st);
         }
 
@@ -693,10 +650,10 @@ public class AbsenceController : ControllerBase
     [HttpPut("cumulative/{studentId}")]
     public async Task<ActionResult<ApiResponse>> UpdateCumulativeManual(int studentId, [FromBody] CumulativeUpdateRequest request)
     {
-        var student = await _db.Students.FindAsync(studentId);
+        var student = await Db.Students.FindAsync(studentId);
         if (student == null) return Ok(ApiResponse.Fail("الطالب غير موجود"));
 
-        var cumulative = await _db.CumulativeAbsences
+        var cumulative = await Db.CumulativeAbsences
             .FirstOrDefaultAsync(c => c.StudentId == studentId);
 
         if (cumulative == null)
@@ -710,7 +667,10 @@ public class AbsenceController : ControllerBase
                 Class = student.Class,
                 Stage = student.Stage
             };
-            _db.CumulativeAbsences.Add(cumulative);
+            var (sem, yr) = await SemesterSvc.GetCurrentAsync();
+            cumulative.Semester = sem;
+            cumulative.AcademicYear = yr;
+            Db.CumulativeAbsences.Add(cumulative);
         }
 
         if (request.ExcusedDays.HasValue) cumulative.ExcusedDays = request.ExcusedDays.Value;
@@ -718,7 +678,7 @@ public class AbsenceController : ControllerBase
         if (request.LateDays.HasValue) cumulative.LateDays = request.LateDays.Value;
         cumulative.LastUpdated = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
         return Ok(ApiResponse.Ok("تم تحديث السجل التراكمي"));
     }
 
@@ -732,7 +692,7 @@ public class AbsenceController : ControllerBase
             return Ok(ApiResponse<object>.Fail("لا توجد بيانات للاستيراد"));
 
         // جلب جميع الطلاب للمطابقة بالاسم
-        var allStudents = await _db.Students.ToListAsync();
+        var allStudents = await Db.Students.ToListAsync();
         var studentsByNormName = allStudents
             .GroupBy(s => NormalizeArabicName(s.Name))
             .ToDictionary(g => g.Key, g => g.First());
@@ -752,7 +712,7 @@ public class AbsenceController : ControllerBase
                 continue;
             }
 
-            var cumulative = await _db.CumulativeAbsences
+            var cumulative = await Db.CumulativeAbsences
                 .FirstOrDefaultAsync(c => c.StudentId == student.Id);
 
             if (cumulative == null)
@@ -766,7 +726,10 @@ public class AbsenceController : ControllerBase
                     Class = student.Class,
                     Stage = student.Stage
                 };
-                _db.CumulativeAbsences.Add(cumulative);
+                var (sem, yr) = await SemesterSvc.GetCurrentAsync();
+                cumulative.Semester = sem;
+                cumulative.AcademicYear = yr;
+                Db.CumulativeAbsences.Add(cumulative);
             }
 
             cumulative.LateDays = row.Late;
@@ -776,7 +739,7 @@ public class AbsenceController : ControllerBase
             updated++;
         }
 
-        await _db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
 
         return Ok(ApiResponse<object>.Ok(new
         {
@@ -795,18 +758,9 @@ public class AbsenceController : ControllerBase
         [FromQuery] string? dateFrom = null,
         [FromQuery] string? dateTo = null)
     {
-        var query = _db.DailyAbsences.AsQueryable();
-
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
-        if (!string.IsNullOrEmpty(grade))
-            query = query.Where(r => r.Grade == grade);
-        if (!string.IsNullOrEmpty(className))
-            query = query.Where(r => r.Class == className);
-        if (!string.IsNullOrEmpty(dateFrom))
-            query = query.Where(r => string.Compare(r.HijriDate, dateFrom) >= 0);
-        if (!string.IsNullOrEmpty(dateTo))
-            query = query.Where(r => string.Compare(r.HijriDate, dateTo) <= 0);
+        var query = ApplyCommonFilters(
+            Db.DailyAbsences.AsQueryable(),
+            stage, grade, className, dateFrom: dateFrom, dateTo: dateTo);
 
         var records = await query.ToListAsync();
 
@@ -841,10 +795,8 @@ public class AbsenceController : ControllerBase
         [FromQuery] string? stage = null,
         [FromQuery] string? hijriDate = null)
     {
-        var query = _db.DailyAbsences.AsQueryable();
+        var query = ApplyStageFilter(Db.DailyAbsences.AsQueryable(), stage);
 
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
-            query = query.Where(r => r.Stage == stageEnum);
         if (!string.IsNullOrEmpty(hijriDate))
             query = query.Where(r => r.HijriDate == hijriDate);
 
@@ -871,15 +823,15 @@ public class AbsenceController : ControllerBase
 
     private async Task UpdateCumulativeAbsence(int studentId, Student student)
     {
-        var absences = await _db.DailyAbsences
+        var absences = await Db.DailyAbsences
             .Where(a => a.StudentId == studentId && a.AbsenceType == AbsenceType.FullDay)
             .ToListAsync();
 
         var excused = absences.Count(a => a.ExcuseType == ExcuseType.Excused);
         var unexcused = absences.Count(a => a.ExcuseType == ExcuseType.Unexcused);
-        var lateDays = await _db.TardinessRecords.CountAsync(t => t.StudentId == studentId);
+        var lateDays = await Db.TardinessRecords.CountAsync(t => t.StudentId == studentId);
 
-        var cumulative = await _db.CumulativeAbsences
+        var cumulative = await Db.CumulativeAbsences
             .FirstOrDefaultAsync(c => c.StudentId == studentId);
 
         if (cumulative == null)
@@ -893,15 +845,25 @@ public class AbsenceController : ControllerBase
                 Class = student.Class,
                 Stage = student.Stage
             };
-            _db.CumulativeAbsences.Add(cumulative);
+            var (sem, yr) = await SemesterSvc.GetCurrentAsync();
+            cumulative.Semester = sem;
+            cumulative.AcademicYear = yr;
+            Db.CumulativeAbsences.Add(cumulative);
         }
+
+        // تحديث بيانات الطالب دائماً (قد تتغير بعد تصحيح الأسماء/الصفوف)
+        cumulative.StudentNumber = student.StudentNumber;
+        cumulative.StudentName = student.Name;
+        cumulative.Grade = student.Grade;
+        cumulative.Class = student.Class;
+        cumulative.Stage = student.Stage;
 
         cumulative.ExcusedDays = excused;
         cumulative.UnexcusedDays = unexcused;
         cumulative.LateDays = lateDays;
         cumulative.LastUpdated = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -912,7 +874,7 @@ public class AbsenceController : ControllerBase
     {
         var dayNames = new[] { "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت" };
         var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
-            TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time"));
+            TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh"));
         var dayName = dayNames[(int)now.DayOfWeek];
         var hijriDate = record.HijriDate ?? now.ToString("yyyy/MM/dd");
 
@@ -931,7 +893,7 @@ public class AbsenceController : ControllerBase
         {
             var code = Guid.NewGuid().ToString("N")[..16];
             var utcNow = DateTime.UtcNow;
-            _db.ParentAccessCodes.Add(new ParentAccessCode
+            Db.ParentAccessCodes.Add(new ParentAccessCode
             {
                 Code = code,
                 StudentNumber = record.StudentNumber,
@@ -940,7 +902,7 @@ public class AbsenceController : ControllerBase
                 ExpiresAt = utcNow.AddHours(24),
                 IsUsed = false
             });
-            await _db.SaveChangesAsync();
+            await Db.SaveChangesAsync();
 
             // Build excuse link — frontend route for parent form
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
@@ -955,7 +917,7 @@ public class AbsenceController : ControllerBase
         }
 
         // ★ اسم المدرسة — مطابق لـ getSchoolNameForLinks_
-        var schoolSettings = await _db.SchoolSettings.FirstOrDefaultAsync();
+        var schoolSettings = await Db.SchoolSettings.FirstOrDefaultAsync();
         var schoolName = schoolSettings?.SchoolName ?? "المدرسة";
         sb.AppendLine();
         sb.AppendLine();
@@ -1022,6 +984,7 @@ public class AbsenceImportStudent
     public string? StudentNumber { get; set; }
     public string? Name { get; set; }
     public string? AbsenceType { get; set; }
+    public string? ExcuseType { get; set; }  // Excused / Unexcused (optional)
 }
 
 public class AbsenceImportRequest

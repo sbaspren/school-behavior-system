@@ -19,7 +19,10 @@ public class LicenseMiddleware
         "/api/licenses/activate",
         "/api/licenses/status",
         "/api/auth/login",
-        "/api/auth/token/"
+        "/api/auth/token/",
+        "/api/teacherinput/public/",    // ★ نموذج المعلم العام (بدون JWT)
+        "/api/staffinput/public/",       // ★ نموذج الموظف العام (بدون JWT)
+        "/api/parentexcuse/public/"      // ★ أعذار أولياء الأمور (بدون JWT)
     };
 
     public LicenseMiddleware(RequestDelegate next)
@@ -27,7 +30,7 @@ public class LicenseMiddleware
         _next = next;
     }
 
-    public async Task InvokeAsync(HttpContext context, ITenantService tenantService)
+    public async Task InvokeAsync(HttpContext context, ITenantService tenantService, IConfiguration config)
     {
         var path = context.Request.Path.Value?.ToLower() ?? "";
 
@@ -38,8 +41,10 @@ public class LicenseMiddleware
             return;
         }
 
-        // تخطي Master Key endpoints (المطور)
-        if (context.Request.Headers.ContainsKey("X-Master-Key"))
+        // تخطي Master Key endpoints — فقط إذا تطابق المفتاح الحقيقي
+        var masterKey = config["MasterKey"] ?? "";
+        var providedKey = context.Request.Headers["X-Master-Key"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(masterKey) && !string.IsNullOrEmpty(providedKey) && providedKey == masterKey)
         {
             await _next(context);
             return;

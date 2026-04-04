@@ -20,7 +20,7 @@ public class AuditService : IAuditService
     {
         try
         {
-            var now = DateTime.Now;
+            var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh"));
             _db.AuditLogs.Add(new AuditLog
             {
                 Date = now.ToString("yyyy/MM/dd"),

@@ -8,15 +8,31 @@ namespace SchoolBehaviorSystem.Infrastructure.Data;
 public class AppDbContext : DbContext
 {
     private readonly int _tenantId = 1;
+    private readonly IHttpContextAccessor? _httpContextAccessor;
 
     public AppDbContext(DbContextOptions<AppDbContext> options, IHttpContextAccessor? httpContextAccessor = null) : base(options)
     {
+        _httpContextAccessor = httpContextAccessor;
         // ★ يقرأ tenant_id من JWT مباشرة — بدون ITenantService لتجنب circular dependency
         // Single-Tenant الآن: إذا لم يوجد claim → يستخدم 1
         // Multi-Tenant لاحقاً: الـ claim يُضاف تلقائياً من AuthService
         var claim = httpContextAccessor?.HttpContext?.User?.FindFirst("tenant_id");
         if (claim != null && int.TryParse(claim.Value, out var tid))
             _tenantId = tid;
+    }
+
+    /// <summary>
+    /// ★ يرجع TenantId الفعال — يفضل HttpContext.Items["OverrideTenantId"] على JWT
+    /// يُستخدم في public endpoints (نموذج المعلم) لتحديد Tenant بدون JWT
+    /// </summary>
+    private int GetEffectiveTenantId()
+    {
+        // ★ أولاً: تحقق من override (يُستخدم في public endpoints)
+        if (_httpContextAccessor?.HttpContext?.Items.TryGetValue("OverrideTenantId", out var overrideObj) == true
+            && overrideObj is int overrideTid)
+            return overrideTid;
+
+        return _tenantId;
     }
 
     // Core
@@ -26,6 +42,8 @@ public class AppDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<Teacher> Teachers => Set<Teacher>();
     public DbSet<Committee> Committees => Set<Committee>();
+    public DbSet<CommitteeMember> CommitteeMembers => Set<CommitteeMember>();
+    public DbSet<CommitteeMeeting> CommitteeMeetings => Set<CommitteeMeeting>();
     public DbSet<Subject> Subjects => Set<Subject>();
 
     // Students
@@ -64,10 +82,12 @@ public class AppDbContext : DbContext
     // ── Auto-set TenantId on new entities ──
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        var effectiveTid = GetEffectiveTenantId();
         foreach (var entry in ChangeTracker.Entries<ITenantEntity>())
         {
-            if (entry.State == EntityState.Added && entry.Entity.TenantId == 0)
-                entry.Entity.TenantId = _tenantId;
+            // ★ دائماً نعيّن TenantId للكيانات الجديدة — يستخدم Override إذا موجود
+            if (entry.State == EntityState.Added)
+                entry.Entity.TenantId = effectiveTid;
         }
         return await base.SaveChangesAsync(cancellationToken);
     }
@@ -128,6 +148,8 @@ public class AppDbContext : DbContext
             e.ToTable("violations");
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Stage, x.HijriDate });
+            e.HasIndex(x => x.RecordedAt);
+            e.HasIndex(x => new { x.Semester, x.AcademicYear });
             e.HasOne(x => x.Student).WithMany().HasForeignKey(x => x.StudentId);
         });
 
@@ -144,6 +166,8 @@ public class AppDbContext : DbContext
             e.ToTable("tardiness_records");
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Stage, x.HijriDate });
+            e.HasIndex(x => x.RecordedAt);
+            e.HasIndex(x => new { x.Semester, x.AcademicYear });
             e.HasOne(x => x.Student).WithMany().HasForeignKey(x => x.StudentId);
         });
 
@@ -153,6 +177,8 @@ public class AppDbContext : DbContext
             e.ToTable("permission_records");
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Stage, x.HijriDate });
+            e.HasIndex(x => x.RecordedAt);
+            e.HasIndex(x => new { x.Semester, x.AcademicYear });
             e.HasOne(x => x.Student).WithMany().HasForeignKey(x => x.StudentId);
         });
 
@@ -162,7 +188,10 @@ public class AppDbContext : DbContext
             e.ToTable("daily_absences");
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Stage, x.HijriDate });
-            e.HasOne(x => x.Student).WithMany().HasForeignKey(x => x.StudentId);
+            e.HasIndex(x => x.RecordedAt);
+            e.HasIndex(x => new { x.Semester, x.AcademicYear });
+            // ★ Optional FK — يسمح بـ StudentId=0 لسجلات "لا يوجد غائب" (NO_ABSENCE)
+            e.HasOne(x => x.Student).WithMany().HasForeignKey(x => x.StudentId).IsRequired(false);
         });
 
         // Cumulative Absence
@@ -170,7 +199,7 @@ public class AppDbContext : DbContext
         {
             e.ToTable("cumulative_absences");
             e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.StudentId, x.Stage }).IsUnique();
+            e.HasIndex(x => new { x.StudentId, x.Stage, x.Semester, x.AcademicYear }).IsUnique();
             e.HasOne(x => x.Student).WithMany().HasForeignKey(x => x.StudentId);
         });
 
@@ -180,6 +209,8 @@ public class AppDbContext : DbContext
             e.ToTable("educational_notes");
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Stage, x.HijriDate });
+            e.HasIndex(x => x.RecordedAt);
+            e.HasIndex(x => new { x.Semester, x.AcademicYear });
             e.HasOne(x => x.Student).WithMany().HasForeignKey(x => x.StudentId);
         });
 
@@ -189,6 +220,8 @@ public class AppDbContext : DbContext
             e.ToTable("positive_behaviors");
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Stage, x.HijriDate });
+            e.HasIndex(x => x.RecordedAt);
+            e.HasIndex(x => new { x.Semester, x.AcademicYear });
             e.HasOne(x => x.Student).WithMany().HasForeignKey(x => x.StudentId);
             e.HasOne(x => x.LinkedViolation).WithMany().HasForeignKey(x => x.LinkedViolationId).OnDelete(DeleteBehavior.SetNull);
         });
@@ -199,11 +232,28 @@ public class AppDbContext : DbContext
             e.ToTable("communication_logs");
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Stage, x.MiladiDate });
+            e.HasIndex(x => new { x.Semester, x.AcademicYear });
             e.HasOne(x => x.Student).WithMany().HasForeignKey(x => x.StudentId);
         });
 
         // Support tables
-        modelBuilder.Entity<Committee>(e => { e.ToTable("committees"); });
+        modelBuilder.Entity<Committee>(e =>
+        {
+            e.ToTable("committees");
+            e.HasMany(x => x.MembersList).WithOne(x => x.Committee).HasForeignKey(x => x.CommitteeId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Meetings).WithOne(x => x.Committee).HasForeignKey(x => x.CommitteeId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<CommitteeMember>(e =>
+        {
+            e.ToTable("committee_members");
+            e.HasKey(x => x.Id);
+        });
+        modelBuilder.Entity<CommitteeMeeting>(e =>
+        {
+            e.ToTable("committee_meetings");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.CommitteeId, x.MeetingNumber });
+        });
         modelBuilder.Entity<Subject>(e => { e.ToTable("subjects"); });
         modelBuilder.Entity<NoteTypeDef>(e => { e.ToTable("note_type_defs"); });
         modelBuilder.Entity<ParentExcuse>(e =>
@@ -257,6 +307,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<AcademicSummary>().HasQueryFilter(e => e.TenantId == _tenantId);
         modelBuilder.Entity<AuditLog>().HasQueryFilter(e => e.TenantId == _tenantId);
         modelBuilder.Entity<Committee>().HasQueryFilter(e => e.TenantId == _tenantId);
+        modelBuilder.Entity<CommitteeMember>().HasQueryFilter(e => e.TenantId == _tenantId);
+        modelBuilder.Entity<CommitteeMeeting>().HasQueryFilter(e => e.TenantId == _tenantId);
         modelBuilder.Entity<CommunicationLog>().HasQueryFilter(e => e.TenantId == _tenantId);
         modelBuilder.Entity<CumulativeAbsence>().HasQueryFilter(e => e.TenantId == _tenantId);
         modelBuilder.Entity<DailyAbsence>().HasQueryFilter(e => e.TenantId == _tenantId);

@@ -3,7 +3,7 @@ using SchoolBehaviorSystem.Domain.Interfaces;
 
 namespace SchoolBehaviorSystem.Domain.Entities;
 
-public class Violation : ITenantEntity
+public class Violation : ITenantEntity, IStudentRecord
 {
     public int Id { get; set; }
     public int TenantId { get; set; } = 1;
@@ -24,10 +24,13 @@ public class Violation : ITenantEntity
     public string RecordedBy { get; set; } = "";         // المسجل
     public DateTime RecordedAt { get; set; } = DateTime.UtcNow;
     public bool IsSent { get; set; }                     // تم الإرسال
+    public int Semester { get; set; } = 1;               // الفصل الدراسي (1 أو 2)
+    public string AcademicYear { get; set; } = "";       // السنة الهجرية (مثل "1447")
     public string Forms { get; set; } = "";                // النماذج المحفوظة
     public string DayName { get; set; } = "";              // اليوم (الأحد، الاثنين...)
     public string Notes { get; set; } = "";
     public string NoorStatus { get; set; } = "";           // حالة نور
+    public DateTime? NoorDocumentedAt { get; set; }        // تاريخ التوثيق في نور
 
     public Student Student { get; set; } = null!;
 }

@@ -31,7 +31,9 @@ public class StudentsController : ControllerBase
     {
         var query = _db.Students.AsQueryable();
 
-        if (!string.IsNullOrEmpty(stage) && Enum.TryParse<Stage>(stage, true, out var stageEnum))
+        // ★ فرض عزل المراحل — الوكيل يرى طلاب مرحلته فقط
+        var effectiveStage = EnforceScopeStage(stage);
+        if (!string.IsNullOrEmpty(effectiveStage) && Enum.TryParse<Stage>(effectiveStage, true, out var stageEnum))
             query = query.Where(s => s.Stage == stageEnum);
         if (!string.IsNullOrEmpty(grade))
             query = query.Where(s => s.Grade == grade);
@@ -46,6 +48,24 @@ public class StudentsController : ControllerBase
         }).OrderBy(s => s.Name).ToListAsync();
 
         return Ok(ApiResponse<List<object>>.Ok(students.Cast<object>().ToList()));
+    }
+
+    /// <summary>
+    /// ★ عزل المراحل — يقرأ scope_type و scope_value من JWT
+    /// الوكيل يرى مرحلته فقط بغض النظر عن query parameter
+    /// </summary>
+    private string? EnforceScopeStage(string? requestedStage)
+    {
+        var scopeType = User.FindFirst("scope_type")?.Value;
+        var scopeValue = User.FindFirst("scope_value")?.Value;
+
+        if (string.IsNullOrEmpty(scopeType) || scopeType == "all")
+            return requestedStage;
+
+        if (scopeType == "stage" && !string.IsNullOrEmpty(scopeValue))
+            return scopeValue;
+
+        return requestedStage;
     }
 
     [HttpPost]
@@ -270,7 +290,7 @@ public class StudentsController : ControllerBase
             var rowStage = stageEnum ?? DetectStageFromGrade(grade);
             if (rowStage == null) { skipped++; continue; }
 
-            grade = CleanGradeName(grade);
+            grade = NormalizeGradeName(grade, rowStage);
 
             Student? existing = null;
             if (!string.IsNullOrEmpty(studentNumber))
@@ -474,27 +494,49 @@ public class StudentsController : ControllerBase
         return null;
     }
 
-    // تنظيف اسم الصف من اسم المرحلة
-    // ★ يدعم تنسيق نور: "الأول المتوسط_قسم عام" → "الأول"
-    private static string CleanGradeName(string grade)
+    // تطبيع اسم الصف إلى الصيغة الرسمية المطابقة لنظام نور
+    // "الأول المتوسط_قسم عام" → "الأول المتوسط"
+    // "أول ابتدائي" → "الأول الابتدائي"
+    private static string NormalizeGradeName(string grade, Stage? stage)
     {
         if (string.IsNullOrEmpty(grade)) return grade;
-        // إزالة لاحقة "_قسم عام" أو "_قسم ..." من نور
+
+        // إزالة اللاحقة مثل "_قسم عام"
         var underscoreIdx = grade.IndexOf('_');
         if (underscoreIdx > 0)
-            grade = grade[..underscoreIdx];
-        // ★ يجب إزالة الكلمات بال التعريف أولاً ثم بدونها
-        string[] prefixes = [
-            "الابتدائي", "الإبتدائي", "المتوسط", "الثانوي",
-            "ابتدائي", "إبتدائي", "متوسط", "ثانوي",
-            "طفولة مبكرة", "روضة"
-        ];
-        foreach (var prefix in prefixes)
+            grade = grade[..underscoreIdx].Trim();
+
+        // الأرقام الترتيبية المعروفة (مع/بدون ال التعريف)
+        string[] ordinals      = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس"];
+        string[] ordinalsBare  = ["أول",   "ثاني",   "ثالث",   "رابع",   "خامس",   "سادس"];
+
+        int ordinalIdx = -1;
+        for (int i = 0; i < ordinals.Length; i++)
         {
-            grade = grade.Replace(prefix, "").Trim();
-            grade = grade.TrimStart(' ', '-', '/');
+            if (grade.Contains(ordinals[i]) || grade.Contains(ordinalsBare[i]))
+            { ordinalIdx = i; break; }
         }
-        return grade.Trim();
+        // دعم الأرقام الهندية/العربية "1"-"6"
+        if (ordinalIdx < 0)
+        {
+            for (int i = 1; i <= 6; i++)
+                if (grade.Contains(i.ToString()))
+                { ordinalIdx = i - 1; break; }
+        }
+
+        if (ordinalIdx < 0) return grade.Trim(); // لم نتعرف على الرقم
+
+        var ordinal = ordinals[ordinalIdx];
+        var stageSuffix = stage switch
+        {
+            Stage.Primary      => "الابتدائي",
+            Stage.Intermediate => "المتوسط",
+            Stage.Secondary    => "الثانوي",
+            Stage.Kindergarten => "طفولة مبكرة",
+            _                  => ""
+        };
+
+        return string.IsNullOrEmpty(stageSuffix) ? grade.Trim() : $"{ordinal} {stageSuffix}";
     }
 
     // تحويل رقم الجوال من 966XXXXXXXXX إلى 05XXXXXXXX
@@ -594,6 +636,56 @@ public class StudentsController : ControllerBase
         if (int.TryParse(trimmed, out var num) && num >= 1 && num <= _ClassLetters.Length)
             return _ClassLetters[num - 1];
         return trimmed;
+    }
+
+    // ★ إصلاح أسماء الصفوف الناقصة: "الأول" → "الأول المتوسط" حسب المرحلة
+    [HttpPost("fix-grade-names")]
+    public async Task<ActionResult<ApiResponse<object>>> FixGradeNames()
+    {
+        var stageSuffix = new Dictionary<Stage, string>
+        {
+            { Stage.Kindergarten, " طفولة مبكرة" },
+            { Stage.Primary, " الابتدائي" },
+            { Stage.Intermediate, " المتوسط" },
+            { Stage.Secondary, " الثانوي" },
+        };
+        var ordinals = new HashSet<string> { "الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس" };
+        var students = await _db.Students.IgnoreQueryFilters().ToListAsync();
+        int fixedCount = 0;
+        foreach (var s in students)
+        {
+            var g = s.Grade?.Trim() ?? "";
+            // إذا الصف هو فقط الترتيب بدون اسم المرحلة
+            if (ordinals.Contains(g) && stageSuffix.TryGetValue(s.Stage, out var suffix))
+            {
+                s.Grade = g + suffix;
+                fixedCount++;
+            }
+        }
+        if (fixedCount > 0) await _db.SaveChangesAsync();
+
+        // إصلاح السجلات المرتبطة (التراكمي + اليومي)
+        if (fixedCount > 0)
+        {
+            var fixedStudents = students.Where(s => ordinals.Contains(s.Grade?.Split(' ')[0] ?? "")).ToList();
+            // لا حاجة — الطلاب أعلاه تم تعديلهم. نعدّل السجلات المرتبطة:
+            foreach (var s in students.Where(st => stageSuffix.ContainsKey(st.Stage)))
+            {
+                var suffix2 = stageSuffix[s.Stage];
+                var expectedGrade = s.Grade; // الآن صحيح بعد التعديل أعلاه
+
+                // تحديث DailyAbsences
+                var dailies = await _db.DailyAbsences.Where(d => d.StudentId == s.Id && !d.Grade.Contains(suffix2.Trim())).ToListAsync();
+                foreach (var d in dailies) d.Grade = expectedGrade!;
+
+                // تحديث CumulativeAbsences
+                var cums = await _db.CumulativeAbsences.Where(c => c.StudentId == s.Id && !c.Grade.Contains(suffix2.Trim())).ToListAsync();
+                foreach (var c in cums) c.Grade = expectedGrade!;
+            }
+            await _db.SaveChangesAsync();
+        }
+
+        return Ok(ApiResponse<object>.Ok(new { fixedCount, message = $"تم تصحيح {fixedCount} صف" }));
     }
 
     // ★ إصلاح أرقام الفصول الموجودة في قاعدة البيانات → حروف عربية
