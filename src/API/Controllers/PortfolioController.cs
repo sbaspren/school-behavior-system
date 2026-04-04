@@ -27,8 +27,8 @@ public class PortfolioController : ControllerBase
     [HttpGet("completion")]
     public async Task<ActionResult> GetCompletion()
     {
-        var sem = _semester.CurrentSemester;
-        var year = _semester.CurrentAcademicYear;
+        var sem = await _semester.GetCurrentSemesterAsync();
+        var year = await _semester.GetCurrentAcademicYearAsync();
 
         // ── المؤشر ١: الانضباط المدرسي ──
         var hasViolations = await _db.Violations.AnyAsync(v => v.Semester == sem && v.AcademicYear == year);
@@ -52,7 +52,7 @@ public class PortfolioController : ControllerBase
 
         // ── المؤشر ٣: حقوق المتعلمين وحمايتهم ──
         // يُقاس من وجود مخالفات مرصودة + وجود سلوك إيجابي كموازنة
-        var highRiskViolations = await _db.Violations.CountAsync(v => v.Degree >= 4 && v.Semester == sem && v.AcademicYear == year);
+        var highRiskViolations = await _db.Violations.CountAsync(v => (int)v.Degree >= 4 && v.Semester == sem && v.AcademicYear == year);
         var hasProtectionRecords = hasViolations; // المخالفات المرصودة = دليل على المتابعة
         var hasRightsMonitoring = highRiskViolations >= 0; // أي رصد = دليل
 
