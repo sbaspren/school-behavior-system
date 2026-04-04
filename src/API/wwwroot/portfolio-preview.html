@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>معاينة طباعة ملف الإنجاز — بيانات افتراضية</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+@page { size: A4 portrait; margin: 1.27cm; }
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  direction: rtl; font-family: 'Cairo', Arial, sans-serif; font-size: 14pt;
+  color: #1A1A1A; background: #fff; -webkit-print-color-adjust: exact;
+  print-color-adjust: exact; line-height: 1.85; text-align: right; orphans: 2; widows: 2;
+}
+@media screen {
+  body { background: #D8DDE6; padding: 32px 16px; }
+  .page { background: #fff; width: 210mm; min-height: 297mm; margin: 0 auto 28px; padding: 1.27cm; box-shadow: 0 2px 14px rgba(0,0,0,.18); }
+}
+@media print {
+  body { background: #fff; padding: 0; }
+  .page { padding: 0; margin: 0; page-break-after: always; break-after: page; box-shadow: none; }
+  .page:last-child { page-break-after: auto; }
+  .no-print { display: none !important; }
+}
+h1,h2,h3,h4 { break-after: avoid; page-break-after: avoid; }
+.keep { break-inside: avoid; page-break-inside: avoid; }
+table { width: 100%; border-collapse: collapse; break-inside: auto; font-size: 12pt; }
+thead { display: table-header-group; }
+tr { break-inside: avoid; page-break-inside: avoid; }
+table th { background: #E8ECF2; color: #1B3A6B; padding: 6pt 10pt; font-size: 12pt; font-weight: 700; text-align: right; border: 0.5pt solid #C5CFE0; }
+table td { padding: 5pt 10pt; font-size: 12pt; text-align: right; border: 0.5pt solid #C5CFE0; color: #1A1A1A; vertical-align: top; word-break: break-word; overflow-wrap: break-word; white-space: normal; }
+table tr:nth-child(even) td { background: #F5F7FB; }
+table tr:nth-child(odd) td { background: #fff; }
+td.num { background: #1B3A6B !important; color: #fff; font-weight: 700; text-align: center; white-space: nowrap; width: 18pt; }
+td.lbl { background: #EEF2F9 !important; font-weight: 700; color: #1B3A6B; white-space: nowrap; }
+.sec-title { font-size: 16pt; font-weight: 800; color: #1B3A6B; text-align: center; padding-bottom: 7pt; margin-bottom: 14pt; margin-top: 6pt; border-bottom: 2pt solid #1B3A6B; }
+h2.h2 { font-size: 14pt; font-weight: 700; color: #1B3A6B; margin: 12pt 0 6pt; padding-right: 8pt; border-right: 3pt solid #1B3A6B; }
+h3.h3 { font-size: 13pt; font-weight: 700; color: #1A1A1A; margin: 9pt 0 5pt; }
+.box { padding: 8pt 12pt; margin-bottom: 8pt; font-size: 12pt; line-height: 1.9; }
+.box.b { background: #EEF3FA; border-right: 3pt solid #1B3A6B; }
+.box.g { background: #EEF8F2; border-right: 3pt solid #1A6B3C; }
+.box.o { background: #FFF3E8; border-right: 3pt solid #C05B00; }
+.box.au { background: #FFF8E8; border-right: 3pt solid #B8860B; }
+.box.r { background: #FFF0EE; border-right: 3pt solid #C0392B; font-weight: 700; }
+.ind-banner { padding: 10pt 14pt; margin-bottom: 9pt; break-inside: avoid; }
+.ind-banner.blue { background: #1B3A6B; color: #fff; }
+.ind-banner.green { background: #1A6B3C; color: #fff; }
+.ind-banner.orange { background: #C05B00; color: #fff; }
+.ind-banner.gold { background: #B8860B; color: #fff; }
+.ind-n { font-size: 9pt; opacity: .75; margin-bottom: 3pt; }
+.ind-ttl { font-size: 15pt; font-weight: 800; line-height: 1.5; margin-bottom: 4pt; }
+.ind-mt { font-size: 8.5pt; opacity: .80; }
+.step-detail { font-size: 10pt; color: #4A5568; margin-top: 2pt; line-height: 1.7; }
+.sign-row { display: flex; border-top: 0.5pt solid #D0D8E8; margin-top: 10pt; break-inside: avoid; }
+.sign-box { flex: 1; text-align: center; padding: 9pt 8pt; border-left: 0.5pt solid #D0D8E8; }
+.sign-box:last-child { border-left: none; }
+.sign-ttl { font-size: 10pt; font-weight: 700; color: #1B3A6B; margin-bottom: 18pt; }
+.sign-line { border-top: 0.5pt solid #1A1A1A; margin: 0 16pt; }
+.sign-sub { font-size: 8pt; color: #4A5568; margin-top: 3pt; }
+.tbl-wrap { margin-bottom: 11pt; }
+.hr2 { border: none; border-top: 2pt solid #1B3A6B; margin: 12pt 0; }
+.form-hdr { padding: 7pt 12pt; color: #fff; font-size: 13pt; font-weight: 700; break-after: avoid; }
+.form-hdr.blue { background: #1B3A6B; }
+.form-hdr.green { background: #1A6B3C; }
+.form-hdr.gold { background: #B8860B; }
+table.form-tbl th { background: #E8ECF2; color: #1B3A6B; font-size: 10pt; padding: 5pt 9pt; }
+table.form-tbl td { font-size: 10pt; padding: 4pt 8pt; border: 0.5pt solid #C5CFE0; background: #fff !important; word-break: break-word; }
+.print-btn { position: fixed; bottom: 22px; left: 22px; background: #1B3A6B; color: #fff; border: none; padding: 10px 20px; font-family: 'Cairo'; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.25); z-index: 999; border-radius: 8px; }
+@media print { .print-btn { display: none; } }
+</style>
+</head>
+<body>
+<button class="print-btn no-print" onclick="window.print()">طباعة / حفظ PDF</button>
+
+<!-- ══════════════════ الغلاف ══════════════════ -->
+<div class="page">
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:255mm;text-align:center;padding:8mm 0;">
+    <p style="font-size:10pt;color:#4A5568;line-height:2.2;margin-bottom:6pt;">المملكة العربية السعودية<br>وزارة التعليم<br>الإدارة العامة للتعليم بمنطقة عسير<br>الشؤون التعليمية<br>مدرسة متوسطة وثانوية العرين — أبها</p>
+    <div style="width:110mm;height:3pt;background:#1B3A6B;margin:14pt auto;"></div>
+    <div style="font-size:24pt;font-weight:800;color:#1B3A6B;line-height:1.5;margin-bottom:8pt;">ملف إنجاز وكيل شؤون الطلاب</div>
+    <div style="font-size:16pt;font-weight:700;color:#2E5FA3;margin-bottom:8pt;">توثيق أعمال عام ١٤٤٧ هـ</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5pt;justify-content:center;margin-bottom:24pt;">
+      <span style="border:0.5pt solid #D0D8E8;padding:3pt 10pt;font-size:9pt;color:#4A5568;">تعريف الدور والمهام</span>
+      <span style="border:0.5pt solid #D0D8E8;padding:3pt 10pt;font-size:9pt;color:#4A5568;">٤ مؤشرات كاملة</span>
+      <span style="border:0.5pt solid #D0D8E8;padding:3pt 10pt;font-size:9pt;color:#4A5568;">السجلات والشواهد</span>
+      <span style="border:0.5pt solid #D0D8E8;padding:3pt 10pt;font-size:9pt;color:#4A5568;">لجنة الانضباط</span>
+      <span style="border:0.5pt solid #D0D8E8;padding:3pt 10pt;font-size:9pt;color:#4A5568;">الدليل الإجرائي للغياب</span>
+      <span style="border:0.5pt solid #D0D8E8;padding:3pt 10pt;font-size:9pt;color:#4A5568;">نماذج رسمية</span>
+    </div>
+    <table style="width:145mm;border-collapse:collapse;margin:0 auto;font-size:10pt;">
+      <tr><td style="padding:6pt 10pt;border:0.5pt solid #D0D8E8;background:#F0F4FB;font-weight:700;color:#1B3A6B;width:38mm;">اسم المدرسة</td><td style="padding:6pt 10pt;border:0.5pt solid #D0D8E8;">متوسطة وثانوية العرين</td><td style="padding:6pt 10pt;border:0.5pt solid #D0D8E8;background:#F0F4FB;font-weight:700;color:#1B3A6B;width:38mm;">العام الدراسي</td><td style="padding:6pt 10pt;border:0.5pt solid #D0D8E8;">١٤٤٧ هـ</td></tr>
+      <tr><td style="padding:6pt 10pt;border:0.5pt solid #D0D8E8;background:#F0F4FB;font-weight:700;color:#1B3A6B;">اسم الوكيل</td><td colspan="3" style="padding:6pt 10pt;border:0.5pt solid #D0D8E8;font-size:14pt;font-weight:700;text-align:center;color:#1B3A6B;">يحيى أحمد يحيى آل مرعي</td></tr>
+    </table>
+    <div style="width:110mm;height:1pt;background:#D0D8E8;margin:14pt auto;"></div>
+    <p style="margin-top:20pt;font-size:8pt;color:#BBB;line-height:2;">المراجع: دليل الإجراءات (الإصدار الثالث)  |  معايير الاعتماد المدرسي ٢٠٢٦  |  وثيقة إجراءات تعزيز الانضباط ١٤٤٦هـ  |  قواعد السلوك والمواظبة (الإصدار الرابع ١٤٤٥هـ)</p>
+  </div>
+</div>
+
+<!-- ══════════════════ تقرير الانضباط — بيانات افتراضية كثيرة ══════════════════ -->
+<div class="page">
+  <div class="sec-title">تقرير الانضباط المدرسي — المؤشر (٣-١-٢-١)</div>
+  <div style="text-align:center;font-size:12pt;color:#4A5568;margin-bottom:14pt;">الفترة: من ١ / ١ / ١٤٤٧ هـ  إلى ٣٠ / ٦ / ١٤٤٧ هـ</div>
+  <div class="box b keep" style="font-size:11pt;text-align:justify;">يتضمن هذا التقرير ملخصاً شاملاً لمستوى الانضباط المدرسي خلال الفترة المحددة، ويشمل إحصائيات الحضور والغياب والتأخر والمخالفات السلوكية والاستئذان، مع تحليل مقارن لنسب الانضباط ورصد الحالات التي تحتاج متابعة خاصة.</div>
+
+  <h2 class="h2">ملخص الانضباط العام</h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th style="width:50%">البيان</th><th style="text-align:center">القيمة</th></tr></thead>
+      <tbody>
+        <tr><td class="lbl">إجمالي عدد الطلاب المسجلين</td><td style="text-align:center;font-weight:700;font-size:13pt;">٤٨٥</td></tr>
+        <tr><td class="lbl">إجمالي حالات الغياب بدون عذر</td><td style="text-align:center;font-weight:700;font-size:13pt;color:#C0392B;">١٢٣</td></tr>
+        <tr><td class="lbl">إجمالي حالات الغياب بعذر</td><td style="text-align:center;font-weight:700;font-size:13pt;color:#1A6B3C;">٨٧</td></tr>
+        <tr><td class="lbl">إجمالي حالات التأخر الصباحي</td><td style="text-align:center;font-weight:700;font-size:13pt;">٧٦</td></tr>
+        <tr><td class="lbl">إجمالي حالات التأخر عن الحصص</td><td style="text-align:center;font-weight:700;font-size:13pt;">٣٤</td></tr>
+        <tr><td class="lbl">إجمالي المخالفات السلوكية</td><td style="text-align:center;font-weight:700;font-size:13pt;">٦٨</td></tr>
+        <tr><td class="lbl">إجمالي حالات الاستئذان</td><td style="text-align:center;font-weight:700;font-size:13pt;">٤٢</td></tr>
+        <tr><td class="lbl">نسبة الحضور العامة</td><td style="text-align:center;font-weight:700;font-size:13pt;color:#1A6B3C;">٩٣.٨٪</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="h2">توزيع المخالفات حسب الدرجة</h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th style="width:35%">الدرجة</th><th style="width:15%;text-align:center">العدد</th><th style="width:15%;text-align:center">النسبة</th><th>الإجراءات المتخذة</th></tr></thead>
+      <tbody>
+        <tr><td class="lbl">الدرجة الأولى — مخالفات بسيطة</td><td style="text-align:center;font-weight:700;">٣٢</td><td style="text-align:center;">٤٧.١٪</td><td style="font-size:11pt;">توجيه ونصح — تعهد شفهي — إشعار ولي الأمر عبر الواتساب</td></tr>
+        <tr><td class="lbl">الدرجة الثانية — مخالفات متوسطة</td><td style="text-align:center;font-weight:700;">١٨</td><td style="text-align:center;">٢٦.٥٪</td><td style="font-size:11pt;">تعهد كتابي — استدعاء ولي الأمر — إحالة للموجه الطلابي</td></tr>
+        <tr><td class="lbl">الدرجة الثالثة — مخالفات جسيمة</td><td style="text-align:center;font-weight:700;">١٢</td><td style="text-align:center;">١٧.٦٪</td><td style="font-size:11pt;">محضر لجنة — حسم درجات — خطة تعديل سلوك — متابعة مستمرة</td></tr>
+        <tr><td class="lbl">الدرجة الرابعة — مخالفات خطيرة</td><td style="text-align:center;font-weight:700;">٤</td><td style="text-align:center;">٥.٩٪</td><td style="font-size:11pt;">إحالة لإدارة التعليم — إيقاف مؤقت — برنامج تأهيلي متخصص</td></tr>
+        <tr><td class="lbl">الدرجة الخامسة — مخالفات بالغة</td><td style="text-align:center;font-weight:700;">٢</td><td style="text-align:center;">٢.٩٪</td><td style="font-size:11pt;">تحويل للجهات المختصة — نقل تأديبي — إبلاغ رسمي</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- رسم بياني ملون -->
+  <div class="keep" style="margin-bottom:14pt;">
+    <h3 class="h3" style="text-align:center;margin-bottom:8pt;">التوزيع البياني للمخالفات حسب الدرجة</h3>
+    <div style="padding:0 20pt;">
+      <div style="display:flex;align-items:center;gap:8pt;margin-bottom:6pt;">
+        <span style="font-size:11pt;min-width:100pt;text-align:right;">الدرجة الأولى</span>
+        <div style="flex:1;background:#e5e7eb;border-radius:4pt;height:18pt;overflow:hidden;"><div style="width:47.1%;height:100%;background:#10b981;border-radius:4pt;"></div></div>
+        <span style="font-size:11pt;font-weight:700;min-width:30pt;">٣٢</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8pt;margin-bottom:6pt;">
+        <span style="font-size:11pt;min-width:100pt;text-align:right;">الدرجة الثانية</span>
+        <div style="flex:1;background:#e5e7eb;border-radius:4pt;height:18pt;overflow:hidden;"><div style="width:26.5%;height:100%;background:#3b82f6;border-radius:4pt;"></div></div>
+        <span style="font-size:11pt;font-weight:700;min-width:30pt;">١٨</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8pt;margin-bottom:6pt;">
+        <span style="font-size:11pt;min-width:100pt;text-align:right;">الدرجة الثالثة</span>
+        <div style="flex:1;background:#e5e7eb;border-radius:4pt;height:18pt;overflow:hidden;"><div style="width:17.6%;height:100%;background:#f59e0b;border-radius:4pt;"></div></div>
+        <span style="font-size:11pt;font-weight:700;min-width:30pt;">١٢</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8pt;margin-bottom:6pt;">
+        <span style="font-size:11pt;min-width:100pt;text-align:right;">الدرجة الرابعة</span>
+        <div style="flex:1;background:#e5e7eb;border-radius:4pt;height:18pt;overflow:hidden;"><div style="width:5.9%;height:100%;background:#ef4444;border-radius:4pt;"></div></div>
+        <span style="font-size:11pt;font-weight:700;min-width:30pt;">٤</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8pt;margin-bottom:6pt;">
+        <span style="font-size:11pt;min-width:100pt;text-align:right;">الدرجة الخامسة</span>
+        <div style="flex:1;background:#e5e7eb;border-radius:4pt;height:18pt;overflow:hidden;"><div style="width:2.9%;height:100%;background:#7f1d1d;border-radius:4pt;"></div></div>
+        <span style="font-size:11pt;font-weight:700;min-width:30pt;">٢</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ أكثر الطلاب غياباً — بيانات كثيرة ══════════════════ -->
+<div class="page">
+  <h2 class="h2">أكثر ١٥ طالباً غياباً بدون عذر</h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th style="width:18pt;text-align:center">م</th><th>اسم الطالب</th><th style="width:60px;text-align:center">الصف</th><th style="width:50px;text-align:center">الشعبة</th><th style="width:50px;text-align:center">الأيام</th><th style="width:50px;text-align:center">بعذر</th><th style="width:80px;text-align:center">الإجراء</th></tr></thead>
+      <tbody>
+        <tr><td class="num">١</td><td>عبدالله محمد أحمد الشهراني العسيري</td><td style="text-align:center">الثالث</td><td style="text-align:center">أ</td><td style="text-align:center;font-weight:700;color:#C0392B;">١٨</td><td style="text-align:center;color:#1A6B3C;">٣</td><td style="text-align:center;font-size:10pt;">محضر لجنة</td></tr>
+        <tr><td class="num">٢</td><td>سعود خالد عبدالرحمن آل مرعي القحطاني</td><td style="text-align:center">الثاني</td><td style="text-align:center">ب</td><td style="text-align:center;font-weight:700;color:#C0392B;">١٥</td><td style="text-align:center;color:#1A6B3C;">٥</td><td style="text-align:center;font-size:10pt;">إحالة + تعهد</td></tr>
+        <tr><td class="num">٣</td><td>فهد عبدالعزيز سعيد الأحمدي المالكي</td><td style="text-align:center">الأول</td><td style="text-align:center">أ</td><td style="text-align:center;font-weight:700;color:#C0392B;">١٤</td><td style="text-align:center;color:#1A6B3C;">٢</td><td style="text-align:center;font-size:10pt;">استدعاء ولي أمر</td></tr>
+        <tr><td class="num">٤</td><td>محمد سالم عبدالله الغامدي الزهراني</td><td style="text-align:center">الثالث</td><td style="text-align:center">ج</td><td style="text-align:center;font-weight:700;color:#C05B00;">١٢</td><td style="text-align:center;color:#1A6B3C;">٤</td><td style="text-align:center;font-size:10pt;">إحالة للموجه</td></tr>
+        <tr><td class="num">٥</td><td>أحمد يحيى عبدالله آل مرعي الشهراني</td><td style="text-align:center">الثاني</td><td style="text-align:center">أ</td><td style="text-align:center;font-weight:700;color:#C05B00;">١١</td><td style="text-align:center;color:#1A6B3C;">١</td><td style="text-align:center;font-size:10pt;">تعهد كتابي</td></tr>
+        <tr><td class="num">٦</td><td>خالد عمر سعيد الحربي العتيبي المطيري</td><td style="text-align:center">الأول</td><td style="text-align:center">ب</td><td style="text-align:center;font-weight:700;color:#C05B00;">١٠</td><td style="text-align:center;color:#1A6B3C;">٣</td><td style="text-align:center;font-size:10pt;">استدعاء ولي أمر</td></tr>
+        <tr><td class="num">٧</td><td>عمر علي حسن الدوسري البيشي الشهراني</td><td style="text-align:center">الثالث</td><td style="text-align:center">ب</td><td style="text-align:center;font-weight:700;">٩</td><td style="text-align:center;color:#1A6B3C;">٢</td><td style="text-align:center;font-size:10pt;">تعهد شفهي</td></tr>
+        <tr><td class="num">٨</td><td>سلطان فهد محمد القرني العسيري الشمراني</td><td style="text-align:center">الثاني</td><td style="text-align:center">ج</td><td style="text-align:center;font-weight:700;">٨</td><td style="text-align:center;color:#1A6B3C;">١</td><td style="text-align:center;font-size:10pt;">إشعار واتساب</td></tr>
+        <tr><td class="num">٩</td><td>تركي ناصر سعد العمري الأسمري المالكي</td><td style="text-align:center">الأول</td><td style="text-align:center">أ</td><td style="text-align:center;font-weight:700;">٧</td><td style="text-align:center;color:#1A6B3C;">٤</td><td style="text-align:center;font-size:10pt;">إشعار واتساب</td></tr>
+        <tr><td class="num">١٠</td><td>بندر عبدالله صالح الزهراني البارقي</td><td style="text-align:center">الثالث</td><td style="text-align:center">أ</td><td style="text-align:center;font-weight:700;">٧</td><td style="text-align:center;color:#1A6B3C;">٠</td><td style="text-align:center;font-size:10pt;">إحالة للموجه</td></tr>
+        <tr><td class="num">١١</td><td>يوسف أحمد علي الشهراني آل معافى</td><td style="text-align:center">الثاني</td><td style="text-align:center">أ</td><td style="text-align:center;font-weight:700;">٦</td><td style="text-align:center;color:#1A6B3C;">٢</td><td style="text-align:center;font-size:10pt;">تعهد شفهي</td></tr>
+        <tr><td class="num">١٢</td><td>ماجد سلمان عبدالرحمن الحارثي البيشي</td><td style="text-align:center">الأول</td><td style="text-align:center">ج</td><td style="text-align:center;font-weight:700;">٦</td><td style="text-align:center;color:#1A6B3C;">١</td><td style="text-align:center;font-size:10pt;">إشعار واتساب</td></tr>
+        <tr><td class="num">١٣</td><td>حسن محمد عبدالله الأحمري العسيري</td><td style="text-align:center">الثالث</td><td style="text-align:center">ب</td><td style="text-align:center;font-weight:700;">٥</td><td style="text-align:center;color:#1A6B3C;">٣</td><td style="text-align:center;font-size:10pt;">تعهد شفهي</td></tr>
+        <tr><td class="num">١٤</td><td>ناصر فيصل خالد القحطاني آل سعد</td><td style="text-align:center">الثاني</td><td style="text-align:center">ب</td><td style="text-align:center;font-weight:700;">٥</td><td style="text-align:center;color:#1A6B3C;">٠</td><td style="text-align:center;font-size:10pt;">إشعار واتساب</td></tr>
+        <tr><td class="num">١٥</td><td>عادل سعيد محمد الشمراني الأسمري</td><td style="text-align:center">الأول</td><td style="text-align:center">ب</td><td style="text-align:center;font-weight:700;">٤</td><td style="text-align:center;color:#1A6B3C;">٢</td><td style="text-align:center;font-size:10pt;">إشعار واتساب</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="h2">نسبة الحضور الشهرية</h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>الشهر</th><th style="text-align:center;width:80px;">النسبة</th><th>الملاحظات</th></tr></thead>
+      <tbody>
+        <tr><td class="lbl">محرم ١٤٤٧</td><td style="text-align:center;font-weight:700;color:#1A6B3C;">٩٦.٢٪</td><td style="font-size:11pt;">بداية الفصل — انضباط عالٍ</td></tr>
+        <tr><td class="lbl">صفر ١٤٤٧</td><td style="text-align:center;font-weight:700;color:#1A6B3C;">٩٥.١٪</td><td style="font-size:11pt;">استمرار الانضباط الجيد</td></tr>
+        <tr><td class="lbl">ربيع الأول ١٤٤٧</td><td style="text-align:center;font-weight:700;color:#C05B00;">٩٢.٤٪</td><td style="font-size:11pt;">انخفاض طفيف — انتشار أمراض موسمية</td></tr>
+        <tr><td class="lbl">ربيع الثاني ١٤٤٧</td><td style="text-align:center;font-weight:700;color:#C05B00;">٩١.٨٪</td><td style="font-size:11pt;">استمرار التأثير الموسمي + غياب قبل الإجازات</td></tr>
+        <tr><td class="lbl">جمادى الأولى ١٤٤٧</td><td style="text-align:center;font-weight:700;color:#1A6B3C;">٩٤.٥٪</td><td style="font-size:11pt;">تحسن بعد تفعيل الخطة العلاجية والتواصل مع الأسر</td></tr>
+        <tr><td class="lbl">جمادى الآخرة ١٤٤٧</td><td style="text-align:center;font-weight:700;color:#C0392B;">٨٩.٣٪</td><td style="font-size:11pt;">نهاية الفصل — غياب قبل الاختبارات يحتاج معالجة</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- رسم بياني للحضور -->
+  <div class="keep">
+    <h3 class="h3" style="text-align:center;margin-bottom:8pt;">منحنى نسبة الحضور الشهرية</h3>
+    <div style="padding:0 20pt;">
+      <div style="display:flex;align-items:center;gap:8pt;margin-bottom:6pt;"><span style="font-size:10pt;min-width:90pt;">محرم</span><div style="flex:1;background:#e5e7eb;border-radius:4pt;height:16pt;overflow:hidden;"><div style="width:96.2%;height:100%;background:#10b981;border-radius:4pt;"></div></div><span style="font-size:10pt;font-weight:700;">٩٦.٢٪</span></div>
+      <div style="display:flex;align-items:center;gap:8pt;margin-bottom:6pt;"><span style="font-size:10pt;min-width:90pt;">صفر</span><div style="flex:1;background:#e5e7eb;border-radius:4pt;height:16pt;overflow:hidden;"><div style="width:95.1%;height:100%;background:#10b981;border-radius:4pt;"></div></div><span style="font-size:10pt;font-weight:700;">٩٥.١٪</span></div>
+      <div style="display:flex;align-items:center;gap:8pt;margin-bottom:6pt;"><span style="font-size:10pt;min-width:90pt;">ربيع الأول</span><div style="flex:1;background:#e5e7eb;border-radius:4pt;height:16pt;overflow:hidden;"><div style="width:92.4%;height:100%;background:#f59e0b;border-radius:4pt;"></div></div><span style="font-size:10pt;font-weight:700;">٩٢.٤٪</span></div>
+      <div style="display:flex;align-items:center;gap:8pt;margin-bottom:6pt;"><span style="font-size:10pt;min-width:90pt;">ربيع الثاني</span><div style="flex:1;background:#e5e7eb;border-radius:4pt;height:16pt;overflow:hidden;"><div style="width:91.8%;height:100%;background:#f59e0b;border-radius:4pt;"></div></div><span style="font-size:10pt;font-weight:700;">٩١.٨٪</span></div>
+      <div style="display:flex;align-items:center;gap:8pt;margin-bottom:6pt;"><span style="font-size:10pt;min-width:90pt;">جمادى الأولى</span><div style="flex:1;background:#e5e7eb;border-radius:4pt;height:16pt;overflow:hidden;"><div style="width:94.5%;height:100%;background:#10b981;border-radius:4pt;"></div></div><span style="font-size:10pt;font-weight:700;">٩٤.٥٪</span></div>
+      <div style="display:flex;align-items:center;gap:8pt;margin-bottom:6pt;"><span style="font-size:10pt;min-width:90pt;">جمادى الآخرة</span><div style="flex:1;background:#e5e7eb;border-radius:4pt;height:16pt;overflow:hidden;"><div style="width:89.3%;height:100%;background:#ef4444;border-radius:4pt;"></div></div><span style="font-size:10pt;font-weight:700;">٨٩.٣٪</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ نموذج سجل المتابعة اليومية — بيانات كثيرة ══════════════════ -->
+<div class="page">
+  <div class="form-hdr blue">النموذج ٢  |  سجل المتابعة اليومية للانضباط — يوم الأحد ١٥ / ٣ / ١٤٤٧ هـ</div>
+  <div class="tbl-wrap" style="margin-top:4pt;">
+    <table class="form-tbl">
+      <thead><tr><th style="width:18pt;text-align:center">م</th><th style="width:25%">اسم الطالب</th><th style="width:55px">الصف</th><th style="width:35%">المخالفة / السلوك</th><th>الإجراء المتخذ</th></tr></thead>
+      <tbody>
+        <tr><td class="num">١</td><td>عبدالله محمد أحمد الشهراني</td><td style="text-align:center">٣/أ</td><td>غياب بدون عذر — اليوم الثامن عشر من الغياب المتكرر</td><td>محضر لجنة + إحالة لإدارة التعليم</td></tr>
+        <tr><td class="num">٢</td><td>سعود خالد عبدالرحمن آل مرعي</td><td style="text-align:center">٢/ب</td><td>تأخر صباحي متكرر — المرة السابعة هذا الفصل</td><td>استدعاء ولي الأمر + تعهد كتابي</td></tr>
+        <tr><td class="num">٣</td><td>فهد عبدالعزيز سعيد الأحمدي</td><td style="text-align:center">١/أ</td><td>عدم الالتزام بالزي المدرسي المعتمد</td><td>توجيه ونصح + إشعار ولي الأمر واتساب</td></tr>
+        <tr><td class="num">٤</td><td>محمد سالم عبدالله الغامدي</td><td style="text-align:center">٣/ج</td><td>إثارة الفوضى داخل الفصل أثناء الحصة الثالثة</td><td>إحالة للموجه الطلابي + جلسة إرشادية</td></tr>
+        <tr><td class="num">٥</td><td>أحمد يحيى عبدالله آل مرعي</td><td style="text-align:center">٢/أ</td><td>استخدام الهاتف الجوال داخل المدرسة بدون إذن</td><td>مصادرة الجهاز + تعهد + إشعار ولي الأمر</td></tr>
+        <tr><td class="num">٦</td><td>خالد عمر سعيد الحربي العتيبي</td><td style="text-align:center">١/ب</td><td>العبث بممتلكات المدرسة — كسر مقعد في المقصف</td><td>تعهد كتابي + تحمل تكلفة الإصلاح</td></tr>
+        <tr><td class="num">٧</td><td>عمر علي حسن الدوسري</td><td style="text-align:center">٣/ب</td><td>التنمر اللفظي على زميل — الدرجة الثالثة</td><td>محضر لجنة + خطة تعديل سلوك + متابعة</td></tr>
+        <tr><td class="num">٨</td><td>سلطان فهد محمد القرني</td><td style="text-align:center">٢/ج</td><td>الغياب عن حصة الرياضيات بدون إذن</td><td>إشعار واتساب + توجيه ونصح</td></tr>
+        <tr><td class="num">٩</td><td>تركي ناصر سعد العمري</td><td style="text-align:center">١/أ</td><td>عدم أداء الصلاة مع الجماعة — المرة الرابعة</td><td>استدعاء ولي الأمر + تعهد حضور</td></tr>
+        <tr><td class="num">١٠</td><td>بندر عبدالله صالح الزهراني</td><td style="text-align:center">٣/أ</td><td>الخروج من الفصل بدون استئذان أثناء الحصة</td><td>توجيه ونصح + إشعار واتساب</td></tr>
+        <tr><td class="num">١١</td><td>يوسف أحمد علي الشهراني</td><td style="text-align:center">٢/أ</td><td>تأخر صباحي — الحضور في الحصة الثانية</td><td>تسجيل في سجل التأخر + إشعار واتساب</td></tr>
+        <tr><td class="num">١٢</td><td>ماجد سلمان عبدالرحمن الحارثي</td><td style="text-align:center">١/ج</td><td>عدم إحضار الكتب والأدوات المدرسية</td><td>توجيه ونصح شفهي</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="sign-row">
+    <div class="sign-box"><div class="sign-ttl">إجمالي المخالفات اليوم: ١٢</div><div class="sign-line"></div><div class="sign-sub">التاريخ: ١٥ / ٣ / ١٤٤٧ هـ</div></div>
+    <div class="sign-box"><div class="sign-ttl">توقيع وكيل شؤون الطلاب</div><div class="sign-line"></div><div class="sign-sub">الاسم: يحيى أحمد آل مرعي  /  التوقيع: ...............</div></div>
+  </div>
+
+  <div style="height:16pt;"></div>
+
+  <div class="form-hdr green">النموذج ٣  |  سجل التواصل مع أولياء الأمور — ربيع الأول ١٤٤٧ هـ</div>
+  <div class="tbl-wrap" style="margin-top:4pt;">
+    <table class="form-tbl">
+      <thead><tr><th style="width:55px">التاريخ</th><th style="width:25%">ولي الأمر / الطالب</th><th style="width:60px">الوسيلة</th><th>موضوع التواصل</th><th style="width:55px">النتيجة</th></tr></thead>
+      <tbody>
+        <tr><td>٣ / ٣</td><td>والد الطالب عبدالله الشهراني</td><td style="text-align:center;font-size:9pt;">واتساب</td><td>إشعار بغياب الطالب اليوم — طلب توضيح السبب</td><td style="text-align:center;font-size:9pt;color:#1A6B3C;">تم</td></tr>
+        <tr><td>٥ / ٣</td><td>والد الطالب سعود آل مرعي</td><td style="text-align:center;font-size:9pt;">حضور</td><td>اجتماع بخصوص تكرار التأخر الصباحي — مناقشة الأسباب</td><td style="text-align:center;font-size:9pt;color:#1A6B3C;">تم</td></tr>
+        <tr><td>٧ / ٣</td><td>والد الطالب فهد الأحمدي</td><td style="text-align:center;font-size:9pt;">هاتف</td><td>متابعة حالة الطالب الصحية بعد غياب ٣ أيام</td><td style="text-align:center;font-size:9pt;color:#1A6B3C;">تم</td></tr>
+        <tr><td>١٠ / ٣</td><td>والد الطالب محمد الغامدي</td><td style="text-align:center;font-size:9pt;">واتساب</td><td>إرسال تقرير السلوك الشهري — ٣ مخالفات مسجلة</td><td style="text-align:center;font-size:9pt;color:#1A6B3C;">تم</td></tr>
+        <tr><td>١٢ / ٣</td><td>والد الطالب أحمد آل مرعي</td><td style="text-align:center;font-size:9pt;">حضور</td><td>حضور لتوقيع التعهد السلوكي بعد مخالفة استخدام الجوال</td><td style="text-align:center;font-size:9pt;color:#1A6B3C;">تم</td></tr>
+        <tr><td>١٤ / ٣</td><td>والد الطالب عمر الدوسري</td><td style="text-align:center;font-size:9pt;">هاتف</td><td>مناقشة حالة التنمر — الاتفاق على خطة تعديل سلوك</td><td style="text-align:center;font-size:9pt;color:#1A6B3C;">تم</td></tr>
+        <tr><td>١٥ / ٣</td><td>والد الطالب تركي العمري</td><td style="text-align:center;font-size:9pt;">واتساب</td><td>إشعار بعدم أداء الصلاة مع الجماعة للمرة الرابعة</td><td style="text-align:center;font-size:9pt;color:#C05B00;">لم يتم</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="sign-row">
+    <div class="sign-box"><div class="sign-ttl">توقيع وكيل شؤون الطلاب</div><div class="sign-line"></div><div class="sign-sub">الاسم: يحيى أحمد آل مرعي  /  التاريخ: ١٥ / ٣ / ١٤٤٧</div></div>
+    <div class="sign-box"><div class="sign-ttl">اطلع عليه مدير المدرسة</div><div class="sign-line"></div><div class="sign-sub">التوقيع: ...............</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ التوصيات + التوقيعات ══════════════════ -->
+<div class="page">
+  <div class="sec-title">التوصيات والإجراءات المقترحة</div>
+
+  <div class="box g keep" style="font-size:11pt;line-height:2;">
+    <strong>جوانب القوة:</strong><br>
+    ١. نسبة الحضور العامة جيدة (٩٣.٨٪) مع تحسن ملحوظ بعد تفعيل الخطة العلاجية في جمادى الأولى.<br>
+    ٢. تم التواصل مع ٨٥٪ من أسر الطلاب الغائبين خلال اليوم الأول من الغياب عبر الواتساب.<br>
+    ٣. انخفاض المخالفات من الدرجة الرابعة والخامسة مقارنة بالفصل السابق بنسبة ٣٠٪.<br>
+    ٤. تم تكريم ٢٥ طالباً متميزاً سلوكياً خلال الفصل الدراسي بشهادات وحوافز عينية.
+  </div>
+
+  <div class="box o keep" style="font-size:11pt;line-height:2;">
+    <strong>فرص التحسين والإجراءات المقترحة:</strong><br>
+    ١. تكثيف التواصل مع أسر الطلاب الأكثر غياباً (١٥ طالباً يشكلون ٦٥٪ من إجمالي الغياب).<br>
+    ٢. تفعيل برامج توعوية صحية بالتنسيق مع الموجه الصحي للحد من تأثير الأمراض الموسمية.<br>
+    ٣. معالجة ظاهرة الغياب قبل الاختبارات (انخفاض الحضور في جمادى الآخرة إلى ٨٩.٣٪).<br>
+    ٤. تفعيل برنامج تعزيز السلوك الإيجابي بحوافز أسبوعية وليس فصلية فقط.<br>
+    ٥. متابعة حالتي الدرجة الخامسة مع الجهات المختصة وتوثيق جميع الإجراءات المتخذة.
+  </div>
+
+  <div class="box r keep" style="font-size:11pt;">
+    ⚠  ملاحظة مهمة: يوجد ٢ حالة مخالفة من الدرجة الخامسة تم تحويلها للجهات المختصة — يوصى بمتابعة مستمرة وتوثيق كل الإجراءات في ملف الطالب السري.
+  </div>
+
+  <div class="sign-row" style="margin-top:28pt;">
+    <div class="sign-box"><div class="sign-ttl">إعداد: وكيل شؤون الطلاب</div><div class="sign-line"></div><div class="sign-sub">الاسم: يحيى أحمد يحيى آل مرعي  التوقيع: .............  التاريخ:  /  /  ١٤٤٧</div></div>
+    <div class="sign-box"><div class="sign-ttl">اعتماد: مدير المدرسة</div><div class="sign-line"></div><div class="sign-sub">الاسم: .......................  التوقيع: .............  التاريخ:  /  /  ١٤٤٧</div></div>
+    <div class="sign-box"><div class="sign-ttl">اطلع عليه: الموجه الطلابي</div><div class="sign-line"></div><div class="sign-sub">الاسم: .......................  التوقيع: .............  التاريخ:  /  /  ١٤٤٧</div></div>
+  </div>
+</div>
+
+</body>
+</html>

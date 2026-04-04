@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>معاينة التصميم الموحد — صفحات الجوال</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<style>
+  :root {
+    --c-primary: #4f46e5;
+    --c-primary-light: #eef2ff;
+    --c-bg: #f4f5f9;
+    --c-surface: #ffffff;
+    --c-surface-hover: #fafbfe;
+    --c-border: #e8ebf2;
+    --c-border-light: #f0f2f7;
+    --c-text: #1a1d2e;
+    --c-text-secondary: #5c6178;
+    --c-text-muted: #9da3b8;
+    --c-success: #10b981;
+    --c-danger: #ef4444;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.03);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.06);
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 16px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Cairo', sans-serif;
+    background: #e8eaef;
+    color: var(--c-text);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  /* ═══ تخطيط المعاينة ═══ */
+  .preview-layout {
+    display: flex;
+    gap: 40px;
+    padding: 30px;
+    justify-content: center;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .preview-section {
+    text-align: center;
+  }
+
+  .preview-section h2 {
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 12px;
+    color: var(--c-text);
+  }
+
+  .preview-section .subtitle {
+    font-size: 13px;
+    color: var(--c-text-muted);
+    margin-bottom: 16px;
+  }
+
+  .phone-frame {
+    width: 375px;
+    height: 812px;
+    border-radius: 40px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,.15), 0 0 0 2px #d1d5db;
+    position: relative;
+    background: var(--c-bg);
+  }
+
+  .phone-frame .phone-inner {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  .phone-frame .phone-inner::-webkit-scrollbar { width: 0; }
+
+  /* ═══ التصميم القديم ═══ */
+  .old-header {
+    background: linear-gradient(135deg, #1e3a5f, #2563eb);
+    padding: 20px;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .old-header h1 { color: #fff; font-size: 18px; font-weight: 800; }
+  .old-header .sub { color: rgba(255,255,255,.8); font-size: 13px; margin-top: 2px; }
+  .old-header .refresh-btn {
+    position: absolute; left: 16px; top: 16px;
+    border: none; background: rgba(255,255,255,.2); color: #fff;
+    padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+  }
+
+  .old-tabs {
+    display: flex; background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    position: sticky; top: 66px; z-index: 9;
+  }
+  .old-tabs button {
+    flex: 1; padding: 12px 4px; border: none; background: none;
+    font-size: 12px; cursor: pointer; color: #6b7280;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+  }
+  .old-tabs button.active {
+    color: #ef4444; border-bottom-color: #ef4444; font-weight: 700;
+  }
+
+  .old-page {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    background: #f0f2f5;
+    min-height: 100%;
+  }
+
+  .old-content { padding: 12px 16px; padding-bottom: 80px; }
+
+  .old-card {
+    background: #fff; border-radius: 16px; padding: 16px;
+    margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  }
+
+  .old-card-title {
+    font-size: 14px; font-weight: 700; color: #374151;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+  }
+
+  .old-select {
+    width: 100%; padding: 10px 12px;
+    border: 2px solid #d1d5db; border-radius: 12px;
+    font-size: 14px; font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: #fff; color: #1f2937;
+  }
+
+  .old-search {
+    width: 100%; padding: 10px 12px;
+    border: 2px solid #d1d5db; border-radius: 12px;
+    font-size: 14px; font-family: 'Segoe UI', Tahoma, sans-serif;
+    margin-bottom: 8px;
+  }
+
+  .old-pill-row { display: flex; gap: 4px; margin-bottom: 8px; }
+  .old-pill {
+    padding: 6px 14px; border-radius: 100px; border: none;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: #f3f4f6; color: #374151;
+  }
+  .old-pill.active { background: #ef4444; color: #fff; }
+
+  .old-list { max-height: 200px; overflow-y: auto; }
+  .old-list-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; border-bottom: 1px solid #f3f4f6;
+    cursor: pointer; font-size: 13px;
+    border-right: 4px solid #e5e7eb;
+  }
+  .old-list-item.selected { background: #fef2f2; border-right-color: #ef4444; }
+  .old-list-item .degree {
+    padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .old-student-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-bottom: 1px solid #f3f4f6; cursor: pointer;
+  }
+  .old-student-item.checked { background: rgba(239,68,68,.06); }
+  .old-checkbox {
+    width: 20px; height: 20px; border-radius: 4px;
+    border: 2px solid #d1d5db; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
+  }
+  .old-checkbox.on { background: #ef4444; border-color: #ef4444; }
+
+  .old-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+  .old-chip {
+    padding: 4px 10px; border-radius: 16px; font-size: 12px;
+    background: rgba(239,68,68,.12); color: #ef4444; font-weight: 600;
+  }
+
+  .old-bottom {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; gap: 8px; padding: 12px 16px;
+    background: #fff; border-top: 1px solid #e5e7eb;
+    box-shadow: 0 -4px 12px rgba(0,0,0,.06); z-index: 10;
+  }
+  .old-submit {
+    flex: 1; padding: 14px; border: none; border-radius: 12px;
+    background: linear-gradient(135deg, #b91c1c, #ef4444);
+    color: #fff; font-size: 16px; font-weight: 700;
+    font-family: 'Segoe UI', Tahoma, sans-serif; cursor: pointer;
+  }
+  .old-log-btn {
+    padding: 14px 20px; border: 2px solid #d1d5db; border-radius: 12px;
+    background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+  }
+
+  /* ═══ التصميم الجديد ═══ */
+  .new-page {
+    font-family: 'Cairo', sans-serif;
+    background: var(--c-bg);
+    min-height: 100%;
+  }
+
+  .new-accent-strip {
+    height: 4px;
+    background: var(--c-primary);
+  }
+
+  .new-header {
+    background: var(--c-surface);
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--c-border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .new-header-row {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .new-header-info {
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .new-header-icon {
+    width: 40px; height: 40px; border-radius: var(--r-md);
+    background: var(--c-primary-light);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .new-header-icon .material-symbols-outlined {
+    font-size: 22px; color: var(--c-primary);
+  }
+
+  .new-header h1 {
+    font-size: 17px; font-weight: 800; color: var(--c-text); margin: 0;
+  }
+  .new-header .sub {
+    font-size: 12px; color: var(--c-text-secondary); margin-top: 1px;
+  }
+
+  .new-refresh-btn {
+    display: flex; align-items: center; gap: 4px;
+    padding: 7px 14px; background: var(--c-bg);
+    border: 1.5px solid var(--c-border); border-radius: var(--r-sm);
+    color: var(--c-text-secondary); font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: 'Cairo', sans-serif;
+    transition: all .15s;
+  }
+  .new-refresh-btn:hover {
+    background: var(--c-primary-light); border-color: var(--c-primary);
+    color: var(--c-primary);
+  }
+
+  .new-tabs-bar {
+    margin: 12px 16px; background: #fff; border-radius: 16px;
+    padding: 5px; display: flex; gap: 3px;
+    box-shadow: var(--shadow-sm); border: 1px solid var(--c-border-light);
+    overflow-x: auto;
+  }
+  .new-tabs-bar::-webkit-scrollbar { display: none; }
+
+  .new-tab {
+    flex: 1; padding: 9px 6px; border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    color: #888; border: none; background: none;
+    font-family: 'Cairo', sans-serif; white-space: nowrap;
+    transition: all .25s;
+  }
+  .new-tab:hover { background: #f5f5f5; color: #555; }
+  .new-tab .material-symbols-outlined { font-size: 16px; }
+
+  .new-tab.active {
+    color: #fff !important; box-shadow: 0 4px 12px rgba(0,0,0,.15);
+  }
+  .new-tab.active .material-symbols-outlined { color: #fff !important; }
+
+  .new-content { padding: 4px 16px 90px; }
+
+  .new-card {
+    background: var(--c-surface);
+    border-radius: var(--r-md);
+    border: 1px solid var(--c-border);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: all .2s;
+  }
+  .new-card:hover { box-shadow: var(--shadow-md); }
+
+  .new-card-accent {
+    height: 3px;
+  }
+
+  .new-card-body { padding: 16px; }
+
+  .new-card-title {
+    font-size: 13px; font-weight: 700; color: var(--c-text);
+    margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+  }
+  .new-card-title .material-symbols-outlined { font-size: 18px; }
+
+  .new-select-grid {
+    display: grid; gap: 8px;
+  }
+  .new-select-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .new-select-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+
+  .new-select-label {
+    font-size: 11px; font-weight: 700; color: var(--c-text-muted); margin-bottom: 4px;
+  }
+
+  .new-select {
+    width: 100%; padding: 10px 12px;
+    border: 1.5px solid var(--c-border); border-radius: var(--r-sm);
+    font-size: 13px; font-weight: 600; font-family: 'Cairo', sans-serif;
+    background: var(--c-surface); color: var(--c-text);
+    transition: all .15s;
+  }
+  .new-select:focus {
+    border-color: var(--c-primary);
+    box-shadow: 0 0 0 3px rgba(79,70,229,.15);
+    outline: none;
+  }
+
+  .new-search-box {
+    position: relative; margin-bottom: 8px;
+  }
+  .new-search-box .material-symbols-outlined {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    font-size: 18px; color: var(--c-text-muted);
+  }
+  .new-search-box input {
+    width: 100%; padding: 10px 12px; padding-right: 38px;
+    border: 1.5px solid var(--c-border); border-radius: var(--r-sm);
+    font-size: 13px; font-family: 'Cairo', sans-serif;
+    background: var(--c-surface); color: var(--c-text);
+    transition: all .15s;
+  }
+  .new-search-box input:focus {
+    border-color: var(--c-primary);
+    box-shadow: 0 0 0 3px rgba(79,70,229,.15);
+    outline: none;
+  }
+  .new-search-box input::placeholder { color: var(--c-text-muted); }
+
+  .new-pill-row { display: flex; gap: 4px; margin-bottom: 10px; }
+  .new-pill {
+    padding: 6px 14px; border-radius: 100px; border: none;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    font-family: 'Cairo', sans-serif;
+    background: #f5f5f5; color: #666;
+    display: flex; align-items: center; gap: 4px;
+    transition: all .2s;
+  }
+  .new-pill:hover { background: #eee; }
+  .new-pill.active { color: #fff; }
+  .new-pill .material-symbols-outlined { font-size: 15px; }
+
+  .new-list { max-height: 200px; overflow-y: auto; border-radius: var(--r-sm); }
+  .new-list::-webkit-scrollbar { width: 4px; }
+  .new-list::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 100px; }
+
+  .new-list-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; border-bottom: 1px solid var(--c-border-light);
+    cursor: pointer; font-size: 13px;
+    border-right: 4px solid var(--c-border-light);
+    transition: all .15s;
+  }
+  .new-list-item:hover { background: var(--c-surface-hover); }
+  .new-list-item.selected { border-right-color: #ef4444; }
+  .new-list-item .degree {
+    padding: 3px 10px; border-radius: var(--r-sm); font-size: 11px; font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .new-student-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .new-student-header span {
+    font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px;
+  }
+  .new-count-badge {
+    padding: 2px 10px; border-radius: 100px; font-size: 11px;
+    font-weight: 800; color: #fff;
+  }
+  .new-select-all {
+    padding: 6px 12px; border-radius: var(--r-sm);
+    border: 1px solid var(--c-border); background: #fff;
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    font-family: 'Cairo', sans-serif; color: var(--c-text-secondary);
+  }
+
+  .new-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .new-chip {
+    padding: 5px 12px; border-radius: 100px; font-size: 12px;
+    font-weight: 600; display: flex; align-items: center; gap: 4px;
+    cursor: pointer; transition: all .15s;
+  }
+  .new-chip .material-symbols-outlined { font-size: 14px; }
+
+  .new-student-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-bottom: 1px solid var(--c-border-light);
+    cursor: pointer; transition: all .15s;
+  }
+  .new-student-item:hover { background: var(--c-surface-hover); }
+  .new-checkbox {
+    width: 20px; height: 20px; border-radius: 6px;
+    border: 2px solid var(--c-border); display: flex;
+    align-items: center; justify-content: center;
+    font-size: 13px; color: #fff; flex-shrink: 0;
+    transition: all .15s;
+  }
+  .new-checkbox.on { border-color: transparent; }
+  .new-checkbox .material-symbols-outlined { font-size: 15px; color: #fff; }
+  .new-student-name { font-size: 14px; font-weight: 600; flex: 1; }
+  .new-student-class {
+    font-size: 10px; font-weight: 700; padding: 3px 8px;
+    border-radius: var(--r-sm); background: var(--c-bg); color: var(--c-text-muted);
+  }
+
+  .new-bottom {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; gap: 8px; padding: 12px 16px;
+    background: var(--c-surface);
+    border-top: 1px solid var(--c-border);
+    box-shadow: 0 -4px 12px rgba(0,0,0,.04); z-index: 10;
+  }
+  .new-submit {
+    flex: 1; padding: 14px; border: none; border-radius: var(--r-md);
+    color: #fff; font-size: 15px; font-weight: 700;
+    font-family: 'Cairo', sans-serif; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: all .2s;
+  }
+  .new-submit:hover { filter: brightness(1.05); }
+  .new-submit .material-symbols-outlined { font-size: 18px; }
+
+  .new-log-btn {
+    padding: 14px 18px; border: 1.5px solid var(--c-border);
+    border-radius: var(--r-md); background: #fff;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    font-family: 'Cairo', sans-serif; color: var(--c-text-secondary);
+    display: flex; align-items: center; gap: 4px;
+    transition: all .15s;
+  }
+  .new-log-btn:hover { border-color: var(--c-primary); color: var(--c-primary); }
+  .new-log-btn .material-symbols-outlined { font-size: 18px; }
+
+  /* ═══ عنوان الصفحة ═══ */
+  .page-title-bar {
+    text-align: center;
+    padding: 24px 20px 8px;
+  }
+  .page-title-bar h1 {
+    font-size: 24px; font-weight: 900; color: var(--c-text);
+    margin-bottom: 4px;
+  }
+  .page-title-bar p {
+    font-size: 14px; color: var(--c-text-muted);
+  }
+
+  /* ═══ درجات المخالفات ═══ */
+  .deg-1 { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+  .deg-2 { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+  .deg-3 { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+  .deg-4 { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+  /* ═══ Comparison label ═══ */
+  .compare-label {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 16px; border-radius: 100px;
+    font-size: 13px; font-weight: 700; margin-bottom: 16px;
+  }
+  .compare-label.before { background: #fef2f2; color: #dc2626; }
+  .compare-label.after { background: #ecfdf5; color: #059669; }
+
+  @media (max-width: 860px) {
+    .preview-layout { flex-direction: column; align-items: center; padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title-bar">
+  <h1>معاينة التصميم الموحد</h1>
+  <p>مقارنة التصميم الحالي مع التصميم المقترح — نموذج الوكيل</p>
+</div>
+
+<div class="preview-layout">
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- القديم -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="preview-section">
+    <div class="compare-label before">
+      <span class="material-symbols-outlined" style="font-size:16px">close</span>
+      التصميم الحالي
+    </div>
+    <div class="phone-frame">
+      <div class="phone-inner old-page">
+        <!-- Header -->
+        <div class="old-header">
+          <button class="refresh-btn" style="position:absolute;left:16px;top:16px;border:none;background:rgba(255,255,255,.2);color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;font-family:'Segoe UI',sans-serif">تحديث</button>
+          <h1>نموذج الوكيل</h1>
+          <div class="sub">أحمد محمد العتيبي — مدرسة المتنبي</div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="old-tabs">
+          <button class="active">مخالفات</button>
+          <button>غياب</button>
+          <button>سلوك</button>
+          <button>ملاحظات</button>
+          <button>استئذان</button>
+          <button>تأخر</button>
+        </div>
+
+        <div class="old-content">
+          <!-- Selectors -->
+          <div class="old-card">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+              <select class="old-select"><option>متوسط</option></select>
+              <select class="old-select"><option>ثالث</option></select>
+              <select class="old-select"><option>أ</option></select>
+            </div>
+          </div>
+
+          <!-- Violations -->
+          <div class="old-card">
+            <div class="old-pill-row">
+              <button class="old-pill active">حضوري</button>
+              <button class="old-pill">رقمي</button>
+              <button class="old-pill">هيئة تعليمية</button>
+            </div>
+            <input class="old-search" placeholder="بحث في المخالفات...">
+            <div class="old-list">
+              <div class="old-list-item selected">
+                <span style="flex:1">الإساءة اللفظية للمعلم أو الإداري</span>
+                <span class="degree" style="background:#fef2f2;color:#991b1b">الرابعة</span>
+              </div>
+              <div class="old-list-item" style="border-right-color:#a7f3d0">
+                <span style="flex:1">التأخر عن الحصة الدراسية</span>
+                <span class="degree" style="background:#ecfdf5;color:#065f46">الأولى</span>
+              </div>
+              <div class="old-list-item" style="border-right-color:#fde68a">
+                <span style="flex:1">الغش في الاختبارات</span>
+                <span class="degree" style="background:#fffbeb;color:#92400e">الثانية</span>
+              </div>
+              <div class="old-list-item" style="border-right-color:#fed7aa">
+                <span style="flex:1">إتلاف ممتلكات المدرسة</span>
+                <span class="degree" style="background:#fff7ed;color:#9a3412">الثالثة</span>
+              </div>
+              <div class="old-list-item" style="border-right-color:#a7f3d0">
+                <span style="flex:1">عدم إحضار الكتب والأدوات</span>
+                <span class="degree" style="background:#ecfdf5;color:#065f46">الأولى</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Students -->
+          <div class="old-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <span style="font-size:14px;font-weight:700">اختر الطلاب <span style="padding:2px 10px;border-radius:12px;background:#ef4444;color:#fff;font-size:12px">2</span></span>
+              <button style="padding:6px 14px;border-radius:100px;border:none;background:#f3f4f6;font-size:12px;cursor:pointer;font-family:'Segoe UI',sans-serif">تحديد الكل</button>
+            </div>
+            <input class="old-search" placeholder="بحث عن طالب...">
+            <div class="old-chips">
+              <span class="old-chip">محمد أحمد ✕</span>
+              <span class="old-chip">خالد سعد (ب) ✕</span>
+            </div>
+            <div class="old-list">
+              <div class="old-student-item checked">
+                <div class="old-checkbox on">✓</div>
+                <span style="font-size:14px;flex:1">محمد أحمد العتيبي</span>
+              </div>
+              <div class="old-student-item">
+                <div class="old-checkbox"></div>
+                <span style="font-size:14px;flex:1">سعد خالد الشمري</span>
+              </div>
+              <div class="old-student-item checked">
+                <div class="old-checkbox on">✓</div>
+                <span style="font-size:14px;flex:1">خالد سعد القحطاني</span>
+                <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:8px;background:#f3f4f6;color:#6b7280">ب</span>
+              </div>
+              <div class="old-student-item">
+                <div class="old-checkbox"></div>
+                <span style="font-size:14px;flex:1">يوسف إبراهيم الدوسري</span>
+              </div>
+              <div class="old-student-item">
+                <div class="old-checkbox"></div>
+                <span style="font-size:14px;flex:1">عبدالرحمن فهد المالكي</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom -->
+        <div class="old-bottom">
+          <button class="old-submit">إرسال (2)</button>
+          <button class="old-log-btn">سجل اليوم</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- الجديد -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="preview-section">
+    <div class="compare-label after">
+      <span class="material-symbols-outlined" style="font-size:16px">check_circle</span>
+      التصميم المقترح
+    </div>
+    <div class="phone-frame">
+      <div class="phone-inner new-page">
+        <!-- Accent strip -->
+        <div class="new-accent-strip"></div>
+
+        <!-- Header -->
+        <div class="new-header">
+          <div class="new-header-row">
+            <div class="new-header-info">
+              <div class="new-header-icon">
+                <span class="material-symbols-outlined">badge</span>
+              </div>
+              <div>
+                <h1>نموذج الوكيل</h1>
+                <div class="sub">أحمد محمد العتيبي — مدرسة المتنبي</div>
+              </div>
+            </div>
+            <button class="new-refresh-btn">
+              <span class="material-symbols-outlined" style="font-size:16px">sync</span>
+              تحديث
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="new-tabs-bar">
+          <button class="new-tab active" style="background:#ef4444">
+            <span class="material-symbols-outlined">gavel</span> مخالفات
+          </button>
+          <button class="new-tab">
+            <span class="material-symbols-outlined" style="color:#f59e0b">event_busy</span> غياب
+          </button>
+          <button class="new-tab">
+            <span class="material-symbols-outlined" style="color:#22c55e">star</span> سلوك
+          </button>
+          <button class="new-tab">
+            <span class="material-symbols-outlined" style="color:#06b6d4">menu_book</span> ملاحظات
+          </button>
+          <button class="new-tab">
+            <span class="material-symbols-outlined" style="color:#3b82f6">door_front</span> استئذان
+          </button>
+          <button class="new-tab">
+            <span class="material-symbols-outlined" style="color:#f97316">schedule</span> تأخر
+          </button>
+        </div>
+
+        <div class="new-content">
+          <!-- Selectors -->
+          <div class="new-card">
+            <div class="new-card-accent" style="background:#ef4444"></div>
+            <div class="new-card-body">
+              <div class="new-card-title">
+                <span class="material-symbols-outlined" style="color:#ef4444">apartment</span>
+                المرحلة والصف
+              </div>
+              <div class="new-select-grid cols-3">
+                <div>
+                  <div class="new-select-label">المرحلة</div>
+                  <select class="new-select"><option>متوسط</option></select>
+                </div>
+                <div>
+                  <div class="new-select-label">الصف</div>
+                  <select class="new-select"><option>ثالث</option></select>
+                </div>
+                <div>
+                  <div class="new-select-label">الفصل</div>
+                  <select class="new-select"><option>أ</option></select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Violations -->
+          <div class="new-card">
+            <div class="new-card-accent" style="background:#ef4444"></div>
+            <div class="new-card-body">
+              <div class="new-card-title">
+                <span class="material-symbols-outlined" style="color:#ef4444">gavel</span>
+                اختر المخالفة
+              </div>
+              <div class="new-pill-row">
+                <button class="new-pill active" style="background:#ef4444">
+                  <span class="material-symbols-outlined">person</span> حضوري
+                </button>
+                <button class="new-pill">
+                  <span class="material-symbols-outlined">devices</span> رقمي
+                </button>
+                <button class="new-pill">
+                  <span class="material-symbols-outlined">groups</span> هيئة تعليمية
+                </button>
+              </div>
+              <div class="new-search-box">
+                <span class="material-symbols-outlined">search</span>
+                <input placeholder="بحث في المخالفات...">
+              </div>
+              <div class="new-list">
+                <div class="new-list-item selected" style="background:#fef2f2">
+                  <span style="flex:1">الإساءة اللفظية للمعلم أو الإداري</span>
+                  <span class="degree deg-4">الرابعة</span>
+                </div>
+                <div class="new-list-item" style="border-right-color:#a7f3d0">
+                  <span style="flex:1">التأخر عن الحصة الدراسية</span>
+                  <span class="degree deg-1">الأولى</span>
+                </div>
+                <div class="new-list-item" style="border-right-color:#fde68a">
+                  <span style="flex:1">الغش في الاختبارات</span>
+                  <span class="degree deg-2">الثانية</span>
+                </div>
+                <div class="new-list-item" style="border-right-color:#fed7aa">
+                  <span style="flex:1">إتلاف ممتلكات المدرسة</span>
+                  <span class="degree deg-3">الثالثة</span>
+                </div>
+                <div class="new-list-item" style="border-right-color:#a7f3d0">
+                  <span style="flex:1">عدم إحضار الكتب والأدوات</span>
+                  <span class="degree deg-1">الأولى</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Students -->
+          <div class="new-card">
+            <div class="new-card-accent" style="background:#ef4444"></div>
+            <div class="new-card-body">
+              <div class="new-student-header">
+                <span>
+                  <span class="material-symbols-outlined" style="font-size:18px;color:#ef4444">groups</span>
+                  اختر الطلاب
+                  <span class="new-count-badge" style="background:#ef4444">2</span>
+                </span>
+                <button class="new-select-all">تحديد الكل</button>
+              </div>
+              <div class="new-search-box">
+                <span class="material-symbols-outlined">search</span>
+                <input placeholder="بحث عن طالب...">
+              </div>
+              <div class="new-chips">
+                <span class="new-chip" style="background:rgba(239,68,68,.1);color:#ef4444">
+                  محمد أحمد <span class="material-symbols-outlined">close</span>
+                </span>
+                <span class="new-chip" style="background:rgba(239,68,68,.1);color:#ef4444">
+                  خالد سعد <span style="opacity:.6;font-size:10px">(ب)</span> <span class="material-symbols-outlined">close</span>
+                </span>
+              </div>
+              <div class="new-list">
+                <div class="new-student-item" style="background:rgba(239,68,68,.04)">
+                  <div class="new-checkbox on" style="background:#ef4444">
+                    <span class="material-symbols-outlined">check</span>
+                  </div>
+                  <span class="new-student-name">محمد أحمد العتيبي</span>
+                </div>
+                <div class="new-student-item">
+                  <div class="new-checkbox"></div>
+                  <span class="new-student-name">سعد خالد الشمري</span>
+                </div>
+                <div class="new-student-item" style="background:rgba(239,68,68,.04)">
+                  <div class="new-checkbox on" style="background:#ef4444">
+                    <span class="material-symbols-outlined">check</span>
+                  </div>
+                  <span class="new-student-name">خالد سعد القحطاني</span>
+                  <span class="new-student-class">ب</span>
+                </div>
+                <div class="new-student-item">
+                  <div class="new-checkbox"></div>
+                  <span class="new-student-name">يوسف إبراهيم الدوسري</span>
+                </div>
+                <div class="new-student-item">
+                  <div class="new-checkbox"></div>
+                  <span class="new-student-name">عبدالرحمن فهد المالكي</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom -->
+        <div class="new-bottom">
+          <button class="new-submit" style="background:#ef4444;box-shadow:0 4px 14px rgba(239,68,68,.3)">
+            <span class="material-symbols-outlined">send</span>
+            إرسال (2)
+          </button>
+          <button class="new-log-btn">
+            <span class="material-symbols-outlined">history</span>
+            سجل اليوم
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ ملاحظات التصميم ═══ -->
+<div style="max-width:800px;margin:30px auto;padding:0 20px 40px">
+  <div style="background:#fff;border-radius:16px;padding:24px;border:1px solid var(--c-border);box-shadow:var(--shadow-sm)">
+    <h3 style="font-size:16px;font-weight:800;margin-bottom:16px;display:flex;align-items:center;gap:8px">
+      <span class="material-symbols-outlined" style="color:var(--c-primary)">compare</span>
+      ملخص الفروقات
+    </h3>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:var(--c-bg)">
+          <th style="padding:10px 12px;text-align:right;font-weight:700;border-bottom:2px solid var(--c-border)">العنصر</th>
+          <th style="padding:10px 12px;text-align:right;font-weight:700;border-bottom:2px solid var(--c-border);color:#dc2626">الحالي</th>
+          <th style="padding:10px 12px;text-align:right;font-weight:700;border-bottom:2px solid var(--c-border);color:#059669">المقترح</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">الخط</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">Segoe UI</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light);font-weight:700;color:#059669">Cairo</td></tr>
+        <tr><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">الهيدر</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">تدرج لوني غامق</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light);font-weight:700;color:#059669">أبيض + شريط ملون 4px</td></tr>
+        <tr><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">التبويبات</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">خط سفلي مسطح</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light);font-weight:700;color:#059669">حبوب دائرية ملونة</td></tr>
+        <tr><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">البطاقات</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">بدون حدود ملونة</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light);font-weight:700;color:#059669">حد ملون 3px علوي</td></tr>
+        <tr><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">الأيقونات</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">خليط emoji + Material</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light);font-weight:700;color:#059669">Material Symbols فقط</td></tr>
+        <tr><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">الخلفية</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">#f0f2f5</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light);font-weight:700;color:#059669">#f4f5f9</td></tr>
+        <tr><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">زر الإرسال</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light)">تدرج لوني</td><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-light);font-weight:700;color:#059669">لون صلب نظيف</td></tr>
+        <tr><td style="padding:8px 12px">الحدود</td><td style="padding:8px 12px">#d1d5db (رمادي قوي)</td><td style="padding:8px 12px;font-weight:700;color:#059669">#e8ebf2 (أنعم)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>

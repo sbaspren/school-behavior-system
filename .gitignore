@@ -19,7 +19,7 @@ appsettings.Development.json
 appsettings.json
 
 # Build artifacts (React output)
-src/API/wwwroot/
+# src/API/wwwroot/
 
 # IDE
 .idea/
