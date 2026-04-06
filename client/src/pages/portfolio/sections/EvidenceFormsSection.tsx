@@ -1,5 +1,7 @@
 import React from 'react';
-import { toIndic } from '../../../utils/printUtils';
+import { toIndic, buildLetterheadHtml } from '../../../utils/printUtils';
+import { useAppContext } from '../../../hooks/useAppContext';
+import { printSection } from '../../../utils/print/portfolio';
 
 const sectionTitle: React.CSSProperties = {
   fontSize: 16, fontWeight: 800, color: '#1B3A6B', textAlign: 'center',
@@ -63,12 +65,15 @@ const forms: FormInfo[] = [
 
 /* ── Card ─────────────────────────────────────────────── */
 
-function FormCard({ form }: { form: FormInfo }) {
+function FormCard({ form, settings }: { form: FormInfo; settings: Record<string, string> }) {
   const handlePrintBlank = () => {
-    console.log(`Print blank form: ${form.title}`);
+    const blankContent = getBlankFormHtml(form.number);
+    printSection(`النموذج ${toIndic(form.number)}: ${form.title}`, blankContent, settings);
   };
   const handlePrintWithData = () => {
-    console.log(`Print form with data: ${form.title}`);
+    // TODO: fetch real data and populate — for now prints blank with header
+    const blankContent = getBlankFormHtml(form.number);
+    printSection(`النموذج ${toIndic(form.number)}: ${form.title}`, blankContent, settings);
   };
 
   return (
@@ -151,7 +156,102 @@ function FormCard({ form }: { form: FormInfo }) {
 
 /* ── Main Component ─────────────────────────────────────── */
 
+/* ── Blank form HTML generators ── */
+function getBlankFormHtml(formNumber: number): string {
+  const emptyRows = (count: number, cols: number) => {
+    let html = '';
+    for (let i = 0; i < count; i++) {
+      html += '<tr>';
+      html += `<td class="num">${toIndic(i + 1)}</td>`;
+      for (let j = 1; j < cols; j++) html += '<td style="height:24pt"></td>';
+      html += '</tr>';
+    }
+    return html;
+  };
+
+  switch (formNumber) {
+    case 1: // وثيقة إجراءات الانضباط
+      return `
+        <div class="box b" style="margin-bottom:10pt;font-size:11pt;">
+          المؤشر المرتبط: <strong>(٣-١-٢-١) الانضباط المدرسي</strong> | المعيار: قيادة العملية التعليمية
+        </div>
+        <div style="background:#1B3A6B;color:#fff;padding:7pt 14pt;font-weight:700;font-size:12pt;">المستوى الأول — الإجراءات الوقائية</div>
+        <table><tbody>${emptyRows(5, 2)}</tbody></table>
+        <div style="background:#1A6B3C;color:#fff;padding:7pt 14pt;font-weight:700;font-size:12pt;margin-top:10pt;">المستوى الثاني — الإجراءات العلاجية</div>
+        <table><tbody>${emptyRows(5, 2)}</tbody></table>
+        <div style="background:#C05B00;color:#fff;padding:7pt 14pt;font-weight:700;font-size:12pt;margin-top:10pt;">المستوى الثالث — الإجراءات التصحيحية</div>
+        <table><tbody>${emptyRows(4, 2)}</tbody></table>
+        <div class="sign-row" style="margin-top:18pt;">
+          <div class="sign-box"><div class="sign-ttl">مدير المدرسة</div><div class="sign-line"></div><div class="sign-sub">الاسم: .............. التوقيع: ..............</div></div>
+          <div class="sign-box"><div class="sign-ttl">وكيل شؤون الطلاب</div><div class="sign-line"></div><div class="sign-sub">الاسم: .............. التوقيع: ..............</div></div>
+          <div class="sign-box"><div class="sign-ttl">الموجه الطلابي</div><div class="sign-line"></div><div class="sign-sub">الاسم: .............. التوقيع: ..............</div></div>
+        </div>`;
+
+    case 2: // سجل المتابعة اليومية
+      return `
+        <table>
+          <thead><tr><th style="width:18pt;text-align:center">م</th><th style="width:70pt">التاريخ</th><th style="width:25%">اسم الطالب</th><th style="width:50pt">الصف</th><th>المخالفة / السلوك</th><th>الإجراء المتخذ</th></tr></thead>
+          <tbody>${emptyRows(12, 6)}</tbody>
+        </table>
+        <div class="sign-row" style="margin-top:14pt;">
+          <div class="sign-box"><div class="sign-ttl">إجمالي المخالفات: ............</div></div>
+          <div class="sign-box"><div class="sign-ttl">توقيع وكيل شؤون الطلاب</div><div class="sign-line"></div></div>
+        </div>`;
+
+    case 3: // سجل التواصل مع أولياء الأمور
+      return `
+        <table>
+          <thead><tr><th style="width:18pt;text-align:center">م</th><th style="width:55pt">التاريخ</th><th style="width:25%">ولي الأمر / الطالب</th><th style="width:55pt">الوسيلة</th><th>موضوع التواصل</th><th style="width:50pt">النتيجة</th></tr></thead>
+          <tbody>${emptyRows(10, 6)}</tbody>
+        </table>
+        <div class="sign-row" style="margin-top:14pt;">
+          <div class="sign-box"><div class="sign-ttl">توقيع وكيل شؤون الطلاب</div><div class="sign-line"></div></div>
+          <div class="sign-box"><div class="sign-ttl">اطلع عليه مدير المدرسة</div><div class="sign-line"></div></div>
+        </div>`;
+
+    case 4: // سجل حوافز الطلاب المتميزين
+      return `
+        <table>
+          <thead><tr><th style="width:18pt;text-align:center">م</th><th style="width:55pt">التاريخ</th><th style="width:25%">اسم الطالب</th><th style="width:40pt">الصف</th><th>سبب التكريم</th><th style="width:70pt">نوع الحافز</th></tr></thead>
+          <tbody>${emptyRows(10, 6)}</tbody>
+        </table>
+        <div class="sign-row" style="margin-top:14pt;">
+          <div class="sign-box"><div class="sign-ttl">توقيع وكيل شؤون الطلاب</div><div class="sign-line"></div></div>
+          <div class="sign-box"><div class="sign-ttl">اطلع عليه مدير المدرسة</div><div class="sign-line"></div></div>
+        </div>`;
+
+    case 5: // ملخص الإنجاز الشهري
+      return `
+        <div style="display:flex;gap:0;border:0.5pt solid #C5CFE0;">
+          <div style="flex:1;padding:6pt 10pt;border-left:0.5pt solid #C5CFE0;"><span style="font-size:9pt;color:#777;">الشهر</span><div style="border-bottom:0.5pt solid #C5CFE0;height:16pt;"></div></div>
+          <div style="flex:1;padding:6pt 10pt;border-left:0.5pt solid #C5CFE0;"><span style="font-size:9pt;color:#777;">العام الدراسي</span><div style="border-bottom:0.5pt solid #C5CFE0;height:16pt;"></div></div>
+          <div style="flex:2;padding:6pt 10pt;"><span style="font-size:9pt;color:#777;">اسم الوكيل</span><div style="border-bottom:0.5pt solid #C5CFE0;height:16pt;"></div></div>
+        </div>
+        <table style="margin-top:8pt;">
+          <thead><tr><th>المؤشر</th><th>الأنشطة المنفذة</th><th>الشواهد الموثقة</th><th>ملاحظات</th></tr></thead>
+          <tbody>
+            <tr><td style="font-weight:700;color:#1B3A6B;">الانضباط (٣-١-٢-١)</td><td style="height:30pt"></td><td></td><td></td></tr>
+            <tr><td style="font-weight:700;color:#1A6B3C;">مشاركة الأسرة (٢-١-٣-١)</td><td style="height:30pt"></td><td></td><td></td></tr>
+            <tr><td style="font-weight:700;color:#C05B00;">حقوق المتعلمين (١-١-٥-١)</td><td style="height:30pt"></td><td></td><td></td></tr>
+            <tr><td style="font-weight:700;color:#B8860B;">التزام السلوك (٥-١-٢-٣)</td><td style="height:30pt"></td><td></td><td></td></tr>
+          </tbody>
+        </table>
+        <div style="display:flex;gap:0;margin-top:8pt;">
+          <div style="flex:1;padding:6pt 10pt;border:0.5pt solid #C5CFE0;"><span style="font-size:9pt;font-weight:700;color:#1B3A6B;">جوانب القوة:</span><div style="height:30pt;border-bottom:0.5pt dashed #C5CFE0;"></div></div>
+          <div style="flex:1;padding:6pt 10pt;border:0.5pt solid #C5CFE0;border-right:none;"><span style="font-size:9pt;font-weight:700;color:#1B3A6B;">فرص التحسين:</span><div style="height:30pt;border-bottom:0.5pt dashed #C5CFE0;"></div></div>
+        </div>
+        <div class="sign-row" style="margin-top:14pt;">
+          <div class="sign-box"><div class="sign-ttl">توقيع وكيل شؤون الطلاب</div><div class="sign-line"></div></div>
+          <div class="sign-box"><div class="sign-ttl">اطلع عليه مدير المدرسة</div><div class="sign-line"></div></div>
+        </div>`;
+
+    default:
+      return '<p>النموذج غير متاح</p>';
+  }
+}
+
 export default function EvidenceFormsSection() {
+  const { schoolSettings } = useAppContext();
   return (
     <div style={{ direction: 'rtl', fontFamily: 'Cairo, Tajawal, sans-serif' }}>
       <div style={sectionTitle}>
@@ -159,7 +259,7 @@ export default function EvidenceFormsSection() {
       </div>
 
       {forms.map((form) => (
-        <FormCard key={form.number} form={form} />
+        <FormCard key={form.number} form={form} settings={schoolSettings} />
       ))}
     </div>
   );

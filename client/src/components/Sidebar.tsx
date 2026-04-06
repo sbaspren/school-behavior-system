@@ -48,7 +48,6 @@ const NAV_ITEMS: NavGroup[] = [
   // ── 4. ملف الإنجاز ──
   { section: 'ملف الإنجاز', items: [
     { path: '/portfolio', label: 'ملف الإنجاز واللجان', icon: 'folder_special', iconColor: '#1B3A6B', roles: ['Admin', 'Deputy', 'Counselor'] },
-    { path: '/general-forms', label: 'النماذج العامة', icon: 'folder_open', iconColor: '#f97316', roles: ['Admin', 'Deputy', 'Counselor'] },
   ]},
 
   // ── 5. نظام نور ──

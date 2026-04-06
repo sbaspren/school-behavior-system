@@ -7,6 +7,7 @@ import { useAppContext } from '../../hooks/useAppContext';
 import { getHijriDate } from '../../hooks/usePageData';
 import { toIndic } from '../../utils/printUtils';
 import { portfolioApi, CompletionData } from '../../api/portfolio';
+import { printCover } from '../../utils/print/portfolio';
 import CommitteesTab from './CommitteesTab';
 import CompletionDashboard from './CompletionDashboard';
 import { ReportsHub } from './reports';
@@ -85,8 +86,43 @@ const PortfolioPage: React.FC = () => {
           {/* لوحة الاكتمال */}
           <CompletionDashboard />
 
+          {/* أزرار الطباعة الرئيسية */}
+          <div style={{
+            display: 'flex', gap: 10, marginTop: 16, marginBottom: 16,
+            flexWrap: 'wrap',
+          }}>
+            <button
+              onClick={() => printCover(schoolSettings)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: '#1B3A6B', color: '#fff', border: 'none',
+                borderRadius: 10, padding: '12px 24px', fontSize: 14,
+                fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                boxShadow: '0 2px 8px rgba(27,58,107,.25)',
+              }}
+            >
+              <MI n="print" s={20} c="#fff" />
+              طباعة الغلاف
+            </button>
+            <button
+              onClick={() => {
+                // طباعة كل قسم على حدة — أو يمكن لاحقا دمجهم في ملف واحد
+                printCover(schoolSettings);
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: '#fff', color: '#1B3A6B', border: '2px solid #1B3A6B',
+                borderRadius: 10, padding: '12px 24px', fontSize: 14,
+                fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              <MI n="folder_special" s={20} c="#1B3A6B" />
+              طباعة الملف كاملا
+            </button>
+          </div>
+
           {/* أقسام الملف */}
-          <div style={{ marginTop: 20 }}>
+          <div style={{ marginTop: 8 }}>
             <div style={{
               fontSize: 16, fontWeight: 700, color: '#1B3A6B',
               marginBottom: 12, paddingRight: 8, borderRight: '3px solid #1B3A6B',

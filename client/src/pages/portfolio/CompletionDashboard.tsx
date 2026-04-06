@@ -1,17 +1,22 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { portfolioApi, CompletionData, IndicatorData } from '../../api/portfolio';
 import { toIndic } from '../../utils/printUtils';
 import MI from '../../components/shared/MI';
 
-/* ── guidance map ── */
-const guidanceMap: Record<string, string> = {
-  'المخالفات السلوكية': 'صفحة المخالفات',
-  'سجلات الغياب': 'صفحة الغياب',
-  'سجلات التأخر': 'صفحة التأخر',
-  'سجلات الاستئذان': 'صفحة الاستئذان',
-  'السلوك الإيجابي': 'صفحة السلوك الإيجابي',
-  'رسائل التواصل': 'صفحة الواتساب',
-  'الملاحظات التربوية': 'صفحة الملاحظات',
+/* ── guidance map: label → { page name, route, icon } ── */
+const guidanceMap: Record<string, { label: string; route: string; icon: string }> = {
+  'المخالفات السلوكية': { label: 'انتقل لصفحة المخالفات', route: '/violations', icon: 'gavel' },
+  'سجلات الغياب': { label: 'انتقل لصفحة الغياب', route: '/absence', icon: 'event_busy' },
+  'سجلات التأخر': { label: 'انتقل لصفحة التأخر', route: '/tardiness', icon: 'schedule' },
+  'سجلات الاستئذان': { label: 'انتقل لصفحة الاستئذان', route: '/permissions', icon: 'exit_to_app' },
+  'السلوك الإيجابي': { label: 'انتقل لصفحة السلوك الإيجابي', route: '/positive', icon: 'thumb_up' },
+  'رسائل التواصل (≥١٠)': { label: 'انتقل لصفحة الواتساب', route: '/whatsapp', icon: 'chat' },
+  'أعذار أولياء الأمور': { label: 'انتقل لصفحة الأعذار', route: '/parent-excuse', icon: 'assignment_late' },
+  'رصد المخالفات': { label: 'انتقل لصفحة المخالفات', route: '/violations', icon: 'gavel' },
+  'متابعة مؤشرات الخطر': { label: 'انتقل لصفحة المخالفات', route: '/violations', icon: 'warning' },
+  'الملاحظات التربوية': { label: 'انتقل لصفحة الملاحظات', route: '/notes', icon: 'sticky_note_2' },
+  'المتابعة السلوكية': { label: 'انتقل لصفحة المخالفات', route: '/violations', icon: 'gavel' },
 };
 
 function barColor(pct: number) {
@@ -34,14 +39,22 @@ function statusNode(ind: IndicatorData) {
 }
 
 const CompletionDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState<CompletionData | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
 
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
   useEffect(() => {
-    portfolioApi.getCompletion().then(setData).catch(console.error);
+    portfolioApi.getCompletion()
+      .then(setData)
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
   }, []);
 
-  if (!data) return <div style={{ textAlign: 'center', padding: 40 }}>جاري التحميل...</div>;
+  if (loading) return <div style={{ textAlign: 'center', padding: 20, color: '#9ca3af', fontSize: 13 }}>جاري تحميل بيانات الاكتمال...</div>;
+  if (error || !data) return <div style={{ textAlign: 'center', padding: 16, color: '#f59e0b', fontSize: 13, background: '#FFF8E8', borderRadius: 8, marginBottom: 12 }}>⚠ لم يتم تحميل بيانات الاكتمال — تحقق من الاتصال</div>;
 
   const { summary, indicators } = data;
   const pct = summary.overallPercentage;
@@ -116,33 +129,58 @@ const CompletionDashboard: React.FC = () => {
               </div>
               <div style={{ textAlign: 'center' }}>{statusNode(ind)}</div>
 
-              {/* ── Expandable Details ── */}
+              {/* ── Checklist Details ── */}
               {isOpen && (
-                <div style={{ marginTop: 14, borderTop: '1px solid #f3f4f6', paddingTop: 10 }}>
+                <div style={{ marginTop: 14, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8, fontWeight: 600 }}>قائمة الإنجاز:</div>
                   {ind.details.map((d, i) => (
-                    <div key={i} style={{ marginBottom: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                        {d.exists ? (
-                          <MI n="check_circle" s={18} c="#16a34a" />
-                        ) : (
-                          <MI n="cancel" s={18} c="#dc2626" />
-                        )}
-                        <span>{d.label}</span>
-                      </div>
-                      {!d.exists && guidanceMap[d.label] && (
-                        <div
-                          style={{
-                            background: '#fef2f2',
-                            color: '#b91c1c',
-                            borderRadius: 6,
-                            padding: '6px 10px',
-                            fontSize: 12,
-                            marginTop: 4,
-                            marginRight: 24,
-                          }}
-                        >
-                          {'💡'} هذا الشاهد يحتاج تسجيل بيانات — ابدأ من {guidanceMap[d.label]}
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 12px', marginBottom: 4,
+                      background: d.exists ? '#f0fdf4' : '#fef2f2',
+                      borderRadius: 8,
+                      border: `1px solid ${d.exists ? '#bbf7d0' : '#fecaca'}`,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{
+                          width: 24, height: 24, borderRadius: 6,
+                          background: d.exists ? '#16a34a' : '#fff',
+                          border: d.exists ? 'none' : '2px solid #d1d5db',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          {d.exists && <MI n="check" s={16} c="#fff" />}
                         </div>
+                        <span style={{
+                          fontSize: 13, fontWeight: 500,
+                          color: d.exists ? '#15803d' : '#991b1b',
+                          textDecoration: d.exists ? 'line-through' : 'none',
+                        }}>
+                          {d.label}
+                        </span>
+                        {d.exists && (
+                          <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>✓ مكتمل</span>
+                        )}
+                      </div>
+
+                      {!d.exists && guidanceMap[d.label] && (
+                        <button
+                          onClick={() => navigate(guidanceMap[d.label].route)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            background: '#1B3A6B', color: '#fff',
+                            border: 'none', borderRadius: 8,
+                            padding: '6px 14px', fontSize: 12, fontWeight: 600,
+                            cursor: 'pointer', transition: 'background .2s',
+                            whiteSpace: 'nowrap',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#2E5FA3')}
+                          onMouseLeave={e => (e.currentTarget.style.background = '#1B3A6B')}
+                        >
+                          <MI n={guidanceMap[d.label].icon} s={16} c="#fff" />
+                          {guidanceMap[d.label].label}
+                          <MI n="arrow_back" s={14} c="#fff" />
+                        </button>
                       )}
                     </div>
                   ))}
