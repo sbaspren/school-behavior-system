@@ -145,7 +145,7 @@ const TodayTab: React.FC<{ records: TardinessRow[]; allRecords: TardinessRow[]; 
                 return (
                   <tr key={r.id} style={{ background: selected.has(r.id) ? '#eff6ff' : undefined }}>
                     <td><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
-                    <td><div style={{ fontWeight: 700, color: '#1f2937' }}>{r.studentName}</div><div style={{ fontSize: 12, color: '#9ca3af' }}>{r.studentNumber}</div></td>
+                    <td style={{ fontWeight: 700, color: '#1f2937' }}>{r.studentName}</td>
                     <td style={{ fontSize: 13 }}>{r.grade} ({classToLetter(r.className)})</td>
                     <td><span style={{ padding: '4px 10px', borderRadius: 9999, fontSize: 12, fontWeight: 700, background: tt.bg, color: tt.color }}>{tt.label}</span></td>
                     <td style={{ fontSize: 13 }}>{r.period || '-'}</td>

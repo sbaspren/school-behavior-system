@@ -231,7 +231,7 @@ const LateTab: React.FC<{ records: LateRow[]; onRefresh: () => void; onAdd: () =
                 return (
                   <tr key={r.id} style={{ background: selected.has(r.id) ? '#fef2f2' : undefined }}>
                     <td><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
-                    <td><div style={{ fontWeight: 700 }}>{r.studentName}</div><div style={{ fontSize: '12px', color: '#9ca3af' }}>{r.studentNumber}</div></td>
+                    <td style={{ fontWeight: 700 }}>{r.studentName}</td>
                     <td style={{ fontSize: '13px' }}>{r.grade} / {classToLetter(r.className)}</td>
                     <td><span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, background: tt.bg, color: tt.color }}>{tt.label}</span></td>
                     <td><span style={{ padding: '4px 8px', background: '#f3f4f6', borderRadius: '6px', fontSize: '12px', fontWeight: 700 }}>{r.period || '-'}</span></td>
@@ -341,7 +341,7 @@ const PermissionTab: React.FC<{ records: PermRow[]; onRefresh: () => void; onAdd
               {records.map((r) => (
                 <tr key={r.id} style={{ background: selected.has(r.id) ? '#f5f3ff' : undefined }}>
                   <td><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
-                  <td><div style={{ fontWeight: 700 }}>{r.studentName}</div><div style={{ fontSize: '12px', color: '#9ca3af' }}>{r.studentNumber}</div></td>
+                  <td style={{ fontWeight: 700 }}>{r.studentName}</td>
                   <td style={{ fontSize: '13px' }}>{r.grade} / {classToLetter(r.className)}</td>
                   <td style={{ fontSize: '12px', color: '#6b7280' }}>{r.hijriDate}</td>
                   <td><span style={{ padding: '4px 8px', background: '#ede9fe', color: '#7c3aed', borderRadius: '6px', fontSize: '12px', fontWeight: 700 }}>{r.exitTime || '-'}</span></td>

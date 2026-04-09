@@ -475,7 +475,6 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
                     <td style={{ padding: '10px 8px', fontWeight: 600 }}>
                       {r.studentName}
                       {r.notes?.includes('منصة') && <span style={{ fontSize: 10, color: '#0891b2', fontWeight: 700, marginRight: 4 }}>(منصة)</span>}
-                      <div style={{ fontSize: '11px', color: '#9ca3af' }}>{r.studentNumber}</div>
                     </td>
                     <td style={{ padding: '10px 8px', textAlign: 'center', fontSize: '12px' }}>{r.grade} / {classToLetter(r.className)}</td>
                     <td style={{ padding: '10px 8px', textAlign: 'center' }}>

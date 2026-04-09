@@ -186,7 +186,7 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
                 {filtered.map((r) => (
                   <tr key={r.id} style={{ background: selected.has(r.id) ? '#f5f3ff' : undefined }}>
                     <td><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
-                    <td><div style={{ fontWeight: 700 }}>{r.studentName}</div><div style={{ fontSize: '12px', color: '#9ca3af' }}>{r.studentNumber}</div></td>
+                    <td style={{ fontWeight: 700 }}>{r.studentName}</td>
                     <td style={{ fontSize: '13px' }}>{r.grade} ({classToLetter(r.className)})</td>
                     <td style={{ fontSize: '13px' }}>{r.exitTime || '-'}</td>
                     <td><span style={{ padding: '4px 10px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700, background: '#f5f3ff', color: '#7c3aed' }}>{r.reason || '-'}</span></td>
