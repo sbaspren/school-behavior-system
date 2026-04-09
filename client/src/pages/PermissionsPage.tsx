@@ -28,7 +28,7 @@ const PermissionsPage: React.FC = () => {
     records, setRecords, stages, loading, schoolSettings,
     stageFilter, setStageFilter, enabledStages,
     filteredByStage, todayRecords, refresh,
-  } = usePageData<PermissionRow>({ fetchRecords: () => permissionsApi.getAll() });
+  } = usePageData<PermissionRow>({ fetchRecords: (stage) => permissionsApi.getAll(stage ? { stage } : undefined) });
 
   const [activeTab, setActiveTab] = useState<TabType>('today');
   const [modalOpen, setModalOpen] = useState(false);

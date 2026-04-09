@@ -32,7 +32,7 @@ const ViolationsPage: React.FC = () => {
     records: violations, setRecords: setViolations, stages, loading, schoolSettings,
     stageFilter, setStageFilter, enabledStages,
     filteredByStage, todayRecords, refresh,
-  } = usePageData<ViolationRow>({ fetchRecords: () => violationsApi.getAll() });
+  } = usePageData<ViolationRow>({ fetchRecords: (stage) => violationsApi.getAll(stage ? { stage } : undefined) });
 
   const [activeTab, setActiveTab] = useState<TabType>('today');
   const [modalOpen, setModalOpen] = useState(false);

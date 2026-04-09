@@ -84,7 +84,8 @@ export function usePageData<T extends { stage?: string; recordedAt?: string; hij
   const loadData = useCallback(async () => {
     if (!initialLoadDone.current) setLoading(true);
     try {
-      const result = await fetchRef.current(serverSideFilter ? currentStageId : undefined);
+      // ★ الحل الجذري: مرر المرحلة دائماً — السيرفر يرجع فقط بيانات المرحلة المختارة
+      const result = await fetchRef.current(currentStageId);
 
       // السجلات
       if (result.data?.data) setRecords(result.data.data);
@@ -99,7 +100,7 @@ export function usePageData<T extends { stage?: string; recordedAt?: string; hij
       }
     } catch { /* empty */ }
     finally { setLoading(false); initialLoadDone.current = true; }
-  }, [needsSettings, serverSideFilter, currentStageId, appCtx.schoolSettings]);
+  }, [needsSettings, currentStageId, appCtx.schoolSettings]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

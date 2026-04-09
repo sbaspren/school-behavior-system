@@ -36,7 +36,7 @@ const EducationalNotesPage: React.FC = () => {
     records, setRecords, stages, loading, schoolSettings,
     stageFilter, setStageFilter, enabledStages,
     filteredByStage, todayRecords, refresh,
-  } = usePageData<NoteRow>({ fetchRecords: () => educationalNotesApi.getAll() });
+  } = usePageData<NoteRow>({ fetchRecords: (stage) => educationalNotesApi.getAll(stage ? { stage } : undefined) });
 
   const [activeTab, setActiveTab] = useState<'today' | 'approved'>('today');
   const { activeStage: currentStage } = useAppContext();

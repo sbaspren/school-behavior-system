@@ -34,7 +34,7 @@ const AbsencePage: React.FC = () => {
     stageFilter, setStageFilter, enabledStages, currentStageId,
     filteredByStage, todayRecords, refresh, extraData,
   } = usePageData<AbsenceRow>({
-    fetchRecords: () => absenceApi.getAll(),
+    fetchRecords: (stage) => absenceApi.getAll(stage ? { stage } : undefined),
     extraLoaders: async (stageId) => {
       const [cRes, eRes] = await Promise.all([
         absenceApi.getAllCumulative(stageId),

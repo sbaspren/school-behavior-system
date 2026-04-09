@@ -29,7 +29,7 @@ const TardinessPage: React.FC = () => {
     records, setRecords, stages, loading, schoolSettings,
     stageFilter, setStageFilter, enabledStages,
     filteredByStage, todayRecords, refresh,
-  } = usePageData<TardinessRow>({ fetchRecords: () => tardinessApi.getAll() });
+  } = usePageData<TardinessRow>({ fetchRecords: (stage) => tardinessApi.getAll(stage ? { stage } : undefined) });
 
   const [activeTab, setActiveTab] = useState<TabType>('today');
   const [modalOpen, setModalOpen] = useState(false);
