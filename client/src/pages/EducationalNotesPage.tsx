@@ -249,6 +249,7 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
                 <th style={{ ...thStyle, color: '#fff' }}>نوع الملاحظة</th>
                 <th style={{ ...thStyle, color: '#fff' }}>التفاصيل</th>
                 <th style={{ ...thStyle, color: '#fff' }}>المسجل</th>
+                <th style={{ ...thStyle, color: '#fff' }}>الإرسال</th>
                 <th style={{ ...thStyle, color: '#fff' }}>الإجراءات</th>
               </tr>
             </thead>
@@ -265,14 +266,14 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
                   <td style={{ ...tdStyle, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.details}>{r.details || '-'}</td>
                   <td style={{ ...tdStyle, fontSize: '12px', color: '#6b7280' }}>{r.teacherName || '-'}</td>
                   <td style={tdStyle}>
+                    {r.isSent ? <span style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>تم</span>
+                      : <span style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>لم يُرسل</span>}
+                  </td>
+                  <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                      {r.isSent ? (
-                        <span style={{ padding: '2px 8px', background: '#dcfce7', color: '#16a34a', borderRadius: '100px', fontSize: '11px', fontWeight: 700 }}>تم</span>
-                      ) : (
-                        <button onClick={() => handleSendWhatsApp(r)} style={{ padding: '2px 8px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '100px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>إرسال</button>
-                      )}
-                      <button onClick={() => { printForm('tawtheeq_tawasol', { studentName: r.studentName, grade: r.grade + ' / ' + classToLetter(r.className), contactType: 'ملاحظة تربوية', contactReason: (r.noteType || '') + (r.details ? ' - ' + r.details : ''), violationDate: r.hijriDate || '', contactResult: r.isSent ? 'تم التواصل عبر الواتساب' : 'لم يتم الإرسال بعد', notes: 'المسجّل: ' + (r.teacherName || '-') }, schoolSettings as any); }} style={{ padding: '2px 6px', background: '#f0fdfa', color: '#0d9488', border: '1px solid #99f6e4', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }} title="توثيق تواصل"><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>contact_phone</span></button>
-                      <button onClick={() => handleDelete(r.id)} style={{ padding: '2px 6px', background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>حذف</button>
+                      <button onClick={() => handleSendWhatsApp(r)} disabled={r.isSent} title={r.isSent ? 'تم الإرسال' : 'إرسال واتساب'} style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: r.isSent ? 'default' : 'pointer', opacity: r.isSent ? 0.4 : 1 }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle', color: r.isSent ? '#16a34a' : undefined }}>smartphone</span></button>
+                      <button onClick={() => { printForm('tawtheeq_tawasol', { studentName: r.studentName, grade: r.grade + ' / ' + classToLetter(r.className), contactType: 'ملاحظة تربوية', contactReason: (r.noteType || '') + (r.details ? ' - ' + r.details : ''), violationDate: r.hijriDate || '', contactResult: r.isSent ? 'تم التواصل عبر الواتساب' : 'لم يتم الإرسال بعد', notes: 'المسجّل: ' + (r.teacherName || '-') }, schoolSettings as any); }} title="توثيق تواصل" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>contact_phone</span></button>
+                      <button onClick={() => handleDelete(r.id)} title="حذف" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>delete</span></button>
                     </div>
                   </td>
                 </tr>
