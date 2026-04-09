@@ -423,7 +423,7 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
         sectionColor="#ea580c"
         leftButtons={[
           { icon: 'upload_file', label: 'استيراد منصة', variant: 'primary', onClick: () => platformFileRef.current?.click() },
-          { icon: 'add_circle', label: 'تسجيل يدوي', variant: 'primary', onClick: onAdd },
+          { icon: 'add_circle', label: 'تسجيل غياب', variant: 'primary', onClick: onAdd },
           { icon: 'refresh', label: 'تحديث', variant: 'outline', onClick: onRefresh },
         ]}
         rightButtons={[
@@ -443,7 +443,7 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
               <span className="material-symbols-outlined" style={{fontSize:18}}>upload_file</span> استيراد منصة
             </button>
             <button onClick={onAdd} style={{ padding: '8px 16px', background: '#ea580c', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <span className="material-symbols-outlined" style={{fontSize:18}}>add_circle</span> تسجيل يدوي
+              <span className="material-symbols-outlined" style={{fontSize:18}}>add_circle</span> تسجيل غياب
             </button>
           </div>
         </div>

@@ -16,32 +16,13 @@ interface Props {
   sectionColor: string;
 }
 
-const variantStyles = (variant: string, sectionColor: string): React.CSSProperties => {
-  switch (variant) {
-    case 'primary':
-      return {
-        background: sectionColor,
-        color: '#fff',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      };
-    case 'success':
-      return {
-        background: sectionColor,
-        color: '#fff',
-      };
-    case 'danger':
-      return {
-        background: '#dc2626',
-        color: '#fff',
-      };
-    case 'outline':
-    default:
-      return {
-        background: '#fff',
-        color: sectionColor,
-        border: `1px solid ${sectionColor}`,
-      };
-  }
+const variantStyles = (_variant: string, sectionColor: string): React.CSSProperties => {
+  // ★ توحيد: كل الأزرار outline — خلفية بيضاء + حدود ونص بلون القسم
+  return {
+    background: '#fff',
+    color: sectionColor,
+    border: `1.5px solid ${sectionColor}`,
+  };
 };
 
 /**

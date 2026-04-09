@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import PageHero from '../components/shared/PageHero';
+import ActionBar from '../components/shared/ActionBar';
 import { noorApi, NoorStatusUpdate } from '../api/noor';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { DEGREE_LABELS } from '../utils/constants';
@@ -569,58 +570,30 @@ const NoorPage: React.FC = () => {
       </div>
 
       {/* ═══ شريط إجراءات ═══ */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: '#fff', borderRadius: '16px', border: '2px solid #e5e7eb',
-        padding: '12px 16px', marginBottom: '12px', flexWrap: 'wrap', gap: '8px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button
-            onClick={() => {
-              loadRecords(activeTab);
-              loadStats();
-            }}
-            style={{
-              padding: '8px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
-              background: '#f3f4f6', color: '#374151', border: '2px solid #d1d5db', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '6px',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span> تحديث السجلات
-          </button>
-          <span style={{ fontSize: '13px', color: '#9ca3af' }}>
-            {records.length > 0 ? `${records.length} سجل` : ''}
-          </span>
-          {lastUpdatedText && (
-            <span style={{ fontSize: '12px', color: '#9da3b8' }}>
-              آخر تحديث: {lastUpdatedText}
-            </span>
-          )}
-        </div>
-        {filterMode !== 'documented' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {selected.size > 0 && (
-              <span style={{ fontSize: '13px', color: '#4f46e5', fontWeight: 700 }}>
-                {selected.size} محدد
-              </span>
-            )}
-            <button
-              onClick={markAsDone}
-              disabled={selected.size === 0 || updating}
-              style={{
-                padding: '8px 20px', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
-                background: selected.size > 0 ? '#22c55e' : '#e5e7eb',
-                color: selected.size > 0 ? '#fff' : '#9ca3af',
-                border: 'none', cursor: selected.size > 0 ? 'pointer' : 'not-allowed',
-                display: 'flex', alignItems: 'center', gap: '6px',
-                opacity: updating ? 0.7 : 1,
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>check_circle</span> {updating ? 'جاري التحديث...' : 'تحديث كـ "تم"'}
-            </button>
-          </div>
-        )}
-      </div>
+      <ActionBar
+        sectionColor="#00695c"
+        leftButtons={[
+          {
+            icon: 'refresh',
+            label: `تحديث السجلات${records.length > 0 ? ` (${records.length})` : ''}`,
+            variant: 'outline',
+            onClick: () => { loadRecords(activeTab); loadStats(); },
+          },
+          ...(filterMode !== 'documented' ? [{
+            icon: 'check_circle',
+            label: updating ? 'جاري التحديث...' : `تحديث كـ "تم"${selected.size > 0 ? ` (${selected.size})` : ''}`,
+            variant: 'outline' as const,
+            onClick: markAsDone,
+            disabled: selected.size === 0 || updating,
+          }] : []),
+        ]}
+        rightButtons={lastUpdatedText ? [{
+          icon: 'schedule',
+          label: `آخر تحديث: ${lastUpdatedText}`,
+          variant: 'outline' as const,
+          onClick: () => { loadRecords(activeTab); loadStats(); },
+        }] : undefined}
+      />
 
       {/* ═══ شريط نوع الغياب للجميع (لتبويب الغياب — السجلات المعلقة فقط) ═══ */}
       {activeTab === 'absence' && filterMode !== 'documented' && records.length > 0 && (

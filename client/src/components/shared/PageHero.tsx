@@ -57,20 +57,19 @@ const PageHero: React.FC<Props> = ({ title, subtitle, gradient, stats }) => {
           }}>
             {stats.map((s, i) => (
               <div key={i} style={{
-                background: 'rgba(255,255,255,0.15)',
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255,255,255,0.2)',
+                background: '#fff',
+                border: '1px solid rgba(255,255,255,0.3)',
                 borderRadius: 14,
                 padding: '12px 16px',
                 textAlign: 'center',
                 minWidth: 90,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
               }}>
                 <div style={{ fontSize: 20, marginBottom: 4 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 22, color: s.color || '#fff' }}>{s.icon}</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: 22, color: s.color || '#6b7280' }}>{s.icon}</span>
                 </div>
-                <div style={{ fontSize: 28, fontWeight: 900, lineHeight: 1 }}>{s.value}</div>
-                <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>{s.label}</div>
+                <div style={{ fontSize: 28, fontWeight: 900, lineHeight: 1, color: '#1e293b' }}>{s.value}</div>
+                <div style={{ fontSize: 11, marginTop: 2, color: '#6b7280', fontWeight: 600 }}>{s.label}</div>
               </div>
             ))}
           </div>

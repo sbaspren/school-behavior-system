@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
-import FilterBtn from '../components/shared/FilterBtn';
+import PageHero from '../components/shared/PageHero';
+import ActionBar from '../components/shared/ActionBar';
 import { communicationApi } from '../api/communication';
 import { SETTINGS_STAGES } from '../utils/constants';
 import { useAppContext } from '../hooks/useAppContext';
@@ -225,48 +226,30 @@ const CommunicationPage: React.FC = () => {
 
   return (
     <div>
-      {/* ★ Header — مطابق لتصميم v22 مع أيقونة وعنوان فرعي */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #f0f0f0' }}>
-        <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '26px', color: '#4f46e5' }}>schedule_send</span>
-        </div>
-        <div>
-          <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#111', margin: 0 }}>سجل التواصل</h1>
-          <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>توثيق جميع الرسائل المرسلة لأولياء الأمور</p>
-        </div>
-      </div>
+      {/* Hero Banner */}
+      <PageHero
+        title="سجل التواصل"
+        subtitle="توثيق جميع الرسائل المرسلة لأولياء الأمور"
+        gradient="linear-gradient(135deg, #2563eb, #3b82f6)"
+        stats={summary ? [
+          { icon: 'mail', label: 'إجمالي الرسائل', value: summary.total, color: '#374151' },
+          { icon: 'check_circle', label: 'تم الإرسال', value: summary.sent, color: '#16a34a' },
+          { icon: 'cancel', label: 'فشل', value: summary.failed, color: '#dc2626' },
+          { icon: 'today', label: 'اليوم', value: summary.todayCount, color: '#2563eb' },
+        ] : []}
+      />
 
-      {/* Stats */}
-      {summary && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-          <StatCard label="إجمالي الرسائل" value={summary.total} color="#374151" />
-          <StatCard label="تم الإرسال" value={summary.sent} color="#16a34a" />
-          <StatCard label="فشل" value={summary.failed} color="#dc2626" />
-          <StatCard label="اليوم" value={summary.todayCount} color="#2563eb" />
-          <StatCard label="هذا الأسبوع" value={summary.weekCount} color="#7c3aed" />
-        </div>
-      )}
-
-      {/* By Type breakdown */}
-      {summary && summary.byType && summary.byType.length > 0 && (
-        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e7eb', padding: '16px', marginBottom: '16px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '12px' }}>توزيع الرسائل حسب النوع</div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {summary.byType.map((item) => {
-              const mt = MESSAGE_TYPES[item.type] || { label: item.type, color: '#374151', bg: '#f3f4f6' };
-              return (
-                <div key={item.type} style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                  background: mt.bg, borderRadius: '100px', padding: '6px 14px',
-                }}>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: mt.color }}>{mt.label}</span>
-                  <span style={{ fontSize: '14px', fontWeight: 800, color: mt.color }}>{item.count}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Action Bar */}
+      <ActionBar
+        sectionColor="#2563eb"
+        leftButtons={[
+          { icon: 'refresh', label: 'تحديث', variant: 'outline', onClick: loadData },
+        ]}
+        rightButtons={[
+          { icon: 'print', label: 'طباعة', variant: 'outline', onClick: handlePrint },
+          { icon: 'download', label: 'تصدير Excel', variant: 'outline', onClick: handleExport },
+        ]}
+      />
 
       {/* Filters bar */}
       <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e7eb', padding: '16px', marginBottom: '16px' }}>
@@ -293,30 +276,6 @@ const CommunicationPage: React.FC = () => {
             padding: '8px 16px', background: '#f3f4f6', color: '#6b7280', border: '2px solid #d1d5db',
             borderRadius: '12px', fontSize: '13px', cursor: 'pointer', fontWeight: 600,
           }}>مسح الفلاتر</button>
-        </div>
-        {/* ★ أزرار الإجراءات — مطابق لـ v22 (تحت الفلاتر مع أيقونات) */}
-        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '12px' }}>
-          <button onClick={loadData} style={{
-            display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px',
-            background: '#4f46e5', color: '#fff', border: 'none', borderRadius: '10px',
-            fontWeight: 700, fontSize: '14px', cursor: 'pointer',
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>refresh</span> تحديث السجل
-          </button>
-          <button onClick={handlePrint} style={{
-            display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px',
-            background: '#f5f3ff', color: '#7c3aed', border: 'none', borderRadius: '10px',
-            fontWeight: 700, fontSize: '14px', cursor: 'pointer',
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>print</span> طباعة
-          </button>
-          <button onClick={handleExport} style={{
-            display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px',
-            background: '#dcfce7', color: '#16a34a', border: 'none', borderRadius: '10px',
-            fontWeight: 700, fontSize: '14px', cursor: 'pointer',
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>download</span> تصدير Excel
-          </button>
         </div>
       </div>
 
@@ -446,13 +405,6 @@ const CommunicationPage: React.FC = () => {
 
 // ===== Sub-components =====
 
-const StatCard: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => (
-  <div style={{ background: '#fff', borderRadius: '16px', padding: '20px', border: '1px solid #e5e7eb' }}>
-    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>{label}</div>
-    <div style={{ fontSize: '28px', fontWeight: 800, color }}>{value}</div>
-  </div>
-);
-
 const InfoBox: React.FC<{ label: string; value: string; dir?: string; valueColor?: string }> = ({ label, value, dir, valueColor }) => (
   <div style={{ background: '#f9fafb', borderRadius: '8px', padding: '10px' }}>
     <div style={{ fontSize: '11px', color: '#6b7280' }}>{label}</div>
@@ -468,7 +420,6 @@ const InfoBox: React.FC<{ label: string; value: string; dir?: string; valueColor
 const selectStyle: React.CSSProperties = {
   padding: '8px 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '13px',
 };
-const thStyle: React.CSSProperties = { padding: '12px 16px', textAlign: 'right', fontWeight: 700, fontSize: '13px', color: '#374151' };
 const thStylePurple: React.CSSProperties = { padding: '12px 16px', textAlign: 'right', fontWeight: 700, fontSize: '13px', color: '#fff' };
 const tdStyle: React.CSSProperties = { padding: '12px 16px', textAlign: 'right' };
 const toolBtnStyle = (color: string, bg: string): React.CSSProperties => ({
