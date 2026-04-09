@@ -164,16 +164,15 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
         style={{ width: '100%', height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' }} />
 
       {/* Floating Selection Bar */}
-      {selected.size > 0 && (
-        <div style={{ position: 'fixed', bottom: '16px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(109,40,217,0.95)', color: '#fff', padding: '12px 24px', borderRadius: '100px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: '16px', zIndex: 50, backdropFilter: 'blur(8px)' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ fontWeight: 800, fontSize: '16px' }}>{selected.size}</span><span style={{ fontSize: '13px' }}>محدد</span></span>
-          <span style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.3)' }} />
-          <button onClick={handlePrint} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
-          <button onClick={handleSendBulk} style={{ background: 'none', border: 'none', color: '#a7f3d0', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال</button>
-          <button onClick={handleDeleteBulk} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>delete</span> حذف</button>
-          <button onClick={() => setSelected(new Set())} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '16px' }}><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span></button>
-        </div>
-      )}
+      <FloatingBar
+        count={selected.size}
+        actions={[
+          { icon: 'print', label: 'طباعة', variant: 'print', onClick: handlePrint },
+          { icon: 'smartphone', label: 'إرسال', variant: 'send', onClick: handleSendBulk },
+          { icon: 'delete', label: 'حذف', variant: 'delete', onClick: handleDeleteBulk },
+        ]}
+        onCancel={() => setSelected(new Set())}
+      />
 
       {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '64px 20px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>door_front</span><p style={{ fontSize: '18px', fontWeight: 500 }}>لا توجد حالات استئذان لهذا اليوم</p></div>

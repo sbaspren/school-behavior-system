@@ -305,19 +305,15 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
       )}
 
       {/* ★ Floating Selection Bar */}
-      {selected.size > 0 && (
-        <div style={{ position: 'fixed', bottom: '16px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(6,78,59,0.95)', color: '#fff', padding: '12px 24px', borderRadius: '100px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: '16px', zIndex: 50, backdropFilter: 'blur(8px)' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontWeight: 800, fontSize: '16px' }}>{selected.size}</span>
-            <span style={{ fontSize: '13px' }}>محدد</span>
-          </span>
-          <span style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.3)' }} />
-          <button onClick={printToday} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
-          <button onClick={handleBulkSend} disabled={sending} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: '#a7f3d0', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>{sending ? 'جاري الإرسال...' : <><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال</>}</button>
-          <button onClick={handleBulkDelete} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>delete</span> حذف</button>
-          <button onClick={() => setSelected(new Set())} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '16px', marginRight: '4px' }}><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span></button>
-        </div>
-      )}
+      <FloatingBar
+        count={selected.size}
+        actions={[
+          { icon: 'print', label: 'طباعة', variant: 'print', onClick: printToday },
+          { icon: 'smartphone', label: sending ? 'جاري...' : 'إرسال', variant: 'send', onClick: handleBulkSend, disabled: sending },
+          { icon: 'delete', label: 'حذف', variant: 'delete', onClick: handleBulkDelete },
+        ]}
+        onCancel={() => setSelected(new Set())}
+      />
     </div>
   );
 };

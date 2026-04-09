@@ -329,8 +329,9 @@ const TodayTab: React.FC<{
       <FloatingBar
         count={selected.size}
         actions={[
-          { icon: 'send', label: 'إرسال واتساب', color: '#25d366', onClick: handleSendBulk },
-          { icon: 'delete', label: 'حذف المحدد', color: '#dc2626', onClick: handleDeleteBulk },
+          { icon: 'print', label: 'طباعة', variant: 'print', onClick: handlePrintToday },
+          { icon: 'smartphone', label: 'إرسال', variant: 'send', onClick: handleSendBulk },
+          { icon: 'delete', label: 'حذف', variant: 'delete', onClick: handleDeleteBulk },
         ]}
         onCancel={() => setSelected(new Set())}
       />

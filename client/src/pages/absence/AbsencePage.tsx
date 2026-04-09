@@ -61,7 +61,7 @@ const AbsencePage: React.FC = () => {
     <div className="sec-absence">
       {/* Hero Banner — مطابق لـ .page-hero: gradient برتقالي + 3 عدادات */}
       <PageHero
-        title={`الغياب${currentStageId ? ' — ' + stageFilter : ''}`}
+        title={`الغياب — ${SETTINGS_STAGES.find(s => s.id === stageFilter)?.name || stageFilter}`}
         subtitle={`${getTodayDates().dayName} - ${getTodayDates().hijri}`}
         gradient="linear-gradient(135deg, #ea580c, #f97316)"
         stats={[
