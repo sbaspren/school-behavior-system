@@ -93,8 +93,8 @@ const TodayTab: React.FC<{ records: TardinessRow[]; allRecords: TardinessRow[]; 
   };
   const handleSendBulk = async () => { if (selected.size === 0) return; try { const res = await tardinessApi.sendWhatsAppBulk(Array.from(selected)); if (res.data?.data) { showSuccess(`تم إرسال ${res.data.data.sentCount} من ${res.data.data.total}`); setSelected(new Set()); onRefresh(); } } catch { showError('خطأ'); } };
   const handleDeleteBulk = async () => { if (selected.size === 0) return; try { const res = await tardinessApi.deleteBulk(Array.from(selected)); if (res.data?.data) { showSuccess(`تم حذف ${res.data.data.deletedCount} سجل`); setSelected(new Set()); onRefresh(); } } catch { showError('خطأ'); } };
-  const handleExport = async () => { try { const stage = stageFilter !== '__all__' ? (SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter) : undefined; const res = await tardinessApi.exportCsv(stage); const url = window.URL.createObjectURL(new Blob([res.data])); const a = document.createElement('a'); a.href = url; a.download = 'tardiness.csv'; a.click(); window.URL.revokeObjectURL(url); } catch { showError('خطأ في التصدير'); } };
-  const handlePrintToday = () => { const toPrint = selected.size > 0 ? filtered.filter(r => selected.has(r.id)) : filtered; if (toPrint.length === 0) { showError('لا يوجد بيانات للطباعة'); return; } const stage = stageFilter !== '__all__' ? (SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter) : undefined; printDailyReport('tardiness', toPrint as unknown as Record<string, unknown>[], schoolSettings as any, stage); };
+  const handleExport = async () => { try { const stage = stageFilter || undefined; const res = await tardinessApi.exportCsv(stage); const url = window.URL.createObjectURL(new Blob([res.data])); const a = document.createElement('a'); a.href = url; a.download = 'tardiness.csv'; a.click(); window.URL.revokeObjectURL(url); } catch { showError('خطأ في التصدير'); } };
+  const handlePrintToday = () => { const toPrint = selected.size > 0 ? filtered.filter(r => selected.has(r.id)) : filtered; if (toPrint.length === 0) { showError('لا يوجد بيانات للطباعة'); return; } const stage = stageFilter || undefined; printDailyReport('tardiness', toPrint as unknown as Record<string, unknown>[], schoolSettings as any, stage); };
 
   const sentCount = filtered.filter(r => r.isSent).length;
   const unsentCount = filtered.length - sentCount;
@@ -250,7 +250,7 @@ const ApprovedTab: React.FC<{ records: TardinessRow[]; onRefresh: () => void; sc
     if (sent.length === 0) { showError('لا يوجد سجلات تم إرسالها'); return; }
     const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
     const rows: ListReportRow[] = sent.map((r, i) => ({ cells: [toIndic(i+1), `<span style="font-weight:bold">${escapeHtml(r.studentName)}</span>`, escapeHtml(r.grade+' / '+classToLetter(r.className)), escapeHtml(TARDINESS_TYPES[r.tardinessType]?.label||r.tardinessType), toIndic(r.hijriDate||'-'), '<span style="color:green;font-weight:bold">تم</span>'] }));
-    printListReport({ title: 'تقرير التواصل مع أولياء الأمور — التأخر' + (stageFilter !== '__all__' ? ' (' + stageFilter + ')' : ''), dateText: hijri + ' | عدد الطلاب: ' + toIndic(sent.length), headers: [{ label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '28%' }, { label: 'الصف', width: '12%' }, { label: 'نوع التأخر', width: '15%' }, { label: 'التاريخ', width: '15%' }, { label: 'التواصل', width: '10%' }], rows, summary: toIndic(sent.length) + ' سجل' }, schoolSettings as any);
+    printListReport({ title: 'تقرير التواصل مع أولياء الأمور — التأخر' + (stageFilter ? ' (' + (SETTINGS_STAGES.find(s => s.id === stageFilter)?.name || stageFilter) + ')' : ''), dateText: hijri + ' | عدد الطلاب: ' + toIndic(sent.length), headers: [{ label: 'م', width: '5%' }, { label: 'اسم الطالب', width: '28%' }, { label: 'الصف', width: '12%' }, { label: 'نوع التأخر', width: '15%' }, { label: 'التاريخ', width: '15%' }, { label: 'التواصل', width: '10%' }], rows, summary: toIndic(sent.length) + ' سجل' }, schoolSettings as any);
   };
 
   return (
@@ -451,10 +451,7 @@ const AddTardinessModal: React.FC<{ stages: StageConfigData[]; stageFilter: stri
   const [period, setPeriod] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const stageId = useMemo(() => {
-    if (stageFilter === '__all__') return '';
-    return SETTINGS_STAGES.find(s => s.name === stageFilter)?.id || stageFilter;
-  }, [stageFilter]);
+  const stageId = stageFilter || '';
 
   const handleSave = async () => {
     if (selectedStudents.length === 0) return showError('اختر طالب واحد على الأقل');

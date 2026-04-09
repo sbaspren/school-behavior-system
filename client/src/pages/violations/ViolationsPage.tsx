@@ -46,9 +46,7 @@ const ViolationsPage: React.FC = () => {
   const hijriDate = getHijriDate();
   const criticalCount = useMemo(() => filteredByStage.filter(v => v.degree >= 4).length, [filteredByStage]);
   const stageName = useMemo(() => {
-    if (stageFilter === '__all__') return '';
-    const info = SETTINGS_STAGES.find(s => s.name === stageFilter);
-    return info?.name || stageFilter;
+    return SETTINGS_STAGES.find(s => s.id === stageFilter)?.name || stageFilter;
   }, [stageFilter]);
 
   if (loading) {
@@ -260,7 +258,7 @@ const TodayTab: React.FC<{
 
   const handleExport = async () => {
     try {
-      const stage = stageFilter !== '__all__' ? (SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter) : undefined;
+      const stage = stageFilter || undefined;
       const res = await violationsApi.exportCsv(stage);
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
@@ -971,7 +969,7 @@ const PositiveTab: React.FC<{ stageFilter: string; schoolSettings: Record<string
 
   useEffect(() => {
     if (!initialLoadDone.current) setLoading(true);
-    const stage = stageFilter === '__all__' ? undefined : (SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter);
+    const stage = stageFilter || undefined;
     positiveBehaviorApi.getAll(stage ? { stage } : undefined)
       .then((res) => { if (res.data?.data) setRecords(res.data.data); })
       .catch(() => {})
@@ -1203,7 +1201,7 @@ const CompensationTab: React.FC<{
 
   useEffect(() => {
     setLoadingPos(true);
-    const stage = stageFilter === '__all__' ? undefined : (SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter);
+    const stage = stageFilter || undefined;
     positiveBehaviorApi.getAll(stage ? { stage } : undefined)
       .then((res) => { if (res.data?.data) setPosRecords(res.data.data); })
       .catch(() => {})
@@ -1275,7 +1273,7 @@ const CompensationTab: React.FC<{
         showSuccess('تم تسجيل التعويض بنجاح');
         setCompensateModal(null);
         // Reload positive records
-        const stage = stageFilter === '__all__' ? undefined : (SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter);
+        const stage = stageFilter || undefined;
         const reload = await positiveBehaviorApi.getAll(stage ? { stage } : undefined);
         if (reload.data?.data) setPosRecords(reload.data.data);
       } else showError(res.data?.message || 'خطأ');

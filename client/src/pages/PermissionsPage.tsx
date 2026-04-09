@@ -121,7 +121,7 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
 
   const handleExport = async () => {
     try {
-      const stage = stageFilter !== '__all__' ? (SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter) : undefined;
+      const stage = stageFilter || undefined;
       const res = await permissionsApi.exportCsv(stage);
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a'); a.href = url; a.download = 'permissions.csv'; a.click(); window.URL.revokeObjectURL(url);
@@ -131,7 +131,7 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
   const handlePrint = () => {
     const toPrint = selected.size > 0 ? filtered.filter(r => selected.has(r.id)) : filtered;
     if (toPrint.length === 0) { showError('لا يوجد بيانات للطباعة'); return; }
-    const stage = stageFilter !== '__all__' ? (SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter) : undefined;
+    const stage = stageFilter || undefined;
     printDailyReport('permissions', toPrint as unknown as Record<string, unknown>[], schoolSettings as any, stage);
   };
 

@@ -142,7 +142,7 @@ const CommunicationPage: React.FC = () => {
   const handlePrint = () => {
     if (filtered.length === 0) { toast.error('لا توجد بيانات للطباعة'); return; }
     const { hijri } = getTodayDates();
-    const stgName = stageFilter !== '__all__' ? stageLabel(stageFilter) : '';
+    const stgName = stageFilter ? stageLabel(stageFilter) : '';
 
     const rows: ListReportRow[] = filtered.map((rec, i) => {
       const statusColor = (rec.sendStatus || '').includes('تم') ? 'green' : '#999';

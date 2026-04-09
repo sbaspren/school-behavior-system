@@ -115,17 +115,25 @@ export function AppProvider({ children }: ProviderProps) {
   );
 
   // ── Active stage management ──
-  const [activeStage, setActiveStageRaw] = useState('');
+  // Initialize synchronously from localStorage to avoid flash of unfiltered data
+  const [activeStage, setActiveStageRaw] = useState(() => {
+    if (user?.role !== 'Admin' && user?.scopeType === 'stage' && user?.scopeValue) {
+      return user.scopeValue;
+    }
+    return localStorage.getItem('selectedStage') || '';
+  });
 
   const setActiveStage = useCallback((stageId: string) => {
     setActiveStageRaw(stageId);
     localStorage.setItem('selectedStage', stageId);
   }, []);
 
-  // Resolve active stage once enabledStages are loaded
+  // Validate active stage once enabledStages are loaded (in case saved stage was disabled)
   useEffect(() => {
-    if (enabledStages.length > 0 && !activeStage) {
-      setActiveStageRaw(resolveActiveStage(enabledStages, user));
+    if (enabledStages.length > 0) {
+      if (!activeStage || !enabledStages.some(s => s.stage === activeStage)) {
+        setActiveStageRaw(resolveActiveStage(enabledStages, user));
+      }
     }
   }, [enabledStages, user, activeStage]);
 
