@@ -21,6 +21,7 @@ import LoadingSpinner from '../../components/shared/LoadingSpinner';
 import { printForm, printListReport, PrintFormData, ListReportRow, FormId as PrintFormId } from '../../utils/printTemplates';
 import { toIndic, formatClass, classToLetter } from '../../utils/printUtils';
 import { usePageData, getHijriDate } from '../../hooks/usePageData';
+import { useAppContext } from '../../hooks/useAppContext';
 import type { ViolationRow, StudentOption } from '../../types';
 
 
@@ -1813,6 +1814,7 @@ interface AddViolationModalProps {
 }
 
 const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, onSaved }) => {
+  const { activeStage } = useAppContext();
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [studentSearch, setStudentSearch] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<StudentOption | null>(null);
@@ -1829,13 +1831,13 @@ const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, 
 
   useEffect(() => {
     Promise.all([
-      studentsApi.getAll(),
+      studentsApi.getAll(activeStage || undefined),
       violationsApi.getTypes(),
     ]).then(([sRes, tRes]) => {
       if (sRes.data?.data) setStudents(sRes.data.data);
       if (tRes.data?.data) setViolationTypes(tRes.data.data);
     }).catch(() => {});
-  }, []);
+  }, [activeStage]);
 
   useEffect(() => {
     if (!selectedStudent || batchMode) { setRepInfo(null); return; }

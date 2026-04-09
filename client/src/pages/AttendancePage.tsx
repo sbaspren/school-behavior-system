@@ -62,7 +62,7 @@ const AttendancePage: React.FC = () => {
     try {
       const [lRes, pRes, stRes] = await Promise.all([
         tardinessApi.getAll(), permissionsApi.getAll(),
-        studentsApi.getAll(),
+        studentsApi.getAll(activeStage || undefined),
       ]);
       if (lRes.data?.data) setLateRecords(lRes.data.data);
       if (pRes.data?.data) setPermRecords(pRes.data.data);

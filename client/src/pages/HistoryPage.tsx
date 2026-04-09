@@ -77,7 +77,7 @@ const HistoryPage: React.FC = () => {
       const [vRes, pRes, sRes] = await Promise.all([
         violationsApi.getAll(),
         positiveBehaviorApi.getAll(),
-        studentsApi.getAll(),
+        studentsApi.getAll(stageFilter || undefined),
       ]);
       if (vRes.data?.data) setViolations(vRes.data.data);
       if (pRes.data?.data) setPosRecords(pRes.data.data);

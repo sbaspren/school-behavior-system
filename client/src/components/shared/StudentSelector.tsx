@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { studentsApi } from '../../api/students';
 import { classToLetter } from '../../utils/printUtils';
+import { useAppContext } from '../../hooks/useAppContext';
 import type { StudentOption } from '../../types';
 export type { StudentOption };
 
@@ -20,11 +21,15 @@ interface StudentSelectorProps {
  * صف → فصل → قائمة checkboxes + بحث + تحديد الكل + عداد
  */
 const StudentSelector: React.FC<StudentSelectorProps> = ({
-  stageFilter,
+  stageFilter: stageFilterProp,
   onSelectionChange,
   accentColor = '#4f46e5',
   accentBg = '#f0fdf4',
 }) => {
+  const { activeStage } = useAppContext();
+  // Use prop if provided, otherwise use activeStage from context
+  const effectiveStage = stageFilterProp || activeStage;
+
   const [allStudents, setAllStudents] = useState<StudentOption[]>([]);
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
@@ -34,16 +39,16 @@ const StudentSelector: React.FC<StudentSelectorProps> = ({
 
   useEffect(() => {
     setLoading(true);
-    studentsApi.getAll().then((res) => {
+    studentsApi.getAll(effectiveStage || undefined).then((res) => {
       if (res.data?.data) setAllStudents(res.data.data);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  }, [effectiveStage]);
 
-  // Filter by stage if provided
+  // Filter by stage (double-check client side)
   const stageStudents = useMemo(() => {
-    if (!stageFilter) return allStudents;
-    return allStudents.filter((s) => s.stage === stageFilter);
-  }, [allStudents, stageFilter]);
+    if (!effectiveStage) return allStudents;
+    return allStudents.filter((s) => s.stage === effectiveStage);
+  }, [allStudents, effectiveStage]);
 
   // Available grades
   const grades = useMemo(() =>

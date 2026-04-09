@@ -110,9 +110,9 @@ const GeneralFormsPage: React.FC = () => {
   const [iltizamMode, setIltizamMode] = useState<'pick' | null>(null);
 
   useEffect(() => { (async () => { try {
-    const sR = await studentsApi.getAll();
+    const sR = await studentsApi.getAll(currentStage || undefined);
     if (sR.data?.data) setAllStudents(sR.data.data);
-  } catch {} finally { setLoading(false); } })(); }, []);
+  } catch {} finally { setLoading(false); } })(); }, [currentStage]);
 
   const grades = useMemo(() => Array.from(new Set(allStudents.filter(s => !currentStage || s.stage === currentStage).map(s => s.grade))).sort((a, b) => a.localeCompare(b, 'ar')), [allStudents, currentStage]);
   const classes = useMemo(() => modalGrade ? Array.from(new Set(allStudents.filter(s => s.grade === modalGrade && (!currentStage || s.stage === currentStage)).map(s => s.className))).sort() : [], [allStudents, modalGrade, currentStage]);
