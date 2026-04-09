@@ -56,7 +56,7 @@ function getGradeWeight(name: string): number {
 }
 
 const AuditLogPage: React.FC = () => {
-  const { schoolSettings } = useAppContext();
+  const { schoolSettings, activeStage } = useAppContext();
   const [records, setRecords] = useState<ViolationRecord[]>([]);
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,17 +73,15 @@ const AuditLogPage: React.FC = () => {
   const loadData = useCallback(async () => {
     if (!initialLoadDone.current) setLoading(true);
     try {
-      const sel = document.getElementById('stage-selector') as HTMLSelectElement | null;
-      const currentStage = sel?.value || undefined;
       const [vRes, sRes] = await Promise.all([
-        violationsApi.getAll({ stage: currentStage }),
-        studentsApi.getAll(currentStage),
+        violationsApi.getAll({ stage: activeStage || undefined }),
+        studentsApi.getAll(activeStage || undefined),
       ]);
       setRecords(vRes.data?.data || []);
       setStudents(sRes.data?.data || []);
     } catch { /* empty */ }
     finally { setLoading(false); initialLoadDone.current = true; }
-  }, []);
+  }, [activeStage]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

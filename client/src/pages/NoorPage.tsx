@@ -58,30 +58,22 @@ interface NoorStats {
   documentedToday: number;
 }
 
-// استخراج المرحلة من صلاحية المستخدم
-function getUserStage(): string | undefined {
-  const user = JSON.parse(localStorage.getItem('user') || 'null');
-  if (!user) return undefined;
-  // الأدمن يرى الكل
-  if (user.role === 'Admin') return undefined;
-  // الوكيل بصلاحية مرحلة محددة
-  if (user.scopeType === 'stage' && user.scopeValue) return user.scopeValue;
-  return undefined;
-}
+// ★ المرحلة تُقرأ من activeStage في Context — حل جذري للعزل
 
 const STAGE_LABELS: Record<string, string> = {
-  'ابتدائي': 'المرحلة الابتدائية',
-  'متوسط': 'المرحلة المتوسطة',
-  'ثانوي': 'المرحلة الثانوية',
+  'Kindergarten': 'طفولة مبكرة',
+  'Primary': 'ابتدائي',
+  'Intermediate': 'متوسط',
+  'Secondary': 'ثانوي',
 };
 
 const NoorPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('violations');
   const [filterMode, setFilterMode] = useState<'today' | 'all' | 'documented'>('today');
   const [docPeriod, setDocPeriod] = useState<'today' | 'all'>('today');
-  // المرحلة — تلقائية للوكيل، undefined للأدمن (يرى الكل)
-  const userStage = getUserStage();
-  const { schoolSettings } = useAppContext();
+  // ★ المرحلة من Context — عزل كامل بين المراحل
+  const { schoolSettings, activeStage } = useAppContext();
+  const userStage = activeStage || undefined;
   const [stats, setStats] = useState<NoorStats | null>(null);
   const [records, setRecords] = useState<NoorRecord[]>([]);
   const [loading, setLoading] = useState(false);
