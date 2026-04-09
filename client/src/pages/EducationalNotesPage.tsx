@@ -254,39 +254,39 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+          <table className="data-table">
             <thead>
               <tr style={{ background: SECTION_THEMES.notes }}>
-                <th style={{ ...thStyle, color: '#fff', width: '36px' }}>
+                <th style={{ width: '36px' }}>
                   <input type="checkbox" checked={selected.size === records.length && records.length > 0} onChange={toggleAll} />
                 </th>
-                <th style={{ ...thStyle, color: '#fff', width: '36px' }}>#</th>
-                <th style={{ ...thStyle, color: '#fff' }}>اسم الطالب</th>
-                <th style={{ ...thStyle, color: '#fff' }}>الصف</th>
-                <th style={{ ...thStyle, color: '#fff' }}>نوع الملاحظة</th>
-                <th style={{ ...thStyle, color: '#fff' }}>التفاصيل</th>
-                <th style={{ ...thStyle, color: '#fff' }}>المسجل</th>
-                <th style={{ ...thStyle, color: '#fff' }}>الإرسال</th>
-                <th style={{ ...thStyle, color: '#fff' }}>الإجراءات</th>
+                <th style={{ width: '36px' }}>#</th>
+                <th style={{ textAlign: 'right' }}>اسم الطالب</th>
+                <th style={{ textAlign: 'right' }}>الصف</th>
+                <th>نوع الملاحظة</th>
+                <th style={{ textAlign: 'right' }}>التفاصيل</th>
+                <th>المسجل</th>
+                <th>الإرسال</th>
+                <th>الإجراءات</th>
               </tr>
             </thead>
             <tbody>
               {sortedRecords.map((r, i) => (
                 <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6', background: selected.has(r.id) ? '#eff6ff' : (i % 2 === 0 ? '#fff' : '#f9fafb') }}>
-                  <td style={tdStyle}><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
-                  <td style={tdStyle}>{i + 1}</td>
-                  <td style={{ ...tdStyle, fontWeight: 600 }}>{r.studentName}</td>
-                  <td style={tdStyle}>{r.grade} / {classToLetter(r.className)}</td>
-                  <td style={tdStyle}>
+                  <td><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
+                  <td>{i + 1}</td>
+                  <td style={{ fontWeight: 600, textAlign: 'right' }}>{r.studentName}</td>
+                  <td style={{ textAlign: 'right' }}>{r.grade} / {classToLetter(r.className)}</td>
+                  <td>
                     <span style={{ padding: '2px 8px', borderRadius: '100px', fontSize: '12px', fontWeight: 600, background: '#ecfdf5', color: '#059669' }}>{r.noteType}</span>
                   </td>
-                  <td style={{ ...tdStyle, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.details}>{r.details || '-'}</td>
-                  <td style={{ ...tdStyle, fontSize: '12px', color: '#6b7280' }}>{r.teacherName || '-'}</td>
-                  <td style={tdStyle}>
+                  <td style={{ textAlign: 'right', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.details}>{r.details || '-'}</td>
+                  <td style={{ color: '#6b7280' }}>{r.teacherName || '-'}</td>
+                  <td>
                     {r.isSent ? <span style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>تم</span>
                       : <span style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>لم يُرسل</span>}
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                       <button onClick={() => handleSendWhatsApp(r)} disabled={r.isSent} title={r.isSent ? 'تم الإرسال' : 'إرسال واتساب'} style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: r.isSent ? 'default' : 'pointer', opacity: r.isSent ? 0.4 : 1 }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle', color: r.isSent ? '#16a34a' : undefined }}>smartphone</span></button>
                       <button onClick={() => { printForm('tawtheeq_tawasol', { studentName: r.studentName, grade: r.grade + ' / ' + classToLetter(r.className), contactType: 'ملاحظة تربوية', contactReason: (r.noteType || '') + (r.details ? ' - ' + r.details : ''), violationDate: r.hijriDate || '', contactResult: r.isSent ? 'تم التواصل عبر الواتساب' : 'لم يتم الإرسال بعد', notes: 'المسجّل: ' + (r.teacherName || '-') }, schoolSettings as any); }} title="توثيق تواصل" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>contact_phone</span></button>
@@ -530,7 +530,7 @@ const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+          <table className="data-table">
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
                 <th style={thStyle}>الطالب</th><th style={thStyle}>الصف</th><th style={thStyle}>نوع الملاحظة</th>
