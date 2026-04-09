@@ -14,7 +14,7 @@ import { absenceApi, AbsenceData } from '../../api/absence';
 import { parentExcuseApi, ParentExcuseRow } from '../../api/parentExcuse';
 import { StageConfigData } from '../../api/settings';
 import { showSuccess, showError } from '../../components/shared/Toast';
-import { SETTINGS_STAGES, SCHOOL_DAYS, SECTION_THEMES, PERIODS } from '../../utils/constants';
+import { SETTINGS_STAGES, SCHOOL_DAYS, SECTION_THEMES, PERIODS, sortClasses } from '../../utils/constants';
 import { printForm, PrintFormData, FormId, printListReport, ListReportRow } from '../../utils/printTemplates';
 import { toIndic, escapeHtml, getTodayDates, formatClass, sortByClass, sortGrades, sortByGradeClass, classToLetter } from '../../utils/printUtils';
 import { usePageData, getHijriDate } from '../../hooks/usePageData';
@@ -1372,7 +1372,7 @@ const ApprovedTab: React.FC<{ records: CumulativeRow[]; dailyRecords: AbsenceRow
   }, [filtered, sortMode]);
 
   const grades = useMemo(() => sortGrades(Array.from(new Set(records.map(r => r.grade)))), [records]);
-  const classes = useMemo(() => Array.from(new Set(records.filter(r => !gradeFilter || r.grade === gradeFilter).map(r => r.className))).sort(), [records, gradeFilter]);
+  const classes = useMemo(() => sortClasses(Array.from(new Set(records.filter(r => !gradeFilter || r.grade === gradeFilter).map(r => r.className)))), [records, gradeFilter]);
 
   const getAttendance = (r: CumulativeRow) => Math.max(0, Math.round(((SCHOOL_DAYS - r.totalDays) / SCHOOL_DAYS) * 100));
   const getBadge = (u: number) => {
@@ -1808,7 +1808,7 @@ const ReportsTab: React.FC<{ records: AbsenceRow[]; cumulativeRecords: Cumulativ
   const [typeFilter, setTypeFilter] = useState('');
 
   const grades = useMemo(() => sortGrades(Array.from(new Set(records.map(r => r.grade)))), [records]);
-  const classes = useMemo(() => Array.from(new Set(records.filter(r => !gradeFilter || r.grade === gradeFilter).map(r => r.className))).sort(), [records, gradeFilter]);
+  const classes = useMemo(() => sortClasses(Array.from(new Set(records.filter(r => !gradeFilter || r.grade === gradeFilter).map(r => r.className)))), [records, gradeFilter]);
 
   const filteredRecords = useMemo(() => {
     let list = records;

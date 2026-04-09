@@ -4,7 +4,7 @@ import { positiveBehaviorApi } from '../api/positiveBehavior';
 import { showSuccess, showError } from '../components/shared/Toast';
 import InputModal from '../components/shared/InputModal';
 import StudentSelector from '../components/shared/StudentSelector';
-import { SETTINGS_STAGES, BEHAVIOR_TYPES } from '../utils/constants';
+import { SETTINGS_STAGES, BEHAVIOR_TYPES, sortGrades, sortClasses } from '../utils/constants';
 import type { StudentOption, BehaviorRow, DailyStats } from '../types';
 import { printListReport, ListReportRow } from '../utils/printTemplates';
 import { toIndic, formatClass, classToLetter } from '../utils/printUtils';
@@ -42,10 +42,10 @@ const PositiveBehaviorPage: React.FC = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const grades = useMemo(() => Array.from(new Set(records.map(r => r.grade))).sort(), [records]);
+  const grades = useMemo(() => sortGrades(Array.from(new Set(records.map(r => r.grade)))), [records]);
   const classes = useMemo(() => {
     if (!gradeFilter) return [];
-    return Array.from(new Set(records.filter(r => r.grade === gradeFilter).map(r => r.className))).sort();
+    return sortClasses(Array.from(new Set(records.filter(r => r.grade === gradeFilter).map(r => r.className))));
   }, [records, gradeFilter]);
 
   const filtered = useMemo(() => {

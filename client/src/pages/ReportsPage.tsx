@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { violationsApi } from '../api/violations';
-import { SETTINGS_STAGES, DEGREE_LABELS as DEGREE_LABELS_OBJ, DEGREE_LABEL_NAMES } from '../utils/constants';
+import { SETTINGS_STAGES, DEGREE_LABELS as DEGREE_LABELS_OBJ, DEGREE_LABEL_NAMES, sortGrades, sortClasses } from '../utils/constants';
 import { useAppContext } from '../hooks/useAppContext';
 import { classToLetter } from '../utils/printUtils';
 
@@ -40,8 +40,8 @@ const ReportsPage: React.FC = () => {
   }, [stageFilter, gradeFilter, classFilter, dateFrom, dateTo]);
 
   // Extract unique grades/classes from byClass data for filters
-  const grades = useMemo(() => data ? Array.from(new Set(data.byClass.map(c => c.grade))).sort() : [], [data]);
-  const classes = useMemo(() => data ? Array.from(new Set(data.byClass.filter(c => !gradeFilter || c.grade === gradeFilter).map(c => c.className))).sort() : [], [data, gradeFilter]);
+  const grades = useMemo(() => data ? sortGrades(Array.from(new Set(data.byClass.map(c => c.grade)))) : [], [data]);
+  const classes = useMemo(() => data ? sortClasses(Array.from(new Set(data.byClass.filter(c => !gradeFilter || c.grade === gradeFilter).map(c => c.className)))) : [], [data, gradeFilter]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

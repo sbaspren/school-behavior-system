@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { academicApi, AcademicStudentData, AcademicSubjectData } from '../api/academic';
 import { showSuccess, showError } from '../components/shared/Toast';
-import { SETTINGS_STAGES } from '../utils/constants';
+import { SETTINGS_STAGES, sortGrades, sortClasses } from '../utils/constants';
 import { useAppContext } from '../hooks/useAppContext';
 import * as XLSX from 'xlsx';
 import {
@@ -279,8 +279,8 @@ const AcademicPage: React.FC = () => {
     return res.slice(0, 100);
   }, [summary, filterName, filterGrade, filterClass, filterPeriod, filterAvgAbove, filterAvgBelow, filterGeneralGrade, sortBy]);
 
-  const gradeOptions = useMemo(() => Array.from(new Set(summary.map(r => r.grade))).sort(), [summary]);
-  const classOptions = useMemo(() => Array.from(new Set(summary.map(r => String(r.classNum)))).sort(), [summary]);
+  const gradeOptions = useMemo(() => sortGrades(Array.from(new Set(summary.map(r => r.grade)))), [summary]);
+  const classOptions = useMemo(() => sortClasses(Array.from(new Set(summary.map(r => String(r.classNum))))), [summary]);
   const generalGradeOptions = useMemo(() => Array.from(new Set(summary.map(r => r.generalGrade).filter(Boolean))).sort(), [summary]);
   const subjectOptions = useMemo(() =>
     Array.from(new Set(grades.map(g => g.subject).filter(s => !NON_ACADEMIC.includes(s)))),

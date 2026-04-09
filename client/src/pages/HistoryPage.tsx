@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { violationsApi } from '../api/violations';
 import { positiveBehaviorApi } from '../api/positiveBehavior';
 import { studentsApi } from '../api/students';
-import { SETTINGS_STAGES, DEGREE_LABELS } from '../utils/constants';
+import { SETTINGS_STAGES, DEGREE_LABELS, sortGrades, sortClasses } from '../utils/constants';
 import { useAppContext } from '../hooks/useAppContext';
 import type { StudentOption } from '../types';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
@@ -98,14 +98,14 @@ const HistoryPage: React.FC = () => {
   // Grades
   const grades = useMemo(() => {
     const set = new Set(stageStudents.map((s) => s.grade));
-    return Array.from(set).sort(sortGrade);
+    return sortGrades(Array.from(set));
   }, [stageStudents]);
 
   // Classes based on grade
   const classes = useMemo(() => {
     if (!gradeFilter) return [];
     const set = new Set(stageStudents.filter((s) => s.grade === gradeFilter).map((s) => s.className));
-    return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), 'ar', { numeric: true }));
+    return sortClasses(Array.from(set));
   }, [stageStudents, gradeFilter]);
 
   // Students in class

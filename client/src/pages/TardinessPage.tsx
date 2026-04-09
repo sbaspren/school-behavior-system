@@ -12,7 +12,7 @@ import FilterBtn from '../components/shared/FilterBtn';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { tardinessApi, TardinessData } from '../api/tardiness';
 import { showSuccess, showError } from '../components/shared/Toast';
-import { SETTINGS_STAGES, TARDINESS_TYPES, PERIODS, SECTION_THEMES } from '../utils/constants';
+import { SETTINGS_STAGES, TARDINESS_TYPES, PERIODS, SECTION_THEMES, sortGrades, sortClasses } from '../utils/constants';
 import { StageConfigData } from '../api/settings';
 import { printForm, printListReport, ListReportRow } from '../utils/printTemplates';
 import { printDailyReport } from '../utils/printDaily';
@@ -229,8 +229,8 @@ const ApprovedTab: React.FC<{ records: TardinessRow[]; onRefresh: () => void; sc
     return Array.from(groups.values()).sort((a, b) => b.records.length - a.records.length);
   }, [records, typeFilter, gradeFilter, classFilter, search, dateFrom, dateTo]);
 
-  const grades = useMemo(() => Array.from(new Set(records.map(r => r.grade))).sort(), [records]);
-  const classes = useMemo(() => Array.from(new Set(records.filter(r => !gradeFilter || r.grade === gradeFilter).map(r => r.className))).sort(), [records, gradeFilter]);
+  const grades = useMemo(() => sortGrades(Array.from(new Set(records.map(r => r.grade)))), [records]);
+  const classes = useMemo(() => sortClasses(Array.from(new Set(records.filter(r => !gradeFilter || r.grade === gradeFilter).map(r => r.className)))), [records, gradeFilter]);
   const allFilteredRecords = useMemo(() => {
     let list = records;
     if (typeFilter) list = list.filter(r => r.tardinessType === typeFilter);
@@ -371,8 +371,8 @@ const StudentDetailModal: React.FC<{ studentName: string; records: TardinessRow[
 // ============================== Reports Tab ==============================
 const ReportsTab: React.FC<{ records: TardinessRow[]; schoolSettings: Record<string, string> }> = ({ records, schoolSettings }) => {
   const [gradeFilter, setGradeFilter] = useState(''); const [classFilter, setClassFilter] = useState(''); const [filtered, setFiltered] = useState(records);
-  const grades = useMemo(() => Array.from(new Set(records.map(r => r.grade))).sort(), [records]);
-  const classes = useMemo(() => { if (!gradeFilter) return []; return Array.from(new Set(records.filter(r => r.grade === gradeFilter).map(r => r.className))).sort(); }, [records, gradeFilter]);
+  const grades = useMemo(() => sortGrades(Array.from(new Set(records.map(r => r.grade)))), [records]);
+  const classes = useMemo(() => { if (!gradeFilter) return []; return sortClasses(Array.from(new Set(records.filter(r => r.grade === gradeFilter).map(r => r.className)))); }, [records, gradeFilter]);
   const handleUpdate = () => { let l = records; if (gradeFilter) l = l.filter(r => r.grade === gradeFilter); if (classFilter) l = l.filter(r => r.className === classFilter); setFiltered(l); };
   useEffect(() => { setFiltered(records); }, [records]);
   const mc = filtered.filter(r => r.tardinessType === 'Morning').length, pc = filtered.filter(r => r.tardinessType === 'Period').length, ac = filtered.filter(r => r.tardinessType === 'Assembly').length;

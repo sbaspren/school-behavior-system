@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { studentsApi } from '../../api/students';
 import { classToLetter } from '../../utils/printUtils';
 import { useAppContext } from '../../hooks/useAppContext';
+import { sortGrades, sortClasses } from '../../utils/constants';
 import type { StudentOption } from '../../types';
 export type { StudentOption };
 
@@ -50,18 +51,18 @@ const StudentSelector: React.FC<StudentSelectorProps> = ({
     return allStudents.filter((s) => s.stage === effectiveStage);
   }, [allStudents, effectiveStage]);
 
-  // Available grades
+  // Available grades — sorted correctly (الأول ← الثاني ← الثالث...)
   const grades = useMemo(() =>
-    Array.from(new Set(stageStudents.map((s) => s.grade))).sort((a, b) => a.localeCompare(b, 'ar')),
+    sortGrades(Array.from(new Set(stageStudents.map((s) => s.grade)))),
     [stageStudents]
   );
 
-  // Available classes for selected grade
+  // Available classes for selected grade — sorted correctly (أ ← ب ← ج...)
   const classes = useMemo(() => {
     if (!selectedGrade) return [];
-    return Array.from(new Set(
+    return sortClasses(Array.from(new Set(
       stageStudents.filter((s) => s.grade === selectedGrade).map((s) => s.className)
-    )).sort((a, b) => a.localeCompare(b, 'ar'));
+    )));
   }, [stageStudents, selectedGrade]);
 
   // Students in selected grade+class

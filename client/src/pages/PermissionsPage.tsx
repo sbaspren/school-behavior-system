@@ -13,7 +13,7 @@ import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { permissionsApi, PermissionData } from '../api/permissions';
 import { StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
-import { SETTINGS_STAGES, PERMISSION_REASONS } from '../utils/constants';
+import { SETTINGS_STAGES, PERMISSION_REASONS, sortGrades, sortClasses } from '../utils/constants';
 import { printForm, printListReport, ListReportRow } from '../utils/printTemplates';
 import { printDailyReport } from '../utils/printDaily';
 import { toIndic, escapeHtml, getTodayDates, classToLetter } from '../utils/printUtils';
@@ -328,8 +328,8 @@ const ApprovedTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; s
     return list.sort((a, b) => `${a.grade}${a.className}`.localeCompare(`${b.grade}${b.className}`));
   }, [records, gradeFilter, classFilter, reasonFilter, dateFrom, dateTo, search]);
 
-  const grades = useMemo(() => Array.from(new Set(records.map((r) => r.grade))).sort(), [records]);
-  const classes = useMemo(() => Array.from(new Set(records.filter((r) => !gradeFilter || r.grade === gradeFilter).map((r) => r.className))).sort(), [records, gradeFilter]);
+  const grades = useMemo(() => sortGrades(Array.from(new Set(records.map((r) => r.grade)))), [records]);
+  const classes = useMemo(() => sortClasses(Array.from(new Set(records.filter((r) => !gradeFilter || r.grade === gradeFilter).map((r) => r.className)))), [records, gradeFilter]);
   const reasons = useMemo(() => Array.from(new Set(records.map((r) => r.reason).filter(Boolean))).sort(), [records]);
 
   const handlePrintArchive = () => {
@@ -538,8 +538,8 @@ const ReportsTab: React.FC<{ records: PermissionRow[]; schoolSettings: Record<st
   const [gradeFilter, setGradeFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
 
-  const grades = useMemo(() => Array.from(new Set(records.map((r) => r.grade))).sort(), [records]);
-  const classes = useMemo(() => Array.from(new Set(records.filter((r) => !gradeFilter || r.grade === gradeFilter).map((r) => r.className))).sort(), [records, gradeFilter]);
+  const grades = useMemo(() => sortGrades(Array.from(new Set(records.map((r) => r.grade)))), [records]);
+  const classes = useMemo(() => sortClasses(Array.from(new Set(records.filter((r) => !gradeFilter || r.grade === gradeFilter).map((r) => r.className)))), [records, gradeFilter]);
 
   const filtered = useMemo(() => {
     let list = records;

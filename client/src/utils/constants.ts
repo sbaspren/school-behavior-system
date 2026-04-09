@@ -15,6 +15,52 @@ export const SECONDARY_TRACKS: Record<string, string[]> = {
 
 export const CLASS_LETTERS = ['أ', 'ب', 'ج', 'د', 'هـ', 'و', 'ز', 'ح', 'ط', 'ي', 'ك', 'ل', 'م', 'ن', 'س', 'ع', 'ف', 'ص', 'ق', 'ر'];
 
+// ═══ ترتيب الصفوف والفصول — حل جذري مركزي ═══
+
+/** ترتيب الأعداد العربية (الأول=1, الثاني=2, ...) */
+const ARABIC_ORDER: Record<string, number> = {
+  'الأول': 1, 'الثاني': 2, 'الثالث': 3, 'الرابع': 4,
+  'الخامس': 5, 'السادس': 6, 'السابع': 7, 'الثامن': 8,
+};
+
+/** ترتيب المراحل */
+const STAGE_ORDER: Record<string, number> = {
+  'طفولة': 1, 'مبكرة': 1,
+  'الابتدائي': 2, 'ابتدائي': 2,
+  'المتوسط': 3, 'متوسط': 3,
+  'الثانوي': 4, 'ثانوي': 4,
+};
+
+/** استخراج رقم ترتيب الصف من اسمه (مثلاً "الثاني المتوسط" → [2, 3]) */
+function gradeOrder(grade: string): [number, number] {
+  const words = grade.split(' ');
+  const numOrder = ARABIC_ORDER[words[0]] || 99;
+  // آخر كلمة عادةً هي المرحلة
+  const stageWord = words[words.length - 1];
+  const stgOrder = STAGE_ORDER[stageWord] || 99;
+  return [stgOrder, numOrder];
+}
+
+/** ترتيب الصفوف بالترتيب الصحيح: المرحلة أولاً ثم الرقم */
+export function sortGrades(grades: string[]): string[] {
+  return [...grades].sort((a, b) => {
+    const [aStg, aNum] = gradeOrder(a);
+    const [bStg, bNum] = gradeOrder(b);
+    if (aStg !== bStg) return aStg - bStg;
+    return aNum - bNum;
+  });
+}
+
+/** ترتيب الفصول بالترتيب الصحيح (أ، ب، ج، ...) */
+export function sortClasses(classes: string[]): string[] {
+  return [...classes].sort((a, b) => {
+    const aIdx = CLASS_LETTERS.indexOf(a);
+    const bIdx = CLASS_LETTERS.indexOf(b);
+    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+    return a.localeCompare(b, 'ar');
+  });
+}
+
 export const STAGE_SUBJECTS: Record<string, { name: string; subjects: string[] }> = {
   Primary: {
     name: 'ابتدائي',

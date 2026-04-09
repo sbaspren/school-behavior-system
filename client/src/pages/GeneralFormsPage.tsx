@@ -4,7 +4,7 @@ import { violationsApi } from '../api/violations';
 import { printForm, FormId, PrintFormData, FORM_NAMES } from '../utils/printTemplates';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { getHijriDate } from '../hooks/usePageData';
-import { SETTINGS_STAGES } from '../utils/constants';
+import { SETTINGS_STAGES, sortGrades, sortClasses } from '../utils/constants';
 import { useAppContext } from '../hooks/useAppContext';
 import { classToLetter } from '../utils/printUtils';
 import type { StudentOption } from '../types';
@@ -73,8 +73,8 @@ const MH: React.FC<{ title: string; subtitle?: string; gradient: string; onClose
 const SP: React.FC<{ students: StudentOption[]; stage: string; onPick: (s: any) => void }> = ({ students, stage, onPick }) => {
   const [g, setG] = useState(''); const [c, setC] = useState(''); const [sid, setSid] = useState('');
   const ss = useMemo(() => students.filter(s => s.stage === stage), [students, stage]);
-  const gs = useMemo(() => Array.from(new Set(ss.map(s => s.grade))).sort((a, b) => a.localeCompare(b, 'ar')), [ss]);
-  const cs = useMemo(() => g ? Array.from(new Set(ss.filter(s => s.grade === g).map(s => s.className))).sort() : [], [ss, g]);
+  const gs = useMemo(() => sortGrades(Array.from(new Set(ss.map(s => s.grade)))), [ss]);
+  const cs = useMemo(() => g ? sortClasses(Array.from(new Set(ss.filter(s => s.grade === g).map(s => s.className)))) : [], [ss, g]);
   const fs = useMemo(() => (g && c) ? ss.filter(s => s.grade === g && s.className === c).sort((a, b) => a.name.localeCompare(b.name, 'ar')) : [], [ss, g, c]);
   const sx: React.CSSProperties = { padding: '8px', border: '1.5px solid #d1d5db', borderRadius: '10px', fontSize: '12px', fontFamily: 'inherit', background: '#fff', width: '100%' };
   useEffect(() => { if (!sid) return; const st = fs.find(s => String(s.id) === sid); if (st) onPick({ studentName: st.name, grade: st.grade, class: classToLetter(st.className), violationDate: getHijriDate(), violationDay: getDayName() }); }, [sid]);
@@ -114,8 +114,8 @@ const GeneralFormsPage: React.FC = () => {
     if (sR.data?.data) setAllStudents(sR.data.data);
   } catch {} finally { setLoading(false); } })(); }, [currentStage]);
 
-  const grades = useMemo(() => Array.from(new Set(allStudents.filter(s => !currentStage || s.stage === currentStage).map(s => s.grade))).sort((a, b) => a.localeCompare(b, 'ar')), [allStudents, currentStage]);
-  const classes = useMemo(() => modalGrade ? Array.from(new Set(allStudents.filter(s => s.grade === modalGrade && (!currentStage || s.stage === currentStage)).map(s => s.className))).sort() : [], [allStudents, modalGrade, currentStage]);
+  const grades = useMemo(() => sortGrades(Array.from(new Set(allStudents.filter(s => !currentStage || s.stage === currentStage).map(s => s.grade)))), [allStudents, currentStage]);
+  const classes = useMemo(() => modalGrade ? sortClasses(Array.from(new Set(allStudents.filter(s => s.grade === modalGrade && (!currentStage || s.stage === currentStage)).map(s => s.className)))) : [], [allStudents, modalGrade, currentStage]);
   const filteredStudents = useMemo(() => (modalGrade && modalClass) ? allStudents.filter(s => s.grade === modalGrade && s.className === modalClass && (!currentStage || s.stage === currentStage)).sort((a, b) => a.name.localeCompare(b.name, 'ar')) : [], [allStudents, modalGrade, modalClass, currentStage]);
 
   const openFormModal = useCallback((form: FormCardDef) => {
@@ -431,13 +431,13 @@ const KhotaM: React.FC<MP> = ({ sts, stg, onP, onC }) => {
 // ★ مشاجرة
 const MashajaraM: React.FC<MP> = ({ sts, stg, onP, onC }) => {
   const ss = useMemo(() => sts.filter(s => s.stage === stg), [sts, stg]);
-  const gds = useMemo(() => Array.from(new Set(ss.map(s => s.grade))).sort((a, b) => a.localeCompare(b, 'ar')), [ss]);
+  const gds = useMemo(() => sortGrades(Array.from(new Set(ss.map(s => s.grade)))), [ss]);
   const [dy, setDy] = useState(getDayName()); const [dt, setDt] = useState(getTodayStr()); const [tm, setTm] = useState('٩:٠٠'); const [lc, setLc] = useState('');
   const [mg, setMg] = useState(''); const [mc, setMc] = useState(''); const [ms, setMs] = useState('');
   const [as2, setAs2] = useState<{ id: string; name: string; grade: string }[]>([]); const [ini, setIni] = useState(''); const [ds, setDs] = useState('');
   const [pd, setPd] = useState(['']); const [md, setMd] = useState(['']);
   const [au, setAu] = useState([{ role: '', name: '' }]);
-  const mcs = useMemo(() => mg ? Array.from(new Set(ss.filter(s => s.grade === mg).map(s => s.className))).sort() : [], [ss, mg]);
+  const mcs = useMemo(() => mg ? sortClasses(Array.from(new Set(ss.filter(s => s.grade === mg).map(s => s.className)))) : [], [ss, mg]);
   const mfs = useMemo(() => (mg && mc) ? ss.filter(s => s.grade === mg && s.className === mc).sort((a, b) => a.name.localeCompare(b.name, 'ar')) : [], [ss, mg, mc]);
   const sx2: React.CSSProperties = { padding: '8px', border: '1.5px solid #d1d5db', borderRadius: '10px', fontSize: '12px', background: '#fff', width: '100%' };
   const addS = () => { if (!ms) return; if (as2.find(s => s.id === ms)) { showError('مضاف مسبقاً'); return; } if (as2.length >= 12) { showError('الحد ١٢'); return; } const st = mfs.find(s => String(s.id) === ms); if (st) { setAs2([...as2, { id: ms, name: st.name, grade: st.grade + '/' + classToLetter(st.className) }]); setMs(''); } };

@@ -6,7 +6,7 @@ import { studentsApi } from '../../api/students';
 import { StageConfigData } from '../../api/settings';
 import { whatsappApi } from '../../api/whatsapp';
 import { showSuccess, showError } from '../../components/shared/Toast';
-import { SETTINGS_STAGES, DEGREE_LABELS, TYPE_LABELS, FORM_PATTERNS, getRequiredForms } from '../../utils/constants';
+import { SETTINGS_STAGES, DEGREE_LABELS, TYPE_LABELS, FORM_PATTERNS, getRequiredForms, sortGrades, sortClasses } from '../../utils/constants';
 import type { FormId } from '../../utils/constants';
 import PageHero from '../../components/shared/PageHero';
 import TabBar from '../../components/shared/TabBar';
@@ -504,8 +504,8 @@ const ApprovedTab: React.FC<{
     return Array.from(groups.values()).sort((a, b) => b.violations.length - a.violations.length);
   }, [allFilteredRecords]);
 
-  const grades = useMemo(() => Array.from(new Set(violations.map((v) => v.grade))).sort(), [violations]);
-  const classes = useMemo(() => Array.from(new Set(violations.filter((v) => !gradeFilter || v.grade === gradeFilter).map((v) => v.className))).sort(), [violations, gradeFilter]);
+  const grades = useMemo(() => sortGrades(Array.from(new Set(violations.map((v) => v.grade)))), [violations]);
+  const classes = useMemo(() => sortClasses(Array.from(new Set(violations.filter((v) => !gradeFilter || v.grade === gradeFilter).map((v) => v.className)))), [violations, gradeFilter]);
 
   const handlePrintArchive = () => {
     const hijri = new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -999,8 +999,8 @@ const PositiveTab: React.FC<{ stageFilter: string; schoolSettings: Record<string
     );
   }, [filtered]);
 
-  const grades = useMemo(() => Array.from(new Set(records.map((r) => r.grade))).sort(), [records]);
-  const classes = useMemo(() => Array.from(new Set(records.filter((r) => !gradeFilter || r.grade === gradeFilter).map((r) => r.className))).sort(), [records, gradeFilter]);
+  const grades = useMemo(() => sortGrades(Array.from(new Set(records.map((r) => r.grade)))), [records]);
+  const classes = useMemo(() => sortClasses(Array.from(new Set(records.filter((r) => !gradeFilter || r.grade === gradeFilter).map((r) => r.className)))), [records, gradeFilter]);
 
   const totalDegrees = useMemo(() => {
     let sum = 0;
@@ -1252,7 +1252,7 @@ const CompensationTab: React.FC<{
     return list;
   }, [eligibleViolations, compensatedSet, statusFilter, gradeFilter, search]);
 
-  const compGrades = useMemo(() => Array.from(new Set(eligibleViolations.map((v) => v.grade))).sort(), [eligibleViolations]);
+  const compGrades = useMemo(() => sortGrades(Array.from(new Set(eligibleViolations.map((v) => v.grade)))), [eligibleViolations]);
 
   const pendingCount = eligibleViolations.filter((v) => !compensatedSet.has(v.id)).length;
   const compensatedCount = eligibleViolations.filter((v) => compensatedSet.has(v.id)).length;
@@ -1456,10 +1456,10 @@ const ReportsTab: React.FC<{
   const [repDateFrom, setRepDateFrom] = useState('');
   const [repDateTo, setRepDateTo] = useState('');
 
-  const repGrades = useMemo(() => Array.from(new Set(violations.map((v) => v.grade))).sort(), [violations]);
+  const repGrades = useMemo(() => sortGrades(Array.from(new Set(violations.map((v) => v.grade)))), [violations]);
   const repClasses = useMemo(() => {
     if (!repGrade) return [];
-    return Array.from(new Set(violations.filter((v) => v.grade === repGrade).map((v) => v.className))).sort();
+    return sortClasses(Array.from(new Set(violations.filter((v) => v.grade === repGrade).map((v) => v.className))));
   }, [violations, repGrade]);
 
   const filteredViols = useMemo(() => {

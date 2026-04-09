@@ -13,7 +13,7 @@ import { educationalNotesApi } from '../api/educationalNotes';
 import { StageConfigData } from '../api/settings';
 import { templatesApi } from '../api/templates';
 import { showSuccess, showError } from '../components/shared/Toast';
-import { SETTINGS_STAGES, SECTION_THEMES } from '../utils/constants';
+import { SETTINGS_STAGES, SECTION_THEMES, sortGrades, sortClasses } from '../utils/constants';
 import { printForm } from '../utils/printTemplates';
 import { printDailyReport } from '../utils/printDaily';
 import { sortByClass, classToLetter } from '../utils/printUtils';
@@ -401,10 +401,10 @@ const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  const grades = useMemo(() => Array.from(new Set(records.map(r => r.grade))).sort(), [records]);
+  const grades = useMemo(() => sortGrades(Array.from(new Set(records.map(r => r.grade)))), [records]);
   const classes = useMemo(() => {
     if (!gradeFilter) return [];
-    return Array.from(new Set(records.filter(r => r.grade === gradeFilter).map(r => r.className))).sort();
+    return sortClasses(Array.from(new Set(records.filter(r => r.grade === gradeFilter).map(r => r.className))));
   }, [records, gradeFilter]);
 
   const filtered = useMemo(() => {
@@ -604,10 +604,10 @@ const ReportsTab: React.FC<{ stage: string }> = ({ stage }) => {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  const grades = useMemo(() => Array.from(new Set(allRecords.map(r => r.grade))).sort(), [allRecords]);
+  const grades = useMemo(() => sortGrades(Array.from(new Set(allRecords.map(r => r.grade)))), [allRecords]);
   const classes = useMemo(() => {
     if (!gradeFilter) return [];
-    return Array.from(new Set(allRecords.filter(r => r.grade === gradeFilter).map(r => r.className))).sort();
+    return sortClasses(Array.from(new Set(allRecords.filter(r => r.grade === gradeFilter).map(r => r.className))));
   }, [allRecords, gradeFilter]);
 
   const filtered = useMemo(() => {
