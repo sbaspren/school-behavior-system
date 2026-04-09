@@ -311,20 +311,6 @@ const TodayTab: React.FC<{
         ]}
       />
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="بحث بالاسم أو رقم الطالب..."
-          style={{ flex: 1, minWidth: '200px', height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px' }} />
-        <select value={degreeFilter} onChange={(e) => setDegreeFilter(Number(e.target.value))}
-          style={{ height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', background: '#fff' }}>
-          <option value={0}>كل الدرجات</option>
-          {[1, 2, 3, 4, 5].map((d) => (
-            <option key={d} value={d}>الدرجة {DEGREE_LABELS[d].label}</option>
-          ))}
-        </select>
-      </div>
-
       {/* Floating Selection Bar — مطابق للأصلي: fixed bottom */}
       <FloatingBar
         count={selected.size}
@@ -404,15 +390,15 @@ const TodayTab: React.FC<{
                           const hl = (formId: FormId) => reqForms.has(formId);
                           return (
                             <div style={{ display: 'flex', gap: '2px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                              <ActionIcon icon="smartphone" title="إرسال واتساب" color="#25d366" hoverBg="#dcfce7" onClick={() => handleSendWhatsApp(v)} disabled={sendingId === v.id} />
-                              <ActionIcon icon="edit_note" title="تعديل الرسالة" color="#3b82f6" hoverBg="#eff6ff" onClick={() => openMessageEditor(v)} />
-                              <ActionIcon icon="verified" title="تعهد سلوكي" color="#6366f1" hoverBg="#eef2ff" onClick={() => handlePrint(v, 'تعهد')} highlight={hl('tahood_slooki')} />
-                              <ActionIcon icon="campaign" title="إشعار ولي أمر" color="#3b82f6" hoverBg="#eff6ff" onClick={() => handlePrint(v, 'إشعار')} highlight={hl('ishar_wali_amr')} />
-                              <ActionIcon icon="mail" title="دعوة ولي أمر" color="#d97706" hoverBg="#fffbeb" onClick={() => setDawatModal(v)} highlight={hl('dawat_wali_amr')} />
-                              <ActionIcon icon="groups" title="محضر لجنة" color="#dc2626" hoverBg="#fef2f2" onClick={() => handlePrint(v, 'محضر')} highlight={hl('mahdar_lajnah')} />
-                              <ActionIcon icon="forward_to_inbox" title="إحالة طالب" color="#7c3aed" hoverBg="#faf5ff" onClick={() => handlePrint(v, 'إحالة')} highlight={hl('ehalat_talib')} />
-                              <ActionIcon icon="contact_phone" title="توثيق تواصل" color="#15803d" hoverBg="#f0fdf4" onClick={() => handlePrint(v, 'توثيق تواصل')} />
-                              <ActionIcon icon="delete" title="حذف" color="#dc2626" hoverBg="#fef2f2" onClick={() => setConfirmDelete(v)} />
+                              <ActionIcon icon="smartphone" title="إرسال واتساب" color="#6b7280" hoverBg="#f3f4f6" onClick={() => handleSendWhatsApp(v)} disabled={sendingId === v.id} />
+                              <ActionIcon icon="edit_note" title="تعديل الرسالة" color="#6b7280" hoverBg="#f3f4f6" onClick={() => openMessageEditor(v)} />
+                              <ActionIcon icon="verified" title="تعهد سلوكي" color="#6b7280" hoverBg="#f3f4f6" onClick={() => handlePrint(v, 'تعهد')} highlight={hl('tahood_slooki')} />
+                              <ActionIcon icon="campaign" title="إشعار ولي أمر" color="#6b7280" hoverBg="#f3f4f6" onClick={() => handlePrint(v, 'إشعار')} highlight={hl('ishar_wali_amr')} />
+                              <ActionIcon icon="mail" title="دعوة ولي أمر" color="#6b7280" hoverBg="#f3f4f6" onClick={() => setDawatModal(v)} highlight={hl('dawat_wali_amr')} />
+                              <ActionIcon icon="groups" title="محضر لجنة" color="#6b7280" hoverBg="#f3f4f6" onClick={() => handlePrint(v, 'محضر')} highlight={hl('mahdar_lajnah')} />
+                              <ActionIcon icon="forward_to_inbox" title="إحالة طالب" color="#6b7280" hoverBg="#f3f4f6" onClick={() => handlePrint(v, 'إحالة')} highlight={hl('ehalat_talib')} />
+                              <ActionIcon icon="contact_phone" title="توثيق تواصل" color="#6b7280" hoverBg="#f3f4f6" onClick={() => handlePrint(v, 'توثيق تواصل')} />
+                              <ActionIcon icon="delete" title="حذف" color="#6b7280" hoverBg="#f3f4f6" onClick={() => setConfirmDelete(v)} />
                             </div>
                           );
                         })()}

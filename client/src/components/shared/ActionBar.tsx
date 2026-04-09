@@ -26,7 +26,7 @@ const variantStyles = (variant: string, sectionColor: string): React.CSSProperti
       };
     case 'success':
       return {
-        background: '#059669',
+        background: sectionColor,
         color: '#fff',
       };
     case 'danger':
@@ -38,8 +38,8 @@ const variantStyles = (variant: string, sectionColor: string): React.CSSProperti
     default:
       return {
         background: '#fff',
-        color: '#555',
-        border: '1px solid #ddd',
+        color: sectionColor,
+        border: `1px solid ${sectionColor}`,
       };
   }
 };

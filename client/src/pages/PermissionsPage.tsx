@@ -149,19 +149,17 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
 
   return (
     <>
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={onAdd} style={{ height: '38px', padding: '0 16px', background: '#0891b2', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>add_circle</span> تسجيل استئذان</button>
-          <button onClick={onRefresh} style={{ height: '38px', padding: '0 16px', background: '#f3f4f6', color: '#374151', borderRadius: '8px', border: '1px solid #d1d5db', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span> تحديث</button>
-        </div>
-        <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={handleSendAll} disabled={unsentCount === 0} style={{ height: '38px', padding: '0 16px', background: unsentCount > 0 ? '#25d366' : '#d1d5db', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: unsentCount > 0 ? 'pointer' : 'not-allowed', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>send</span> إرسال للجميع</button>
-          <button onClick={handlePrint} style={{ height: '38px', padding: '0 16px', background: '#f3f4f6', color: '#374151', borderRadius: '8px', border: '1px solid #d1d5db', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
-        </div>
-      </div>
-      <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث..."
-        style={{ width: '100%', height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' }} />
+      <ActionBar
+        sectionColor="#0891b2"
+        leftButtons={[
+          { icon: 'add_circle', label: 'تسجيل استئذان', variant: 'primary', onClick: onAdd },
+          { icon: 'refresh', label: 'تحديث', variant: 'outline', onClick: onRefresh },
+        ]}
+        rightButtons={[
+          { icon: 'send', label: 'إرسال للجميع', variant: 'success', onClick: handleSendAll, disabled: unsentCount === 0 },
+          { icon: 'print', label: 'طباعة', variant: 'outline', onClick: handlePrint },
+        ]}
+      />
 
       {/* Floating Selection Bar */}
       <FloatingBar

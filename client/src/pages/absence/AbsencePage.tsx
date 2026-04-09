@@ -418,38 +418,19 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
     <>
       <input ref={platformFileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e) => handleExcelImport(e, true)} />
 
-      {/* Action bar — مطابق لـ .action-bar + .btn-hero classes */}
-      <div className="action-bar">
-        <div className="action-group">
-          <button className="btn-hero btn-hero-primary" onClick={() => platformFileRef.current?.click()}>
-            <span className="material-symbols-outlined" style={{fontSize:18}}>upload_file</span> استيراد منصة
-          </button>
-          <button className="btn-hero btn-hero-primary" onClick={onAdd}>
-            <span className="material-symbols-outlined" style={{fontSize:18}}>add_circle</span> تسجيل يدوي
-          </button>
-          <button className="btn-hero btn-hero-outline" onClick={onRefresh}>
-            <span className="material-symbols-outlined" style={{fontSize:18}}>refresh</span> تحديث
-          </button>
-        </div>
-        <div className="action-group">
-          <button className="btn-hero btn-hero-success" onClick={handleSendAll} disabled={bulkSending} id="btn-send-all">
-            {bulkSending
-              ? <><span className="material-symbols-outlined" style={{fontSize:18}}>hourglass_empty</span> {bulkProgress.sent}/{bulkProgress.total}</>
-              : <><span className="material-symbols-outlined" style={{fontSize:18}}>send</span> إرسال للجميع</>}
-          </button>
-          <button className="btn-hero btn-hero-outline" onClick={() => handlePrintToday(true)}>
-            <span className="material-symbols-outlined" style={{fontSize:18}}>print</span> طباعة الكشف
-          </button>
-          {filtered.length > 0 && <>
-            <button className="btn-hero" style={{ background: '#7c3aed', color: '#fff' }} onClick={() => setBulkTypeModal(true)}>
-              <span className="material-symbols-outlined" style={{fontSize:18}}>swap_horiz</span> تغيير النوع للكل
-            </button>
-            <button className="btn-hero" style={{ background: '#dc2626', color: '#fff' }} onClick={() => setConfirmDeleteAll(true)}>
-              <span className="material-symbols-outlined" style={{fontSize:18}}>delete_sweep</span> حذف الكل
-            </button>
-          </>}
-        </div>
-      </div>
+      {/* Action bar */}
+      <ActionBar
+        sectionColor="#ea580c"
+        leftButtons={[
+          { icon: 'upload_file', label: 'استيراد منصة', variant: 'primary', onClick: () => platformFileRef.current?.click() },
+          { icon: 'add_circle', label: 'تسجيل يدوي', variant: 'primary', onClick: onAdd },
+          { icon: 'refresh', label: 'تحديث', variant: 'outline', onClick: onRefresh },
+        ]}
+        rightButtons={[
+          { icon: 'send', label: bulkSending ? `${bulkProgress.sent}/${bulkProgress.total}` : 'إرسال للجميع', variant: 'success', onClick: handleSendAll, disabled: bulkSending, id: 'btn-send-all' },
+          { icon: 'print', label: 'طباعة الكشف', variant: 'outline', onClick: () => handlePrintToday(true) },
+        ]}
+      />
 
       {/* Table with grouped display */}
       {filtered.length === 0 ? (

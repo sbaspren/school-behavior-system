@@ -102,14 +102,18 @@ const TodayTab: React.FC<{ records: TardinessRow[]; allRecords: TardinessRow[]; 
 
   return (
     <>
-      {/* ★ Action bar: تسجيل + تحديث + إرسال للجميع + طباعة */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={onAdd} className="btn-icon" style={{ height: 38, padding: '0 16px', background: '#dc2626', color: '#fff', borderRadius: 8, border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><span className="material-symbols-outlined" style={{ fontSize: 18 }}>add_circle</span> تسجيل تأخر</button>
-        <button onClick={onRefresh} style={{ height: 38, padding: '0 16px', background: '#fff', color: '#374151', borderRadius: 8, border: '1px solid #d1d5db', fontWeight: 700, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><span className="material-symbols-outlined" style={{ fontSize: 18 }}>refresh</span> تحديث</button>
-        <div style={{ flex: 1 }} />
-        <button onClick={handleSendAll} disabled={sendingAll || records.length === 0} style={{ height: 38, padding: '0 16px', background: records.length === 0 ? '#e5e7eb' : '#059669', color: '#fff', borderRadius: 8, border: 'none', fontWeight: 700, cursor: records.length === 0 ? 'not-allowed' : 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, opacity: sendingAll ? .7 : 1 }}><span className="material-symbols-outlined" style={{ fontSize: 18 }}>send</span> {sendingAll ? 'جاري...' : 'إرسال للجميع'}</button>
-        <button onClick={handlePrintToday} style={{ height: 38, padding: '0 16px', background: '#fff', color: '#374151', borderRadius: 8, border: '1px solid #d1d5db', fontWeight: 700, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><span className="material-symbols-outlined" style={{ fontSize: 18 }}>print</span> طباعة</button>
-      </div>
+      {/* ★ Action bar */}
+      <ActionBar
+        sectionColor="#dc2626"
+        leftButtons={[
+          { icon: 'add_circle', label: 'تسجيل تأخر', variant: 'primary', onClick: onAdd },
+          { icon: 'refresh', label: 'تحديث', variant: 'outline', onClick: onRefresh },
+        ]}
+        rightButtons={[
+          { icon: 'send', label: sendingAll ? 'جاري...' : 'إرسال للجميع', variant: 'success', onClick: handleSendAll, disabled: sendingAll || records.filter(r => !r.isSent).length === 0 },
+          { icon: 'print', label: 'طباعة', variant: 'outline', onClick: handlePrintToday },
+        ]}
+      />
 
       <FloatingBar
         count={selected.size}

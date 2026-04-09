@@ -175,6 +175,19 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
     finally { setSending(false); }
   };
 
+  const handleSendAll = async () => {
+    const unsent = records.filter(r => !r.isSent);
+    if (unsent.length === 0) { showError('جميع السجلات تم إرسالها'); return; }
+    setSending(true);
+    try {
+      const res = await educationalNotesApi.sendWhatsAppBulk(unsent.map(r => r.id));
+      if (res.data?.data) showSuccess(`تم: ${res.data.data.success} ناجح، ${res.data.data.fail} فاشل`);
+      loadToday();
+      onRefresh();
+    } catch { showError('فشل الإرسال الجماعي'); }
+    finally { setSending(false); }
+  };
+
   const handleBulkDelete = async () => {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
@@ -218,14 +231,18 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
   return (
     <div>
       {/* Actions */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={() => setModalOpen(true)} style={btnStyle(SECTION_THEMES.notes, '#fff')}>+ تسجيل ملاحظة</button>
-        <button onClick={() => loadToday()} style={btnStyle('#f3f4f6', '#374151')}>تحديث</button>
-        <button onClick={() => setTypesModalOpen(true)} style={btnStyle('#fef3c7', '#92400e')}>أنواع الملاحظات</button>
-        <div style={{ flex: 1 }} />
-        <button onClick={printToday} style={btnStyle('#f3f4f6', '#374151')}>طباعة</button>
-        <button onClick={handleExport} style={btnStyle('#f3f4f6', '#374151')}>تصدير CSV</button>
-      </div>
+      <ActionBar
+        sectionColor="#059669"
+        leftButtons={[
+          { icon: 'add_circle', label: 'تسجيل ملاحظة', variant: 'primary', onClick: () => setModalOpen(true) },
+          { icon: 'refresh', label: 'تحديث', variant: 'outline', onClick: () => loadToday() },
+          { icon: 'category', label: 'أنواع الملاحظات', variant: 'outline', onClick: () => setTypesModalOpen(true) },
+        ]}
+        rightButtons={[
+          { icon: 'send', label: sending ? 'جاري...' : 'إرسال للجميع', variant: 'success', onClick: handleSendAll, disabled: sending || records.filter(r => !r.isSent).length === 0 },
+          { icon: 'print', label: 'طباعة', variant: 'outline', onClick: printToday },
+        ]}
+      />
 
       {/* Table */}
       {loading ? (
