@@ -14,20 +14,13 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
 };
 
 const ParentExcusePage: React.FC = () => {
-  const { enabledStages } = useAppContext();
-  const [currentStage, setCurrentStage] = useState('');
+  const { enabledStages, activeStage: currentStage } = useAppContext();
   const [excuses, setExcuses] = useState<ParentExcuseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('معلق');
   const [selectedExcuse, setSelectedExcuse] = useState<ParentExcuseRow | null>(null);
   const [actionNotes, setActionNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-
-  useEffect(() => {
-    if (enabledStages.length > 0 && !currentStage) {
-      setCurrentStage(enabledStages[0].stage);
-    }
-  }, [enabledStages, currentStage]);
 
   const initialLoadDone = useRef(false);
   const loadData = useCallback(async () => {
@@ -84,14 +77,6 @@ const ParentExcusePage: React.FC = () => {
           </div>
           <div>
             <h2 className="text-xl font-extrabold text-gray-900">أعذار أولياء الأمور</h2>
-            <div className="flex gap-2 items-center mt-1">
-              {enabledStages.map(s => {
-                const info = SETTINGS_STAGES.find(x => x.id === s.stage);
-                return (
-                  <FilterBtn key={s.stage} label={info?.name || s.stage} active={currentStage === s.stage} onClick={() => setCurrentStage(s.stage)} color="#8b5cf6" />
-                );
-              })}
-            </div>
           </div>
         </div>
         <div className="flex gap-3">

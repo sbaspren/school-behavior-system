@@ -37,13 +37,13 @@ const PermissionsPage: React.FC = () => {
     return <LoadingSpinner />;
   }
 
-  const stageLabel = stageFilter !== '__all__' ? (SETTINGS_STAGES.find((s) => s.name === stageFilter)?.name || stageFilter) : '';
+  const stageLabel = SETTINGS_STAGES.find((s) => s.id === stageFilter)?.name || stageFilter;
 
   return (
     <div className="sec-permissions">
       {/* Hero Banner — مطابق لـ .page-hero: gradient سماوي + عدادات */}
       <PageHero
-        title={stageLabel ? `الاستئذان — ${stageLabel}` : 'الاستئذان'}
+        title={`الاستئذان — ${stageLabel}`}
         subtitle={getHijriDate()}
         gradient="linear-gradient(135deg, #0891b2, #06b6d4)"
         stats={[
@@ -63,19 +63,6 @@ const PermissionsPage: React.FC = () => {
         onTabChange={(id) => setActiveTab(id as TabType)}
         sectionColor="#0891b2"
       />
-
-      {/* Stage Filter */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '14px', fontWeight: 700, color: '#6b7280' }}>المرحلة:</span>
-        <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '8px', padding: '4px' }}>
-          <FilterBtn label="الكل" count={records.length} active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} color="#0891b2" />
-          {enabledStages.map((stage) => {
-            const info = SETTINGS_STAGES.find((s) => s.id === stage.stage);
-            const count = records.filter((r) => r.stage === stage.stage).length;
-            return <FilterBtn key={stage.stage} label={info?.name || stage.stage} count={count} active={stageFilter === (info?.name || stage.stage)} onClick={() => setStageFilter(info?.name || stage.stage)} color="#0891b2" />;
-          })}
-        </div>
-      </div>
 
       {activeTab === 'today' && <TodayTab records={todayRecords} onRefresh={refresh} stageFilter={stageFilter} schoolSettings={schoolSettings} onAdd={() => setModalOpen(true)} />}
       {activeTab === 'approved' && <ApprovedTab records={filteredByStage} onRefresh={refresh} schoolSettings={schoolSettings} />}

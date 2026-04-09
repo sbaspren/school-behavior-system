@@ -82,19 +82,6 @@ const ViolationsPage: React.FC = () => {
         sectionColor="#4f46e5"
       />
 
-      {/* Stage Filter */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '14px', fontWeight: 700, color: '#6b7280' }}>المرحلة:</span>
-        <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '8px', padding: '4px' }}>
-          <FilterBtn label="الكل" count={violations.length} active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} color="#dc2626" />
-          {enabledStages.map((stage) => {
-            const info = SETTINGS_STAGES.find((s) => s.id === stage.stage);
-            const count = violations.filter((v) => v.stage === stage.stage).length;
-            return <FilterBtn key={stage.stage} label={info?.name || stage.stage} count={count} active={stageFilter === (info?.name || stage.stage)} onClick={() => setStageFilter(info?.name || stage.stage)} color="#dc2626" />;
-          })}
-        </div>
-      </div>
-
       {/* Tab Content */}
       {activeTab === 'today' && (
         <TodayTab violations={todayViolations} allViolations={filteredByStage} onRefresh={refresh} stageFilter={stageFilter} onAdd={() => setModalOpen(true)} schoolSettings={schoolSettings} />

@@ -20,10 +20,9 @@ interface ReportData {
 }
 
 const ReportsPage: React.FC = () => {
-  const { enabledStages } = useAppContext();
+  const { enabledStages, activeStage: stageFilter } = useAppContext();
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [stageFilter, setStageFilter] = useState('__all__');
   const [gradeFilter, setGradeFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -33,7 +32,7 @@ const ReportsPage: React.FC = () => {
   const loadData = useCallback(async () => {
     if (!initialLoadDone.current) setLoading(true);
     try {
-      const stage = stageFilter !== '__all__' ? stageFilter : undefined;
+      const stage = stageFilter || undefined;
       const rRes = await violationsApi.getReport(stage, gradeFilter || undefined, classFilter || undefined, dateFrom || undefined, dateTo || undefined);
       if (rRes.data?.data) setData(rRes.data.data);
     } catch { /* empty */ }
@@ -69,14 +68,6 @@ const ReportsPage: React.FC = () => {
 
       {/* فلاتر */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={stageFilter} onChange={e => { setStageFilter(e.target.value); setGradeFilter(''); setClassFilter(''); }}
-          style={{ padding: '8px 16px', border: '2px solid #d1d5db', borderRadius: '8px', fontSize: '14px', minWidth: '160px' }}>
-          <option value="__all__">جميع المراحل</option>
-          {enabledStages.map(s => {
-            const label = SETTINGS_STAGES.find(ss => ss.id === s.stage)?.name || s.stage;
-            return <option key={s.stage} value={s.stage}>{label}</option>;
-          })}
-        </select>
         <select value={gradeFilter} onChange={e => { setGradeFilter(e.target.value); setClassFilter(''); }}
           style={{ padding: '8px 12px', border: '2px solid #d1d5db', borderRadius: '8px', fontSize: '14px', background: '#fff' }}>
           <option value="">كل الصفوف</option>

@@ -57,11 +57,10 @@ interface SummaryData {
 }
 
 const CommunicationPage: React.FC = () => {
-  const { stages, enabledStages, schoolSettings } = useAppContext();
+  const { stages, enabledStages, schoolSettings, activeStage: stageFilter } = useAppContext();
   const [records, setRecords] = useState<CommRow[]>([]);
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [stageFilter, setStageFilter] = useState('__all__');
   const [typeFilter, setTypeFilter] = useState('__all__');
   const [statusFilter, setStatusFilter] = useState('__all__');
   const [dateFrom, setDateFrom] = useState('');
@@ -73,7 +72,7 @@ const CommunicationPage: React.FC = () => {
   const loadData = useCallback(async () => {
     if (!initialLoadDone.current) setLoading(true);
     try {
-      const stg = stageFilter !== '__all__' ? stageFilter : undefined;
+      const stg = stageFilter || undefined;
       const [rRes, sumRes] = await Promise.all([
         communicationApi.getAll({ stage: stg }),
         communicationApi.getSummary(stg),
@@ -192,7 +191,7 @@ const CommunicationPage: React.FC = () => {
   const handleExport = async () => {
     toast('جاري تصدير البيانات...');
     try {
-      const stg = stageFilter !== '__all__' ? stageFilter : undefined;
+      const stg = stageFilter || undefined;
       const res = await communicationApi.export({
         stage: stg,
         messageType: typeFilter !== '__all__' ? typeFilter : undefined,
@@ -268,14 +267,6 @@ const CommunicationPage: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Stage filter */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <FilterBtn label="الكل" active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} color="#4f46e5" />
-        {enabledStages.map(s => (
-          <FilterBtn key={s.stage} label={stageLabel(s.stage)} active={stageFilter === s.stage} onClick={() => setStageFilter(s.stage)} color="#4f46e5" />
-        ))}
-      </div>
 
       {/* Filters bar */}
       <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e7eb', padding: '16px', marginBottom: '16px' }}>

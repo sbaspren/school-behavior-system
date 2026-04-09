@@ -4,6 +4,21 @@ import { settingsApi } from '../api/settings';
 import type { StageConfigData } from '../api/settings';
 import { filterEnabledStages } from '../utils/constants';
 
+/* ── Resolve which stage should be active on load ── */
+function resolveActiveStage(enabledStages: StageConfigData[], user: AppUser | null): string {
+  // Deputy: locked to their scopeValue
+  if (user?.role !== 'Admin' && user?.scopeType === 'stage' && user?.scopeValue) {
+    return user.scopeValue;
+  }
+  // Check localStorage for saved preference
+  const saved = localStorage.getItem('selectedStage');
+  if (saved && enabledStages.some(s => s.stage === saved)) {
+    return saved;
+  }
+  // Default: first enabled stage (lowest order)
+  return enabledStages[0]?.stage || '';
+}
+
 /* ── User shape (mirrors AuthUser from LoginPage) ── */
 export interface AppUser {
   id: number;
@@ -22,6 +37,12 @@ export interface AppContextValue {
   stages: StageConfigData[];
   /** Only stages where isEnabled === true */
   enabledStages: StageConfigData[];
+  /** Currently selected stage ID (e.g., 'Primary', 'Intermediate') */
+  activeStage: string;
+  /** Change the active stage */
+  setActiveStage: (stageId: string) => void;
+  /** Whether stage tabs should be shown (Admin + 2+ stages) */
+  showStageTabs: boolean;
   /** Current logged-in user (read from localStorage) */
   user: AppUser | null;
   /** True while the initial fetch is in progress */
@@ -93,16 +114,39 @@ export function AppProvider({ children }: ProviderProps) {
     [stages],
   );
 
+  // ── Active stage management ──
+  const [activeStage, setActiveStageRaw] = useState('');
+
+  const setActiveStage = useCallback((stageId: string) => {
+    setActiveStageRaw(stageId);
+    localStorage.setItem('selectedStage', stageId);
+  }, []);
+
+  // Resolve active stage once enabledStages are loaded
+  useEffect(() => {
+    if (enabledStages.length > 0 && !activeStage) {
+      setActiveStageRaw(resolveActiveStage(enabledStages, user));
+    }
+  }, [enabledStages, user, activeStage]);
+
+  const showStageTabs = useMemo(
+    () => user?.role === 'Admin' && enabledStages.length > 1,
+    [user, enabledStages],
+  );
+
   const value = useMemo<AppContextValue>(
     () => ({
       schoolSettings,
       stages,
       enabledStages,
+      activeStage,
+      setActiveStage,
+      showStageTabs,
       user,
       loading,
       refresh: fetchData,
     }),
-    [schoolSettings, stages, enabledStages, user, loading, fetchData],
+    [schoolSettings, stages, enabledStages, activeStage, setActiveStage, showStageTabs, user, loading, fetchData],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

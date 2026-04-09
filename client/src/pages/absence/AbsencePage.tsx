@@ -83,19 +83,6 @@ const AbsencePage: React.FC = () => {
         sectionColor="#ea580c"
       />
 
-      {/* Stage Filter */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#6b7280' }}>المرحلة:</span>
-        <div style={{ display: 'flex', gap: 4, background: '#f3f4f6', borderRadius: 8, padding: 3 }}>
-          <FilterBtn label="الكل" count={records.length} active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} color="#ea580c" />
-          {enabledStages.map((stage) => {
-            const info = SETTINGS_STAGES.find((s) => s.id === stage.stage);
-            const count = records.filter((r) => r.stage === stage.stage).length;
-            return <FilterBtn key={stage.stage} label={info?.name || stage.stage} count={count} active={stageFilter === (info?.name || stage.stage)} onClick={() => setStageFilter(info?.name || stage.stage)} color="#ea580c" />;
-          })}
-        </div>
-      </div>
-
       {activeTab === 'today' && <TodayTab records={todayRecords} allRecords={filteredByStage} onRefresh={refresh} setRecords={setRecords} stageFilter={stageFilter} settings={schoolSettings} onAdd={() => setModalOpen(true)} />}
       {activeTab === 'approved' && <ApprovedTab records={cumulativeRecords} dailyRecords={filteredByStage} onRefresh={refresh} settings={schoolSettings} />}
       {activeTab === 'excuses' && <ExcusesTab excuses={excuses} onRefresh={refresh} settings={schoolSettings} />}

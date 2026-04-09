@@ -37,6 +37,7 @@ import HistoryPage from './pages/HistoryPage';
 import ParentExcusePublicPage from './pages/ParentExcusePublicPage';
 import PortfolioPage from './pages/portfolio';
 import AdminPage from './pages/AdminPage';
+import StageTabs from './components/StageTabs';
 import './App.css';
 
 function getStoredUser(): AuthUser | null {
@@ -84,31 +85,40 @@ function AuthenticatedLayout({ user, onLogout, expiringBanner }: {
         {/* Top Header */}
         <header className="no-print" style={{
           background: '#fff', borderBottom: '1px solid #f0f2f7',
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '0 20px', height: '52px', minHeight: '52px',
-          boxShadow: '0 1px 3px rgba(0,0,0,.04)', zIndex: 10, gap: '8px',
+          boxShadow: '0 1px 3px rgba(0,0,0,.04)', zIndex: 10,
         }}>
-          <NotificationBell />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 14px', background: '#fafbfc', borderRadius: '10px', border: '1px solid #f0f2f7' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#6b7280' }}>person</span>
-            <span style={{ fontSize: '13px', color: '#1a1d2e', fontWeight: 700 }}>{user.name}</span>
-            <span style={{
-              fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px',
-              background: user.role === 'Admin' ? '#eef2ff' : '#f0fdf4',
-              color: user.role === 'Admin' ? '#4f46e5' : '#15803d',
+          {/* Left side: user info + logout */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button onClick={onLogout} style={{
+              display: 'flex', alignItems: 'center', gap: '4px',
+              padding: '6px 12px', background: '#fef2f2', color: '#dc2626',
+              borderRadius: '8px', border: '1px solid #fecaca', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+              transition: 'all .2s ease',
             }}>
-              {{ Admin: 'مدير', Teacher: 'معلم', Counselor: 'مرشد', Wakeel: 'وكيل' }[user.role] || user.role}
-            </span>
+              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>logout</span>
+              خروج
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 14px', background: '#fafbfc', borderRadius: '10px', border: '1px solid #f0f2f7' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#6b7280' }}>person</span>
+              <span style={{ fontSize: '13px', color: '#1a1d2e', fontWeight: 700 }}>{user.name}</span>
+              <span style={{
+                fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px',
+                background: user.role === 'Admin' ? '#eef2ff' : '#f0fdf4',
+                color: user.role === 'Admin' ? '#4f46e5' : '#15803d',
+              }}>
+                {{ Admin: 'مدير', Teacher: 'معلم', Counselor: 'مرشد', Wakeel: 'وكيل' }[user.role] || user.role}
+              </span>
+            </div>
+            <NotificationBell />
           </div>
-          <button onClick={onLogout} style={{
-            display: 'flex', alignItems: 'center', gap: '4px',
-            padding: '6px 12px', background: '#fef2f2', color: '#dc2626',
-            borderRadius: '8px', border: '1px solid #fecaca', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-            transition: 'all .2s ease',
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>logout</span>
-            خروج
-          </button>
+
+          {/* Center: Stage Tabs */}
+          <StageTabs />
+
+          {/* Right spacer to balance layout */}
+          <div style={{ width: '1px' }} />
         </header>
 
         {/* Subscription expiring banner */}

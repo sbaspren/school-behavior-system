@@ -57,14 +57,13 @@ const formatClassShort = (grade: string, cls: string, stage: string) => {
 // Main Page
 // ═══════════════════════════════════════════════════════════════
 const HistoryPage: React.FC = () => {
-  const { schoolSettings } = useAppContext();
+  const { schoolSettings, activeStage: stageFilter } = useAppContext();
   const [violations, setViolations] = useState<ViolRecord[]>([]);
   const [posRecords, setPosRecords] = useState<PosRecord[]>([]);
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [stageFilter, setStageFilter] = useState('__all__');
   const [gradeFilter, setGradeFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
   const [studentFilter, setStudentFilter] = useState('');
@@ -91,8 +90,8 @@ const HistoryPage: React.FC = () => {
 
   // Stage filtered students
   const stageStudents = useMemo(() => {
-    if (stageFilter === '__all__') return students;
-    const stageId = SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter;
+    if (!stageFilter) return students;
+    const stageId = stageFilter;
     return students.filter((s) => s.stage === stageId);
   }, [students, stageFilter]);
 
@@ -120,8 +119,8 @@ const HistoryPage: React.FC = () => {
   // Filtered violations
   const filteredViolations = useMemo(() => {
     let list = violations;
-    if (stageFilter !== '__all__') {
-      const stageId = SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter;
+    if (stageFilter) {
+      const stageId = stageFilter;
       list = list.filter((v) => v.stage === stageId);
     }
     if (gradeFilter) list = list.filter((v) => v.grade === gradeFilter);
@@ -141,8 +140,8 @@ const HistoryPage: React.FC = () => {
   // Filtered positive records
   const filteredPositive = useMemo(() => {
     let list = posRecords;
-    if (stageFilter !== '__all__') {
-      const stageId = SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter;
+    if (stageFilter) {
+      const stageId = stageFilter;
       list = list.filter((r) => r.stage === stageId);
     }
     if (gradeFilter) list = list.filter((r) => r.grade === gradeFilter);
@@ -245,12 +244,6 @@ const HistoryPage: React.FC = () => {
       {/* Filters */}
       <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '16px', marginBottom: '16px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '12px', marginBottom: '12px' }}>
-          {/* Stage */}
-          <select value={stageFilter} onChange={(e) => { setStageFilter(e.target.value); clearFilters(); }}
-            style={selectStyle}>
-            <option value="__all__">كل المراحل</option>
-            {SETTINGS_STAGES.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
-          </select>
           {/* Grade */}
           <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); setStudentFilter(''); }}
             style={selectStyle}>

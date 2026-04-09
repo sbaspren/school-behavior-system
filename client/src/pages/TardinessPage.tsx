@@ -35,7 +35,8 @@ const TardinessPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
 
   // ★ عنوان ديناميكي مطابق: "التأخر — المرحلة المتوسطة"
-  const heroTitle = stageFilter === '__all__' ? 'التأخر' : `التأخر — ${stageFilter}`;
+  const stageInfo = SETTINGS_STAGES.find(s => s.id === stageFilter);
+  const heroTitle = stageInfo ? `التأخر — ${stageInfo.name}` : 'التأخر';
   // ★ إحصائية "لم تُرسل" بدل "تم الإرسال"
   const unsentCount = filteredByStage.filter((r) => !r.isSent).length;
 
@@ -52,18 +53,6 @@ const TardinessPage: React.FC = () => {
       />
       <TabBar tabs={[{ id: 'today', label: 'اليومي', icon: 'today' }, { id: 'approved', label: 'المعتمد', icon: 'verified' }]}
         activeTab={activeTab} onTabChange={(id) => setActiveTab(id as TabType)} sectionColor="#dc2626" />
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '14px', fontWeight: 700, color: '#6b7280' }}>المرحلة:</span>
-        <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '8px', padding: '4px' }}>
-          <FilterBtn label="الكل" count={records.length} active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} color="#dc2626" />
-          {enabledStages.map((stage) => {
-            const info = SETTINGS_STAGES.find((s) => s.id === stage.stage);
-            const count = records.filter((r) => r.stage === stage.stage).length;
-            return <FilterBtn key={stage.stage} label={info?.name || stage.stage} count={count} active={stageFilter === (info?.name || stage.stage)} onClick={() => setStageFilter(info?.name || stage.stage)} color="#dc2626" />;
-          })}
-        </div>
-      </div>
 
       {activeTab === 'today' && <TodayTab records={todayRecords} allRecords={filteredByStage} onRefresh={refresh} stageFilter={stageFilter} schoolSettings={schoolSettings} onAdd={() => setModalOpen(true)} />}
       {activeTab === 'approved' && <ApprovedTab records={filteredByStage} onRefresh={refresh} schoolSettings={schoolSettings} stageFilter={stageFilter} />}

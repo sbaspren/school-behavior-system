@@ -18,6 +18,7 @@ import { printForm } from '../utils/printTemplates';
 import { printDailyReport } from '../utils/printDaily';
 import { sortByClass, classToLetter } from '../utils/printUtils';
 import { usePageData, getHijriDate } from '../hooks/usePageData';
+import { useAppContext } from '../hooks/useAppContext';
 import type { NoteRow, StudentOption, DailyStats } from '../types';
 
 interface ReportData {
@@ -38,15 +39,9 @@ const EducationalNotesPage: React.FC = () => {
   } = usePageData<NoteRow>({ fetchRecords: () => educationalNotesApi.getAll() });
 
   const [activeTab, setActiveTab] = useState<'today' | 'approved'>('today');
-  const [currentStage, setCurrentStage] = useState('');
+  const { activeStage: currentStage } = useAppContext();
   const [noteTypes, setNoteTypes] = useState<string[]>([]);
   const [stats, setStats] = useState<DailyStats>({ todayCount: 0, totalCount: 0, unsentCount: 0, sentCount: 0 });
-
-  useEffect(() => {
-    if (enabledStages.length > 0 && !currentStage) {
-      setCurrentStage(enabledStages[0].stage);
-    }
-  }, [enabledStages, currentStage]);
 
   useEffect(() => {
     if (!currentStage) return;
@@ -80,15 +75,6 @@ const EducationalNotesPage: React.FC = () => {
           { icon: 'sms_failed', label: 'لم تُرسل', value: stats.unsentCount ?? 0, color: '#f87171' },
         ]}
       />
-
-      {/* Stage selector */}
-      {enabledStages.length > 1 && (
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-          {enabledStages.map(s => (
-            <FilterBtn key={s.stage} label={stageName(s.stage)} active={currentStage === s.stage} onClick={() => setCurrentStage(s.stage)} color={SECTION_THEMES.notes} />
-          ))}
-        </div>
-      )}
 
       {/* Tabs — مطابق لـ .tabs-bar: 3 tabs بلون أخضر */}
       <TabBar

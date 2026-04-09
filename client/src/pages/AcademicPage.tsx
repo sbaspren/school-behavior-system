@@ -66,7 +66,7 @@ const AcademicPage: React.FC = () => {
   const stages = appCtx.stages;
   const enabledStages = appCtx.enabledStages;
   const schoolSettings = appCtx.schoolSettings as any;
-  const [currentStage, setCurrentStage] = useState('');
+  const currentStage = appCtx.activeStage;
   const [tab, setTab] = useState<'dashboard' | 'reports' | 'charts' | 'analysis'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<SummaryRow[]>([]);
@@ -97,15 +97,6 @@ const AcademicPage: React.FC = () => {
   // Class comparison
   const [classComparison, setClassComparison] = useState<ClassCompItem[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // ── Set initial stage from context ──
-  useEffect(() => {
-    if (enabledStages.length > 0 && !currentStage) {
-      setCurrentStage(enabledStages[0].stage);
-    } else if (enabledStages.length === 0 && !appCtx.loading) {
-      setLoading(false);
-    }
-  }, [enabledStages, currentStage, appCtx.loading]);
 
   // ── Load data ──
   const initialLoadDone = useRef(false);
@@ -353,24 +344,6 @@ const AcademicPage: React.FC = () => {
         onTabChange={(id) => setTab(id as typeof tab)}
         sectionColor="#0d9488"
       />
-
-      {/* Stage filter buttons */}
-      {enabledStages.length > 1 && (
-        <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', background: '#f1f5f9', borderRadius: '10px', margin: '0 0 16px' }}>
-          {enabledStages.map(s => {
-            const info = SETTINGS_STAGES.find(st => st.id === s.stage);
-            return (
-              <FilterBtn
-                key={s.stage}
-                label={info?.name || s.stage}
-                active={currentStage === s.stage}
-                onClick={() => setCurrentStage(s.stage)}
-                color="#0d9488"
-              />
-            );
-          })}
-        </div>
-      )}
 
       {loading && (
         <div style={{ textAlign: 'center', padding: '32px 0' }}>

@@ -14,9 +14,8 @@ const THEME = '#10b981'; // emerald-500
 
 
 const PositiveBehaviorPage: React.FC = () => {
-  const { stages, enabledStages, schoolSettings } = useAppContext();
+  const { stages, enabledStages, schoolSettings, activeStage: currentStage } = useAppContext();
   const [records, setRecords] = useState<BehaviorRow[]>([]);
-  const [currentStage, setCurrentStage] = useState('');
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [search, setSearch] = useState('');
@@ -25,12 +24,6 @@ const PositiveBehaviorPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [detailStudent, setDetailStudent] = useState<{ name: string; grade: string; cls: string; behaviors: BehaviorRow[] } | null>(null);
   const [stats, setStats] = useState<DailyStats>({ totalRecords: 0, todayCount: 0, uniqueStudents: 0, totalDegrees: 0 });
-
-  useEffect(() => {
-    if (enabledStages.length > 0 && !currentStage) {
-      setCurrentStage(enabledStages[0].stage);
-    }
-  }, [enabledStages, currentStage]);
 
   const initialLoadDone = useRef(false);
   const loadData = useCallback(async () => {
@@ -141,13 +134,6 @@ const PositiveBehaviorPage: React.FC = () => {
             <div style={{ textAlign: 'center' }}><div style={{ fontSize: '28px', fontWeight: 800 }}>{stats.totalDegrees}</div><div style={{ fontSize: '12px', opacity: 0.8 }}>إجمالي الدرجات</div></div>
           </div>
         </div>
-        {enabledStages.length > 1 && (
-          <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-            {enabledStages.map(s => (
-              <FilterBtn key={s.stage} label={stageName(s.stage)} active={currentStage === s.stage} onClick={() => setCurrentStage(s.stage)} color={THEME} />
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Actions */}

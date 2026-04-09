@@ -97,7 +97,7 @@ const GeneralFormsPage: React.FC = () => {
   const enabledStages = appCtx.enabledStages;
   const schoolSettings = appCtx.schoolSettings as unknown as SchoolSettingsData;
   const [allStudents, setAllStudents] = useState<StudentOption[]>([]);
-  const [currentStage, setCurrentStage] = useState('');
+  const currentStage = appCtx.activeStage;
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedForm, setSelectedForm] = useState<FormCardDef | null>(null);
@@ -114,11 +114,6 @@ const GeneralFormsPage: React.FC = () => {
     if (sR.data?.data) setAllStudents(sR.data.data);
   } catch {} finally { setLoading(false); } })(); }, []);
 
-  useEffect(() => {
-    if (enabledStages.length > 0 && !currentStage) {
-      setCurrentStage(enabledStages[0].stage);
-    }
-  }, [enabledStages, currentStage]);
   const grades = useMemo(() => Array.from(new Set(allStudents.filter(s => !currentStage || s.stage === currentStage).map(s => s.grade))).sort((a, b) => a.localeCompare(b, 'ar')), [allStudents, currentStage]);
   const classes = useMemo(() => modalGrade ? Array.from(new Set(allStudents.filter(s => s.grade === modalGrade && (!currentStage || s.stage === currentStage)).map(s => s.className))).sort() : [], [allStudents, modalGrade, currentStage]);
   const filteredStudents = useMemo(() => (modalGrade && modalClass) ? allStudents.filter(s => s.grade === modalGrade && s.className === modalClass && (!currentStage || s.stage === currentStage)).sort((a, b) => a.name.localeCompare(b.name, 'ar')) : [], [allStudents, modalGrade, modalClass, currentStage]);
@@ -155,7 +150,6 @@ const GeneralFormsPage: React.FC = () => {
         <div style={{ width: '48px', height: '48px', background: '#fff7ed', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}><span className="material-symbols-outlined" style={{ fontSize: '24px' }}>folder_open</span></div>
         <div><h1 style={{ fontSize: '22px', fontWeight: 800, color: '#1e293b', margin: 0 }}>النماذج العامة والإدارية</h1><p style={{ fontSize: '13px', color: '#9ca3af', margin: 0 }}>اختر النموذج المطلوب للطباعة</p></div>
       </div>
-      {enabledStages.length > 1 && <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>{enabledStages.map(s => <button key={s.stage} onClick={() => setCurrentStage(s.stage)} style={{ padding: '6px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', background: currentStage === s.stage ? '#4f46e5' : '#f3f4f6', color: currentStage === s.stage ? '#fff' : '#374151', border: 'none' }}>{SETTINGS_STAGES.find(st => st.id === s.stage)?.name || s.stage}</button>)}</div>}
       {FORM_CATEGORIES.map(cat => (
         <div key={cat.title} style={{ marginBottom: '32px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#374151', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}><span className="material-symbols-outlined" style={{ fontSize: '22px', color: cat.color }}>{cat.icon}</span>{cat.title}</h3>

@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { violationsApi } from '../../../api/violations';
 import { useAppContext } from '../../../hooks/useAppContext';
-import { SETTINGS_STAGES, DEGREE_LABELS as DEGREE_LABELS_OBJ } from '../../../utils/constants';
+import { DEGREE_LABELS as DEGREE_LABELS_OBJ } from '../../../utils/constants';
 import { toIndic, classToLetter } from '../../../utils/printUtils';
 import { printPortfolioReport } from '../../../utils/print/portfolio';
 import MI from '../../../components/shared/MI';
-import FilterBtn from '../../../components/shared/FilterBtn';
 
 const DEGREE_COLORS: Record<number, string> = Object.fromEntries(
   Object.entries(DEGREE_LABELS_OBJ).map(([k, v]) => [Number(k), v.color])
@@ -30,10 +29,9 @@ const tdS: React.CSSProperties = { padding: '5px 10px', fontSize: 12, textAlign:
 const inputS: React.CSSProperties = { padding: '8px 12px', border: '2px solid #d1d5db', borderRadius: 8, fontSize: 14, background: '#fff' };
 
 const ViolationsReport: React.FC = () => {
-  const { enabledStages, schoolSettings } = useAppContext();
+  const { activeStage: stage, schoolSettings } = useAppContext();
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [stage, setStage] = useState('__all__');
   const [gradeFilter, setGradeFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -41,7 +39,7 @@ const ViolationsReport: React.FC = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const s = stage !== '__all__' ? stage : undefined;
+      const s = stage || undefined;
       const res = await violationsApi.getReport(s, gradeFilter || undefined, undefined, dateFrom || undefined, dateTo || undefined);
       if (res.data?.data) setData(res.data.data);
     } catch { /* ignore */ }
@@ -86,13 +84,6 @@ const ViolationsReport: React.FC = () => {
     <div>
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 4, background: '#f1f5f9', borderRadius: 10, padding: 4 }}>
-          <FilterBtn label="الكل" active={stage === '__all__'} onClick={() => { setStage('__all__'); setGradeFilter(''); }} color="#1B3A6B" />
-          {enabledStages.map(s => {
-            const lbl = SETTINGS_STAGES.find(ss => ss.id === s.stage)?.name || s.stage;
-            return <FilterBtn key={s.stage} label={lbl} active={stage === s.stage} onClick={() => { setStage(s.stage); setGradeFilter(''); }} color="#1B3A6B" />;
-          })}
-        </div>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={inputS} />
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={inputS} />
         <button onClick={handlePrint} style={{ padding: '8px 16px', background: '#1B3A6B', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>

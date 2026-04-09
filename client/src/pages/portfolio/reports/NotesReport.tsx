@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { educationalNotesApi } from '../../../api/educationalNotes';
 import { useAppContext } from '../../../hooks/useAppContext';
-import { SETTINGS_STAGES } from '../../../utils/constants';
 import { toIndic } from '../../../utils/printUtils';
 import { printPortfolioReport } from '../../../utils/print/portfolio';
 import MI from '../../../components/shared/MI';
-import FilterBtn from '../../../components/shared/FilterBtn';
 import type { NoteRow } from '../../../types';
 
 const card: React.CSSProperties = { background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' };
@@ -13,15 +11,14 @@ const thS: React.CSSProperties = { background: '#E8ECF2', color: '#1B3A6B', padd
 const tdS: React.CSSProperties = { padding: '5px 10px', fontSize: 12, textAlign: 'right', border: '0.5px solid #C5CFE0' };
 
 const NotesReport: React.FC = () => {
-  const { enabledStages, schoolSettings } = useAppContext();
+  const { activeStage: stage, schoolSettings } = useAppContext();
   const [rows, setRows] = useState<NoteRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stage, setStage] = useState('__all__');
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const s = stage !== '__all__' ? stage : undefined;
+      const s = stage || undefined;
       const res = await educationalNotesApi.getAll({ stage: s });
       setRows(res.data?.data || res.data || []);
     } catch { /* ignore */ }
@@ -69,13 +66,6 @@ const NotesReport: React.FC = () => {
     <div>
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 4, background: '#f1f5f9', borderRadius: 10, padding: 4 }}>
-          <FilterBtn label="الكل" active={stage === '__all__'} onClick={() => setStage('__all__')} color="#1B3A6B" />
-          {enabledStages.map(s => {
-            const lbl = SETTINGS_STAGES.find(ss => ss.id === s.stage)?.name || s.stage;
-            return <FilterBtn key={s.stage} label={lbl} active={stage === s.stage} onClick={() => setStage(s.stage)} color="#1B3A6B" />;
-          })}
-        </div>
         <button onClick={handlePrint} style={{ padding: '8px 16px', background: '#1B3A6B', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
           <MI n="print" s={16} c="#fff" /> طباعة
         </button>

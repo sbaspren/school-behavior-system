@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { StageConfigData } from '../api/settings';
-import { SETTINGS_STAGES } from '../utils/constants';
 import { useAppContext } from './useAppContext';
 
 // ═══ كود مشترك للصفحات الرئيسية ═══
@@ -64,17 +63,20 @@ export function usePageData<T extends { stage?: string; recordedAt?: string; hij
   const [records, setRecords] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [schoolSettings, setSchoolSettings] = useState<Record<string, string>>({});
-  const [stageFilter, setStageFilter] = useState('__all__');
   const [extraData, setExtraData] = useState<Record<string, any>>({});
+
+  // Stage filter now comes from central context
+  const stageFilter = appCtx.activeStage;
+  const setStageFilter = appCtx.setActiveStage;
 
   // المراحل من السياق المركزي (بدل تكرار الجلب)
   const stages = appCtx.stages;
   const enabledStages = appCtx.enabledStages;
 
-  // معرف المرحلة الحالية
+  // معرف المرحلة الحالية — always set from context activeStage
   const currentStageId = useMemo(() => {
-    if (stageFilter === '__all__') return undefined;
-    return SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter;
+    if (!stageFilter) return undefined;
+    return stageFilter;
   }, [stageFilter]);
 
   // تحميل البيانات — isInitial يمنع شاشة التحميل عند التحديث
@@ -103,9 +105,8 @@ export function usePageData<T extends { stage?: string; recordedAt?: string; hij
 
   // فلترة حسب المرحلة (في الواجهة)
   const filteredByStage = useMemo(() => {
-    if (stageFilter === '__all__' || serverSideFilter) return records;
-    const stageId = SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter;
-    return records.filter((r) => r.stage === stageId);
+    if (!stageFilter || serverSideFilter) return records;
+    return records.filter((r) => r.stage === stageFilter);
   }, [records, stageFilter, serverSideFilter]);
 
   // سجلات اليوم — نقارن بالتاريخ الهجري بتوقيت الرياض لتجنب انحراف UTC/GMT+3

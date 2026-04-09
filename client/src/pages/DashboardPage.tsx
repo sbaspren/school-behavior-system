@@ -226,10 +226,9 @@ const STAGE_ABBR: Record<string, string> = { 'EarlyChildhood': 'طم', 'Primary'
 // ═══════ Main Component ═══════
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { stages, enabledStages } = useAppContext();
+  const { stages, enabledStages, activeStage: stageFilter } = useAppContext();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [stageFilter, setStageFilter] = useState('');
   const [timelineSem, setTimelineSem] = useState(() => getSemesterProgress().semIdx);
   const [dismissedPrints, setDismissedPrints] = useState<Set<string>>(new Set());
 
@@ -269,7 +268,7 @@ const DashboardPage: React.FC = () => {
   let miladiStr = '';
   try { miladiStr = now.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { /* empty */ }
 
-  const curStageStats = stageFilter ? (data.stageStats?.[stageFilter] || {} as StageStatsItem) : null;
+  const curStageStats = stageFilter ? (data.stageStats?.[stageFilter] || {} as StageStatsItem) : ({} as StageStatsItem);
   const defaultNotSent = { absence: 0, tardiness: 0, violations: 0 };
   const notSent = stageFilter
     ? (data.pending?.notSentByStage?.[stageFilter] || defaultNotSent)
@@ -308,15 +307,8 @@ const DashboardPage: React.FC = () => {
             {getGreeting()}، <span style={{ background: 'linear-gradient(135deg,#4f46e5,#8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>وكيل شؤون الطلاب</span>
           </h2>
           <p style={{ fontSize: 13, color: '#9da3b8', marginTop: 4, fontWeight: 500 }}>
-            {stageFilter ? stageLabel(stageFilter) : 'جميع المراحل'}
+            {stageLabel(stageFilter)}
           </p>
-          {/* Stage filter buttons */}
-          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-            <FilterBtn label="الكل" active={!stageFilter} onClick={() => setStageFilter('')} color="#4f46e5" />
-            {enabledStages.map(s => (
-              <FilterBtn key={s.stage} label={stageLabel(s.stage)} active={stageFilter === s.stage} onClick={() => setStageFilter(s.stage)} color="#4f46e5" />
-            ))}
-          </div>
         </div>
 
         {/* Date card */}

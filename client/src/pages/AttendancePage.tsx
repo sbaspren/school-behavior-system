@@ -47,11 +47,10 @@ type MainTab = 'late' | 'permission' | 'archive';
 // Main Page — مطابق لـ renderAttendancePage() في JS_Attendance.html سطر 51
 // ═══════════════════════════════════════════════════════════
 const AttendancePage: React.FC = () => {
-  const { stages, enabledStages, schoolSettings } = useAppContext();
+  const { stages, enabledStages, schoolSettings, activeStage } = useAppContext();
   const [lateRecords, setLateRecords] = useState<LateRow[]>([]);
   const [permRecords, setPermRecords] = useState<PermRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stageFilter, setStageFilter] = useState('__all__');
   const [activeTab, setActiveTab] = useState<MainTab>('late');
   const [lateModalOpen, setLateModalOpen] = useState(false);
   const [permModalOpen, setPermModalOpen] = useState(false);
@@ -74,7 +73,7 @@ const AttendancePage: React.FC = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const stageId = stageFilter !== '__all__' ? (SETTINGS_STAGES.find((s) => s.name === stageFilter)?.id || stageFilter) : null;
+  const stageId = activeStage || null;
   const todayDate = new Date().toISOString().split('T')[0];
 
   const todayLate = useMemo(() => {
@@ -107,25 +106,13 @@ const AttendancePage: React.FC = () => {
       {/* Hero Banner — الحضور اليومي */}
       <PageHero
         title="التأخر والاستئذان"
-        subtitle={stageFilter === '__all__' ? 'جميع المراحل' : stageFilter}
+        subtitle={SETTINGS_STAGES.find(s => s.id === activeStage)?.name || activeStage}
         gradient="linear-gradient(135deg, #dc2626, #7c3aed)"
         stats={[
           { icon: 'timer_off', label: 'متأخر', value: todayLate.length, color: '#fbbf24' },
           { icon: 'exit_to_app', label: 'مستأذن', value: todayPerm.length, color: '#c084fc' },
         ]}
       />
-
-      {/* ═══ Stage filter ═══ */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '14px', fontWeight: 700, color: '#6b7280' }}>المرحلة:</span>
-        <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '8px', padding: '4px' }}>
-          <FilterBtn label="الكل" active={stageFilter === '__all__'} onClick={() => setStageFilter('__all__')} color={tc.main} />
-          {enabledStages.map((s) => {
-            const info = SETTINGS_STAGES.find((si) => si.id === s.stage);
-            return <FilterBtn key={s.stage} label={info?.name || s.stage} active={stageFilter === (info?.name || s.stage)} onClick={() => setStageFilter(info?.name || s.stage)} color={tc.main} />;
-          })}
-        </div>
-      </div>
 
       {/* Tabs — مطابق لـ .tabs-bar */}
       <TabBar
