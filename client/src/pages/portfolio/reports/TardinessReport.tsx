@@ -3,6 +3,7 @@ import { tardinessApi } from '../../../api/tardiness';
 import { useAppContext } from '../../../hooks/useAppContext';
 import { SETTINGS_STAGES } from '../../../utils/constants';
 import { toIndic, classToLetter, tardinessTypeLabel } from '../../../utils/printUtils';
+import { printPortfolioReport } from '../../../utils/print/portfolio';
 import MI from '../../../components/shared/MI';
 import FilterBtn from '../../../components/shared/FilterBtn';
 import type { TardinessRow } from '../../../types';
@@ -15,7 +16,7 @@ const inputS: React.CSSProperties = { padding: '8px 12px', border: '2px solid #d
 const TYPE_COLORS: Record<string, string> = { 'Morning': '#f59e0b', 'Period': '#6366f1', 'Assembly': '#0ea5e9' };
 
 const TardinessReport: React.FC = () => {
-  const { enabledStages } = useAppContext();
+  const { enabledStages, schoolSettings } = useAppContext();
   const [rows, setRows] = useState<TardinessRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState('__all__');
@@ -71,17 +72,22 @@ const TardinessReport: React.FC = () => {
   const maxType = Math.max(1, ...byType.map(t => t.count));
 
   const handlePrint = () => {
-    const w = window.open('', '_blank');
-    if (!w) return;
-    const trs = topStudents.map((s, i) =>
-      `<tr><td>${toIndic(i + 1)}</td><td>${s.name}</td><td>${s.grade} / ${classToLetter(s.cls)}</td><td>${toIndic(s.count)}</td></tr>`
-    ).join('');
-    w.document.write(`<html dir="rtl"><head><title>تقرير التأخر</title></head><body style="font-family:Cairo,sans-serif;padding:20px">
-      <h2>تقرير التأخر</h2><p>الإجمالي: ${toIndic(total)}</p>
-      <table border="1" cellpadding="6" style="border-collapse:collapse;width:100%"><tr><th>#</th><th>الطالب</th><th>الفصل</th><th>العدد</th></tr>${trs}</table>
-    </body></html>`);
-    w.document.close();
-    w.print();
+    const typesSummary = byType.map(t => ({
+      label: tardinessTypeLabel(t.type), value: toIndic(t.count), color: TYPE_COLORS[t.type] || '#6366f1',
+    }));
+    printPortfolioReport({
+      title: 'تقرير التأخر',
+      subtitle: 'ملف إنجاز وكيل شؤون الطلاب',
+      summaryItems: [
+        { label: 'إجمالي التأخر', value: toIndic(total), color: '#f59e0b' },
+        ...typesSummary,
+      ],
+      tableHeaders: ['م', 'اسم الطالب', 'الفصل', 'عدد مرات التأخر'],
+      tableRows: topStudents.map((s, i) => [
+        toIndic(i + 1), s.name, `${s.grade} / ${classToLetter(s.cls)}`, toIndic(s.count),
+      ]),
+      settings: schoolSettings,
+    });
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>جاري التحميل...</div>;

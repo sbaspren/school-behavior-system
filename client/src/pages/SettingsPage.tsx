@@ -399,6 +399,84 @@ const SchoolTab: React.FC<SchoolTabProps> = ({ data, onChange, onSaved }) => {
 
       {/* وكلاء شؤون الطلاب */}
       <DeputiesSection />
+
+      {/* تغيير كلمة المرور */}
+      <ChangePasswordSection />
+    </div>
+  );
+};
+
+// ============================================================
+// Change Password Section
+// ============================================================
+const ChangePasswordSection: React.FC = () => {
+  const [open, setOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleChange = async () => {
+    if (!currentPassword) return showError('أدخل كلمة المرور الحالية');
+    if (!newPassword || newPassword.length < 6) return showError('كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل');
+    if (newPassword !== confirmPassword) return showError('كلمة المرور الجديدة غير متطابقة');
+    setSaving(true);
+    try {
+      const api = (await import('../api/client')).default;
+      const res = await api.post('/auth/change-password', { currentPassword, newPassword });
+      if (res.data?.success) {
+        showSuccess('تم تغيير كلمة المرور بنجاح');
+        setOpen(false);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        showError(res.data?.message || 'خطأ');
+      }
+    } catch {
+      showError('خطأ في الاتصال');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid #f0f0f0' }}>
+      <button onClick={() => setOpen(!open)} style={{
+        display: 'flex', alignItems: 'center', gap: '8px', background: 'none',
+        border: 'none', cursor: 'pointer', fontSize: '15px', fontWeight: 700,
+        color: '#475569', fontFamily: "'Cairo', sans-serif",
+      }}>
+        <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#6366f1' }}>lock</span>
+        تغيير كلمة المرور
+        <span className="material-symbols-outlined" style={{ fontSize: '18px', transition: 'transform .2s', transform: open ? 'rotate(180deg)' : '' }}>expand_more</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '400px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '4px' }}>كلمة المرور الحالية</label>
+            <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', boxSizing: 'border-box' }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '4px' }}>كلمة المرور الجديدة</label>
+            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', boxSizing: 'border-box' }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '4px' }}>تأكيد كلمة المرور الجديدة</label>
+            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', boxSizing: 'border-box' }} />
+          </div>
+          <button onClick={handleChange} disabled={saving} style={{
+            padding: '12px', background: '#4f46e5', color: '#fff', border: 'none',
+            borderRadius: '10px', fontWeight: 700, fontSize: '14px', cursor: 'pointer',
+            fontFamily: "'Cairo', sans-serif", opacity: saving ? 0.7 : 1,
+          }}>
+            {saving ? 'جاري التغيير...' : 'تغيير كلمة المرور'}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

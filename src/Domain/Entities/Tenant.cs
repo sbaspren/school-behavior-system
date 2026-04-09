@@ -16,6 +16,7 @@ public class Tenant
     public TenantStatus Status { get; set; } = TenantStatus.Unused;
     public int DurationDays { get; set; } = 14;          // مدة الاشتراك بالأيام
     public decimal Amount { get; set; } = 0;             // المبلغ المدفوع
+    public bool IsPaid { get; set; } = false;             // هل تم الدفع؟
     public string Notes { get; set; } = "";              // ملاحظات (تحويل بنكي، إلخ)
     public DateTime? ActivatedAt { get; set; }           // تاريخ التفعيل
     public DateTime? ExpiresAt { get; set; }             // تاريخ الانتهاء

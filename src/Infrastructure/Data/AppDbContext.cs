@@ -79,6 +79,9 @@ public class AppDbContext : DbContext
     // Tenant / License
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
+    // Academic Calendar (عام — بدون TenantId)
+    public DbSet<AcademicCalendar> AcademicCalendars => Set<AcademicCalendar>();
+
     // ── Auto-set TenantId on new entities ──
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -287,6 +290,13 @@ public class AppDbContext : DbContext
             e.ToTable("tenants");
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Code).IsUnique();
+        });
+
+        modelBuilder.Entity<AcademicCalendar>(e =>
+        {
+            e.ToTable("academic_calendars");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.AcademicYear).IsUnique();
         });
 
         // ══════════════════════════════════════════════════

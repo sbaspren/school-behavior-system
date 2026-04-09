@@ -3,6 +3,7 @@ import { educationalNotesApi } from '../../../api/educationalNotes';
 import { useAppContext } from '../../../hooks/useAppContext';
 import { SETTINGS_STAGES } from '../../../utils/constants';
 import { toIndic } from '../../../utils/printUtils';
+import { printPortfolioReport } from '../../../utils/print/portfolio';
 import MI from '../../../components/shared/MI';
 import FilterBtn from '../../../components/shared/FilterBtn';
 import type { NoteRow } from '../../../types';
@@ -12,7 +13,7 @@ const thS: React.CSSProperties = { background: '#E8ECF2', color: '#1B3A6B', padd
 const tdS: React.CSSProperties = { padding: '5px 10px', fontSize: 12, textAlign: 'right', border: '0.5px solid #C5CFE0' };
 
 const NotesReport: React.FC = () => {
-  const { enabledStages } = useAppContext();
+  const { enabledStages, schoolSettings } = useAppContext();
   const [rows, setRows] = useState<NoteRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState('__all__');
@@ -46,18 +47,20 @@ const NotesReport: React.FC = () => {
   const maxTeacher = Math.max(1, ...byTeacher.map(t => t.count));
 
   const handlePrint = () => {
-    const w = window.open('', '_blank');
-    if (!w) return;
-    const trs = byTeacher.slice(0, 10).map((t, i) =>
-      `<tr><td>${toIndic(i + 1)}</td><td>${t.teacher}</td><td>${toIndic(t.count)}</td></tr>`
-    ).join('');
-    w.document.write(`<html dir="rtl"><head><title>تقرير الملاحظات</title></head><body style="font-family:Cairo,sans-serif;padding:20px">
-      <h2>تقرير الملاحظات التربوية</h2>
-      <p>الإجمالي: ${toIndic(total)} | إيجابية: ${toIndic(positive)} | سلبية: ${toIndic(negative)}</p>
-      <table border="1" cellpadding="6" style="border-collapse:collapse;width:100%"><tr><th>#</th><th>المعلم</th><th>العدد</th></tr>${trs}</table>
-    </body></html>`);
-    w.document.close();
-    w.print();
+    printPortfolioReport({
+      title: 'تقرير الملاحظات التربوية',
+      subtitle: 'ملف إنجاز وكيل شؤون الطلاب',
+      summaryItems: [
+        { label: 'إجمالي الملاحظات', value: toIndic(total), color: '#6366f1' },
+        { label: 'ملاحظات إيجابية', value: toIndic(positive), color: '#22c55e' },
+        { label: 'ملاحظات سلبية', value: toIndic(negative), color: '#ef4444' },
+      ],
+      tableHeaders: ['م', 'اسم المعلم', 'عدد الملاحظات'],
+      tableRows: byTeacher.slice(0, 15).map((t, i) => [
+        toIndic(i + 1), t.teacher, toIndic(t.count),
+      ]),
+      settings: schoolSettings,
+    });
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>جاري التحميل...</div>;

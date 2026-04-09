@@ -3,6 +3,7 @@ import { communicationApi } from '../../../api/communication';
 import { useAppContext } from '../../../hooks/useAppContext';
 import { SETTINGS_STAGES } from '../../../utils/constants';
 import { toIndic } from '../../../utils/printUtils';
+import { printPortfolioReport } from '../../../utils/print/portfolio';
 import MI from '../../../components/shared/MI';
 import FilterBtn from '../../../components/shared/FilterBtn';
 
@@ -21,7 +22,7 @@ const tdS: React.CSSProperties = { padding: '5px 10px', fontSize: 12, textAlign:
 const inputS: React.CSSProperties = { padding: '8px 12px', border: '2px solid #d1d5db', borderRadius: 8, fontSize: 14, background: '#fff' };
 
 const CommunicationReport: React.FC = () => {
-  const { enabledStages } = useAppContext();
+  const { enabledStages, schoolSettings } = useAppContext();
   const [rows, setRows] = useState<CommRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState('__all__');
@@ -59,18 +60,20 @@ const CommunicationReport: React.FC = () => {
   const TYPE_COLORS: Record<string, string> = { 'WhatsApp': '#25D366', 'SMS': '#0ea5e9', 'whatsapp': '#25D366', 'sms': '#0ea5e9' };
 
   const handlePrint = () => {
-    const w = window.open('', '_blank');
-    if (!w) return;
-    const typeRows = byType.map((t, i) =>
-      `<tr><td>${toIndic(i + 1)}</td><td>${t.type}</td><td>${toIndic(t.count)}</td></tr>`
-    ).join('');
-    w.document.write(`<html dir="rtl"><head><title>تقرير التواصل</title></head><body style="font-family:Cairo,sans-serif;padding:20px">
-      <h2>تقرير التواصل</h2>
-      <p>الإجمالي: ${toIndic(total)} | مرسل: ${toIndic(sent)} | فشل: ${toIndic(failed)}</p>
-      <table border="1" cellpadding="6" style="border-collapse:collapse;width:100%"><tr><th>#</th><th>النوع</th><th>العدد</th></tr>${typeRows}</table>
-    </body></html>`);
-    w.document.close();
-    w.print();
+    printPortfolioReport({
+      title: 'تقرير التواصل مع أولياء الأمور',
+      subtitle: 'ملف إنجاز وكيل شؤون الطلاب',
+      summaryItems: [
+        { label: 'إجمالي الرسائل', value: toIndic(total), color: '#6366f1' },
+        { label: 'تم الإرسال', value: toIndic(sent), color: '#22c55e' },
+        { label: 'فشل الإرسال', value: toIndic(failed), color: '#ef4444' },
+      ],
+      tableHeaders: ['م', 'نوع الرسالة', 'العدد'],
+      tableRows: byType.map((t, i) => [
+        toIndic(i + 1), t.type, toIndic(t.count),
+      ]),
+      settings: schoolSettings,
+    });
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>جاري التحميل...</div>;

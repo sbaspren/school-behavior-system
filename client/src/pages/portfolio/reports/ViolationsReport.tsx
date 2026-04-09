@@ -3,6 +3,7 @@ import { violationsApi } from '../../../api/violations';
 import { useAppContext } from '../../../hooks/useAppContext';
 import { SETTINGS_STAGES, DEGREE_LABELS as DEGREE_LABELS_OBJ } from '../../../utils/constants';
 import { toIndic, classToLetter } from '../../../utils/printUtils';
+import { printPortfolioReport } from '../../../utils/print/portfolio';
 import MI from '../../../components/shared/MI';
 import FilterBtn from '../../../components/shared/FilterBtn';
 
@@ -29,7 +30,7 @@ const tdS: React.CSSProperties = { padding: '5px 10px', fontSize: 12, textAlign:
 const inputS: React.CSSProperties = { padding: '8px 12px', border: '2px solid #d1d5db', borderRadius: 8, fontSize: 14, background: '#fff' };
 
 const ViolationsReport: React.FC = () => {
-  const { enabledStages } = useAppContext();
+  const { enabledStages, schoolSettings } = useAppContext();
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState('__all__');
@@ -55,18 +56,27 @@ const ViolationsReport: React.FC = () => {
   const maxCls = useMemo(() => Math.max(1, ...(data?.byClass?.slice(0, 10).map(c => c.count) || [1])), [data]);
 
   const handlePrint = () => {
-    const w = window.open('', '_blank');
-    if (!w) return;
-    const rows = data?.topStudents?.slice(0, 10).map((s, i) =>
-      `<tr><td>${toIndic(i + 1)}</td><td>${s.studentName}</td><td>${s.grade} / ${classToLetter(s.className)}</td><td>${toIndic(s.count)}</td><td>${toIndic(s.totalDeduction)}</td></tr>`
-    ).join('') || '';
-    w.document.write(`<html dir="rtl"><head><title>تقرير المخالفات</title></head><body style="font-family:Cairo,sans-serif;padding:20px">
-      <h2>تقرير المخالفات</h2>
-      <p>الإجمالي: ${toIndic(data?.total || 0)} | الحسم: ${toIndic(data?.totalDeduction || 0)} | طلاب: ${toIndic(uniqueStudents)}</p>
-      <table border="1" cellpadding="6" style="border-collapse:collapse;width:100%"><tr><th>#</th><th>الطالب</th><th>الفصل</th><th>العدد</th><th>الحسم</th></tr>${rows}</table>
-    </body></html>`);
-    w.document.close();
-    w.print();
+    printPortfolioReport({
+      title: 'تقرير المخالفات السلوكية',
+      subtitle: 'ملف إنجاز وكيل شؤون الطلاب',
+      summaryItems: [
+        { label: 'إجمالي المخالفات', value: toIndic(data?.total || 0), color: '#6366f1' },
+        { label: 'إجمالي الحسم', value: toIndic(data?.totalDeduction || 0), color: '#f59e0b' },
+        { label: 'طلاب مخالفون', value: toIndic(uniqueStudents), color: '#0ea5e9' },
+        { label: 'مخالفات عالية', value: toIndic(highRisk), color: '#ef4444' },
+      ],
+      tableHeaders: ['م', 'اسم الطالب', 'الفصل', 'عدد المخالفات', 'الحسم', 'درجة السلوك'],
+      tableRows: (data?.topStudents?.slice(0, 15) || []).map((s, i) => [
+        toIndic(i + 1), s.studentName, `${s.grade} / ${classToLetter(s.className)}`,
+        toIndic(s.count), toIndic(s.totalDeduction), toIndic(s.behaviorScore),
+      ]),
+      settings: schoolSettings,
+      extraHtml: data?.byDegree?.length ? `
+        <h2 class="h2" style="margin-top:14pt;">توزيع المخالفات حسب الدرجة</h2>
+        <table><thead><tr><th>الدرجة</th><th style="text-align:center;">العدد</th></tr></thead>
+        <tbody>${data.byDegree.map(v => `<tr><td>${v.degree}</td><td class="cnt">${toIndic(v.count)}</td></tr>`).join('')}</tbody></table>
+      ` : '',
+    });
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>جاري التحميل...</div>;

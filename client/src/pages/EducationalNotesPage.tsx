@@ -127,7 +127,7 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
 
   const initialLoadDone = useRef(false);
   const loadToday = useCallback(async () => {
-    if (!stage) return;
+    if (!stage) { setLoading(false); return; }
     if (!initialLoadDone.current) setLoading(true);
     try {
       const today = new Date();
@@ -404,7 +404,7 @@ const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings
 
   const initialLoadDone2 = useRef(false);
   const loadAll = useCallback(async () => {
-    if (!stage) return;
+    if (!stage) { setLoading(false); return; }
     if (!initialLoadDone2.current) setLoading(true);
     try {
       const res = await educationalNotesApi.getAll({ stage });
@@ -607,7 +607,7 @@ const ReportsTab: React.FC<{ stage: string }> = ({ stage }) => {
 
   const initialLoadDone3 = useRef(false);
   const loadAll = useCallback(async () => {
-    if (!stage) return;
+    if (!stage) { setLoading(false); return; }
     if (!initialLoadDone3.current) setLoading(true);
     try {
       const res = await educationalNotesApi.getAll({ stage });

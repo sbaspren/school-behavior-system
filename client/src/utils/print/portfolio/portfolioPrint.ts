@@ -207,6 +207,95 @@ export async function printPhotos(
   openPrintWin(buildDoc(css, pages.join('\n')));
 }
 
+/* ───── printPortfolioReport — طباعة تقارير ملف الإنجاز بالتنسيق الاحترافي ───── */
+
+export interface PortfolioReportConfig {
+  title: string;
+  subtitle?: string;
+  summaryItems: { label: string; value: string; color?: string }[];
+  tableHeaders: string[];
+  tableRows: string[][];
+  settings: Record<string, string>;
+  extraHtml?: string;
+}
+
+export function printPortfolioReport(config: PortfolioReportConfig): void {
+  const css = getPortfolioPrintCSS();
+  const schoolName = config.settings.schoolName || '';
+  const wakeelName = config.settings.wakeelName || config.settings.deputyName || '';
+
+  // ── ملخص الإحصائيات ──
+  const summaryBoxes = config.summaryItems.map(item =>
+    `<div style="flex:1;min-width:100pt;text-align:center;padding:8pt 6pt;background:#F7FAFC;border:0.5pt solid #C5CFE0;border-radius:4pt;">
+      <div style="font-size:9pt;color:#4A5568;margin-bottom:3pt;">${item.label}</div>
+      <div style="font-size:16pt;font-weight:800;color:${item.color || '#1B3A6B'};">${item.value}</div>
+    </div>`
+  ).join('');
+
+  // ── الجدول ──
+  const ths = config.tableHeaders.map((h, i) =>
+    i === 0
+      ? `<th style="background:#1B3A6B;color:#fff;font-weight:700;text-align:center;white-space:nowrap;width:18pt;padding:6pt 10pt;border:0.5pt solid #C5CFE0;">${h}</th>`
+      : `<th>${h}</th>`
+  ).join('');
+
+  const trs = config.tableRows.map((row, ri) => {
+    const cells = row.map((cell, ci) =>
+      ci === 0
+        ? `<td class="num">${cell}</td>`
+        : `<td>${cell}</td>`
+    ).join('');
+    return `<tr style="background:${ri % 2 === 1 ? '#F5F7FB' : '#fff'}">${cells}</tr>`;
+  }).join('');
+
+  const body = `
+<div class="page" style="padding:12pt 0;">
+  <!-- ترويسة المدرسة -->
+  <div style="text-align:center;margin-bottom:6pt;">
+    <div style="font-size:11pt;color:#4A5568;line-height:2;">المملكة العربية السعودية — وزارة التعليم</div>
+    <div style="font-size:13pt;font-weight:700;color:#1B3A6B;">${schoolName}</div>
+  </div>
+
+  <hr class="hr2" />
+
+  <!-- عنوان التقرير -->
+  <div style="text-align:center;margin:10pt 0 6pt;">
+    <div class="sec-title" style="border-bottom:none;margin-bottom:4pt;">${config.title}</div>
+    ${config.subtitle ? `<div style="font-size:11pt;color:#4A5568;">${config.subtitle}</div>` : ''}
+  </div>
+
+  <!-- ملخص الإحصائيات -->
+  <div style="display:flex;gap:8pt;flex-wrap:wrap;margin:14pt 0;">
+    ${summaryBoxes}
+  </div>
+
+  <!-- الجدول -->
+  <h2 class="h2">البيانات التفصيلية</h2>
+  <table>
+    <thead><tr>${ths}</tr></thead>
+    <tbody>${trs}</tbody>
+  </table>
+
+  ${config.extraHtml || ''}
+
+  <!-- التوقيعات -->
+  <div class="sign-row" style="margin-top:24pt;">
+    <div class="sign-box">
+      <div class="sign-ttl">وكيل شؤون الطلاب</div>
+      <div class="sign-line"></div>
+      <div class="sign-sub">${wakeelName || 'التوقيع'}</div>
+    </div>
+    <div class="sign-box">
+      <div class="sign-ttl">مدير المدرسة</div>
+      <div class="sign-line"></div>
+      <div class="sign-sub">التوقيع</div>
+    </div>
+  </div>
+</div>`;
+
+  openPrintWin(buildDoc(css, body));
+}
+
 /* ───── printSeparator ───── */
 
 export function printSeparator(

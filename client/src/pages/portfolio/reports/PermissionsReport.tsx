@@ -3,6 +3,7 @@ import { permissionsApi } from '../../../api/permissions';
 import { useAppContext } from '../../../hooks/useAppContext';
 import { SETTINGS_STAGES } from '../../../utils/constants';
 import { toIndic, classToLetter } from '../../../utils/printUtils';
+import { printPortfolioReport } from '../../../utils/print/portfolio';
 import MI from '../../../components/shared/MI';
 import FilterBtn from '../../../components/shared/FilterBtn';
 import type { PermissionRow } from '../../../types';
@@ -13,7 +14,7 @@ const tdS: React.CSSProperties = { padding: '5px 10px', fontSize: 12, textAlign:
 const inputS: React.CSSProperties = { padding: '8px 12px', border: '2px solid #d1d5db', borderRadius: 8, fontSize: 14, background: '#fff' };
 
 const PermissionsReport: React.FC = () => {
-  const { enabledStages } = useAppContext();
+  const { enabledStages, schoolSettings } = useAppContext();
   const [rows, setRows] = useState<PermissionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState('__all__');
@@ -69,17 +70,23 @@ const PermissionsReport: React.FC = () => {
   }, [rows]);
 
   const handlePrint = () => {
-    const w = window.open('', '_blank');
-    if (!w) return;
-    const trs = topStudents.map((s, i) =>
-      `<tr><td>${toIndic(i + 1)}</td><td>${s.name}</td><td>${s.grade} / ${classToLetter(s.cls)}</td><td>${toIndic(s.count)}</td></tr>`
-    ).join('');
-    w.document.write(`<html dir="rtl"><head><title>تقرير الاستئذان</title></head><body style="font-family:Cairo,sans-serif;padding:20px">
-      <h2>تقرير الاستئذان</h2><p>الإجمالي: ${toIndic(total)}</p>
-      <table border="1" cellpadding="6" style="border-collapse:collapse;width:100%"><tr><th>#</th><th>الطالب</th><th>الفصل</th><th>العدد</th></tr>${trs}</table>
-    </body></html>`);
-    w.document.close();
-    w.print();
+    printPortfolioReport({
+      title: 'تقرير الاستئذان',
+      subtitle: 'ملف إنجاز وكيل شؤون الطلاب',
+      summaryItems: [
+        { label: 'إجمالي الاستئذان', value: toIndic(total), color: '#8b5cf6' },
+      ],
+      tableHeaders: ['م', 'اسم الطالب', 'الفصل', 'عدد مرات الاستئذان'],
+      tableRows: topStudents.map((s, i) => [
+        toIndic(i + 1), s.name, `${s.grade} / ${classToLetter(s.cls)}`, toIndic(s.count),
+      ]),
+      settings: schoolSettings,
+      extraHtml: byReason.length ? `
+        <h2 class="h2" style="margin-top:14pt;">التوزيع حسب السبب</h2>
+        <table><thead><tr><th style="text-align:center;width:18pt;">م</th><th>السبب</th><th style="text-align:center;">العدد</th></tr></thead>
+        <tbody>${byReason.slice(0, 8).map((r, i) => `<tr><td class="num">${toIndic(i + 1)}</td><td>${r.reason}</td><td class="cnt">${toIndic(r.count)}</td></tr>`).join('')}</tbody></table>
+      ` : '',
+    });
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>جاري التحميل...</div>;

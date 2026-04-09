@@ -36,6 +36,7 @@ import GeneralFormsPage from './pages/GeneralFormsPage';
 import HistoryPage from './pages/HistoryPage';
 import ParentExcusePublicPage from './pages/ParentExcusePublicPage';
 import PortfolioPage from './pages/portfolio';
+import AdminPage from './pages/AdminPage';
 import './App.css';
 
 function getStoredUser(): AuthUser | null {
@@ -239,6 +240,9 @@ function AppContent() {
   }
   if (location.pathname === '/parent-excuse-form') {
     return <ParentExcusePublicPage />;
+  }
+  if (location.pathname === '/admin') {
+    return <AdminPage />;
   }
 
   // Loading setup check

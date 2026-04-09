@@ -3,6 +3,7 @@ namespace SchoolBehaviorSystem.Domain.Enums;
 public enum LicensePlan
 {
     Trial,      // تجريبي - 14 يوم
-    Semester,   // فصلي - 6 أشهر
-    Yearly      // سنوي - 12 شهر
+    Semester,   // فصلي - 6 أشهر (قديم - للتوافق)
+    Yearly,     // سنوي - 12 شهر
+    TwoYears    // سنتين - 24 شهر
 }

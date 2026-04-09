@@ -391,7 +391,6 @@ const TodayTab: React.FC<{
                       </td>
                       <td>
                         <div style={{ fontSize: '14px', color: '#374151' }}>{v.description || v.violationCode}</div>
-                        {v.procedures && <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>{v.procedures}</div>}
                       </td>
                       <td>
                         <span style={{ padding: '4px 10px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700, background: degreeInfo.bg, color: degreeInfo.color }}>

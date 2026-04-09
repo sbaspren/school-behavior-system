@@ -3,6 +3,7 @@ import { positiveBehaviorApi } from '../../../api/positiveBehavior';
 import { useAppContext } from '../../../hooks/useAppContext';
 import { SETTINGS_STAGES } from '../../../utils/constants';
 import { toIndic, classToLetter } from '../../../utils/printUtils';
+import { printPortfolioReport } from '../../../utils/print/portfolio';
 import MI from '../../../components/shared/MI';
 import FilterBtn from '../../../components/shared/FilterBtn';
 import type { BehaviorRow } from '../../../types';
@@ -12,7 +13,7 @@ const thS: React.CSSProperties = { background: '#E8ECF2', color: '#1B3A6B', padd
 const tdS: React.CSSProperties = { padding: '5px 10px', fontSize: 12, textAlign: 'right', border: '0.5px solid #C5CFE0' };
 
 const BehaviorReport: React.FC = () => {
-  const { enabledStages } = useAppContext();
+  const { enabledStages, schoolSettings } = useAppContext();
   const [rows, setRows] = useState<BehaviorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState('__all__');
@@ -55,17 +56,23 @@ const BehaviorReport: React.FC = () => {
   }, [rows]);
 
   const handlePrint = () => {
-    const w = window.open('', '_blank');
-    if (!w) return;
-    const trs = topStudents.map((s, i) =>
-      `<tr><td>${toIndic(i + 1)}</td><td>${s.name}</td><td>${s.grade} / ${classToLetter(s.cls)}</td><td>${toIndic(s.count)}</td></tr>`
-    ).join('');
-    w.document.write(`<html dir="rtl"><head><title>تقرير السلوك الإيجابي</title></head><body style="font-family:Cairo,sans-serif;padding:20px">
-      <h2>تقرير السلوك الإيجابي</h2><p>الإجمالي: ${toIndic(total)}</p>
-      <table border="1" cellpadding="6" style="border-collapse:collapse;width:100%"><tr><th>#</th><th>الطالب</th><th>الفصل</th><th>العدد</th></tr>${trs}</table>
-    </body></html>`);
-    w.document.close();
-    w.print();
+    printPortfolioReport({
+      title: 'تقرير السلوك الإيجابي',
+      subtitle: 'ملف إنجاز وكيل شؤون الطلاب',
+      summaryItems: [
+        { label: 'إجمالي السلوك الإيجابي', value: toIndic(total), color: '#22c55e' },
+      ],
+      tableHeaders: ['م', 'اسم الطالب', 'الفصل', 'عدد السلوكيات الإيجابية'],
+      tableRows: topStudents.map((s, i) => [
+        toIndic(i + 1), s.name, `${s.grade} / ${classToLetter(s.cls)}`, toIndic(s.count),
+      ]),
+      settings: schoolSettings,
+      extraHtml: byType.length ? `
+        <h2 class="h2" style="margin-top:14pt;">التوزيع حسب النوع</h2>
+        <table><thead><tr><th style="text-align:center;width:18pt;">م</th><th>النوع</th><th style="text-align:center;">العدد</th></tr></thead>
+        <tbody>${byType.slice(0, 10).map((t, i) => `<tr><td class="num">${toIndic(i + 1)}</td><td>${t.type}</td><td class="cnt">${toIndic(t.count)}</td></tr>`).join('')}</tbody></table>
+      ` : '',
+    });
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>جاري التحميل...</div>;

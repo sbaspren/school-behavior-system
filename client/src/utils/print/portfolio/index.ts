@@ -1,5 +1,6 @@
 export { getPortfolioPrintCSS } from './portfolioStyles';
-export { printCover, printSection, printPhotos, printSeparator } from './portfolioPrint';
+export { printCover, printSection, printPhotos, printSeparator, printPortfolioReport } from './portfolioPrint';
+export type { PortfolioReportConfig } from './portfolioPrint';
 export {
   printDisciplineReport,
   printFamilyReport,
