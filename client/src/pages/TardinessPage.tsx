@@ -134,24 +134,24 @@ const TodayTab: React.FC<{ records: TardinessRow[]; allRecords: TardinessRow[]; 
       ) : (
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
           <div style={{ maxHeight: 500, overflowY: 'auto' }}>
-            <table className="data-table"><thead><tr>
-              <th style={{ width: 40 }}><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} /></th>
-              <th>الطالب</th><th>الصف</th><th>النوع</th><th>الحصة</th><th style={{ width: 60 }}>مرات</th><th>الإرسال</th><th style={{ textAlign: 'center' }}>إجراءات</th>
+            <table className="data-table"><thead><tr style={{ background: '#dc2626' }}>
+              <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center', width: 40 }}><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} /></th>
+              <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>الطالب</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>الصف</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>النوع</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>الحصة</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center', width: 60 }}>مرات</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>الإرسال</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>إجراءات</th>
             </tr></thead><tbody>
-              {filtered.map((r) => {
+              {filtered.map((r, idx) => {
                 const tt = TARDINESS_TYPES[r.tardinessType] || { label: r.tardinessType, color: '#374151', bg: '#f3f4f6' };
                 const cnt = prevCounts[r.studentId] || 1;
                 const cntBg = cnt >= 4 ? '#FF9999' : cnt >= 3 ? '#FFCC99' : cnt >= 2 ? '#FFFF99' : 'transparent';
                 return (
-                  <tr key={r.id} style={{ background: selected.has(r.id) ? '#eff6ff' : undefined }}>
-                    <td><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
-                    <td style={{ fontWeight: 700, color: '#1f2937' }}>{r.studentName}</td>
-                    <td style={{ fontSize: 13 }}>{r.grade} ({classToLetter(r.className)})</td>
-                    <td><span style={{ padding: '4px 10px', borderRadius: 9999, fontSize: 12, fontWeight: 700, background: tt.bg, color: tt.color }}>{tt.label}</span></td>
-                    <td style={{ fontSize: 13 }}>{r.period || '-'}</td>
-                    <td style={{ fontWeight: 700, textAlign: 'center', background: cntBg }}>{cnt}</td>
-                    <td>{r.isSent ? <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>تم</span> : <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>لم يُرسل</span>}</td>
-                    <td style={{ textAlign: 'center' }}><div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                  <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6', background: selected.has(r.id) ? '#eff6ff' : (idx % 2 === 0 ? '#fff' : '#f9fafb') }}>
+                    <td style={{ padding: '10px 12px', fontSize: '13px' }}><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: 600 }}>{r.studentName}</td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px' }}>{r.grade} / {classToLetter(r.className)}</td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}><span style={{ padding: '4px 10px', borderRadius: 9999, fontSize: 12, fontWeight: 700, background: tt.bg, color: tt.color }}>{tt.label}</span></td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>{r.period || '-'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: 700, textAlign: 'center', background: cntBg }}>{cnt}</td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>{r.isSent ? <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>تم</span> : <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>لم يُرسل</span>}</td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}><div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
                       <button onClick={() => handleSendWhatsApp(r)} disabled={sendingId === r.id} title="إرسال واتساب" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: sendingId === r.id ? 'not-allowed' : 'pointer', opacity: sendingId === r.id ? .5 : 1 }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>smartphone</span></button>
                       <button onClick={() => printForm('tawtheeq_tawasol', { studentName: r.studentName, grade: r.grade + ' / ' + classToLetter(r.className), contactType: 'تأخر', contactReason: (tt.label) + (r.period ? ' - ' + r.period : ''), violationDate: r.hijriDate || '', contactResult: r.isSent ? 'تم التواصل' : 'لم يتم الإرسال' }, schoolSettings as any)} title="توثيق تواصل" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>contact_phone</span></button>
                       <button onClick={() => setConfirmDelete(r)} title="حذف" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>delete</span></button>

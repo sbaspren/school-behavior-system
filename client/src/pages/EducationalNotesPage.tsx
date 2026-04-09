@@ -272,7 +272,7 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
             </thead>
             <tbody>
               {sortedRecords.map((r, i) => (
-                <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6', background: selected.has(r.id) ? '#eff6ff' : (i % 2 === 0 ? '#fff' : '#f9fafb') }}>
                   <td style={tdStyle}><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
                   <td style={tdStyle}>{i + 1}</td>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>{r.studentName}</td>
@@ -905,8 +905,8 @@ const NoteTypesModal: React.FC<{ stage: string; types: string[]; onClose: () => 
 
 // ────────────────────────── SHARED STYLES ──────────────────────────
 const overlayStyle: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' };
-const thStyle: React.CSSProperties = { padding: '12px 16px', textAlign: 'right', fontWeight: 700, fontSize: '13px' };
-const tdStyle: React.CSSProperties = { padding: '10px 16px', textAlign: 'right', fontSize: '14px' };
+const thStyle: React.CSSProperties = { padding: '10px 12px', textAlign: 'right', fontWeight: 700, fontSize: '12px' };
+const tdStyle: React.CSSProperties = { padding: '10px 12px', textAlign: 'right', fontSize: '13px' };
 const selectStyle: React.CSSProperties = { padding: '6px 10px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '12px', background: '#f9fafb' };
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '6px' };
 const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 14px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', marginBottom: '16px', boxSizing: 'border-box' };

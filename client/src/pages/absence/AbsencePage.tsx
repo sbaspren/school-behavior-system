@@ -452,15 +452,15 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
           <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#ea580c' }}>
-                <th style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, width: 36 }}>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, width: 36 }}>
                   <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} />
                 </th>
-                <th style={{ padding: '10px 8px', textAlign: 'right', color: '#fff', fontSize: '12px', fontWeight: 700, width: 36 }}>#</th>
-                <th style={{ padding: '10px 8px', textAlign: 'right', color: '#fff', fontSize: '12px', fontWeight: 700 }}>الطالب</th>
-                <th style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>الصف</th>
-                <th style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>الحالة</th>
-                <th style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>الإرسال</th>
-                <th style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>إجراءات</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#fff', fontSize: '12px', fontWeight: 700, width: 36 }}>#</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#fff', fontSize: '12px', fontWeight: 700 }}>الطالب</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>الصف</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>الحالة</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>الإرسال</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>إجراءات</th>
               </tr>
             </thead>
             <tbody>
@@ -470,14 +470,14 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
                 const isLate = r.tardinessStatus === 'متأخر';
                 return (
                   <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6', background: selected.has(r.id) ? '#eff6ff' : (idx % 2 === 0 ? '#fff' : '#f9fafb') }}>
-                    <td style={{ padding: '10px 8px', textAlign: 'center' }}><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
-                    <td style={{ padding: '10px 8px', textAlign: 'center', fontSize: '12px', color: '#6b7280' }}>{idx + 1}</td>
-                    <td style={{ padding: '10px 8px', fontWeight: 600 }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '13px' }}><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '13px', color: '#6b7280' }}>{idx + 1}</td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: 600 }}>
                       {r.studentName}
                       {r.notes?.includes('منصة') && <span style={{ fontSize: 10, color: '#0891b2', fontWeight: 700, marginRight: 4 }}>(منصة)</span>}
                     </td>
-                    <td style={{ padding: '10px 8px', textAlign: 'center', fontSize: '12px' }}>{r.grade} / {classToLetter(r.className)}</td>
-                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '13px' }}>{r.grade} / {classToLetter(r.className)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '13px' }}>
                       {isLate ? (
                         <button onClick={() => openLateModal(r)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', background: '#fef3c7', color: '#a16207', borderRadius: 9999, fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
                           <span className="material-symbols-outlined" style={{ fontSize: 14 }}>schedule</span> متأخر {r.arrivalTime}
@@ -488,11 +488,11 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
                         </button>
                       )}
                     </td>
-                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '13px' }}>
                       {r.isSent ? <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>تم</span>
                         : <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>لم يُرسل</span>}
                     </td>
-                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '13px' }}>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
                         <button onClick={() => handleSendWhatsApp(r)} disabled={sendingId === r.id} title="إرسال واتساب" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: sendingId === r.id ? 'not-allowed' : 'pointer', opacity: sendingId === r.id ? 0.5 : 1 }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>smartphone</span></button>
                         <button onClick={() => handlePrintForm('tawtheeq_tawasol', r)} title="توثيق تواصل" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>contact_phone</span></button>

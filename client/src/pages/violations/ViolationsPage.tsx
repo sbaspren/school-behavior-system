@@ -337,54 +337,53 @@ const TodayTab: React.FC<{
           <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
             <table className="data-table">
               <thead>
-                <tr>
-                  <th style={{ width: '40px' }}>
+                <tr style={{ background: '#4f46e5' }}>
+                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center', width: '40px' }}>
                     <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0}
                       onChange={toggleSelectAll} />
                   </th>
-                  <th>الطالب</th>
-                  <th>المخالفة</th>
-                  <th>الدرجة</th>
-                  <th>الحسم</th>
-                  <th>الإرسال</th>
-                  <th style={{ textAlign: 'center' }}>إجراءات</th>
+                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>الطالب</th>
+                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>الصف</th>
+                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>المخالفة</th>
+                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>الدرجة</th>
+                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>الحسم</th>
+                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>الإرسال</th>
+                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>إجراءات</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((v) => {
+                {filtered.map((v, idx) => {
                   const degreeInfo = DEGREE_LABELS[v.degree] || DEGREE_LABELS[1];
                   return (
-                    <tr key={v.id} style={{ background: selected.has(v.id) ? '#eff6ff' : undefined }}>
-                      <td>
+                    <tr key={v.id} style={{ borderBottom: '1px solid #f3f4f6', background: selected.has(v.id) ? '#eff6ff' : (idx % 2 === 0 ? '#fff' : '#f9fafb') }}>
+                      <td style={{ padding: '10px 12px', fontSize: '13px' }}>
                         <input type="checkbox" checked={selected.has(v.id)} onChange={() => toggleSelect(v.id)} />
                       </td>
-                      <td>
-                        <div style={{ fontWeight: 700, color: '#1f2937' }}>{v.studentName}</div>
-                        <div style={{ fontSize: '12px', color: '#9ca3af' }}>{v.grade} ({classToLetter(v.className)})</div>
+                      <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: 600 }}>{v.studentName}</td>
+                      <td style={{ padding: '10px 12px', fontSize: '13px' }}>{v.grade} / {classToLetter(v.className)}</td>
+                      <td style={{ padding: '10px 12px', fontSize: '13px' }}>
+                        <div style={{ color: '#374151' }}>{v.description || v.violationCode}</div>
                       </td>
-                      <td>
-                        <div style={{ fontSize: '14px', color: '#374151' }}>{v.description || v.violationCode}</div>
-                      </td>
-                      <td>
+                      <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>
                         <span style={{ padding: '4px 10px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700, background: degreeInfo.bg, color: degreeInfo.color }}>
                           {degreeInfo.label}
                         </span>
                       </td>
-                      <td>
+                      <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>
                         {v.deduction > 0 ? (
                           <span style={{ fontWeight: 700, color: '#dc2626' }}>-{v.deduction}</span>
                         ) : (
                           <span style={{ color: '#9ca3af' }}>-</span>
                         )}
                       </td>
-                      <td>
+                      <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>
                         {v.isSent ? (
                           <span style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>تم</span>
                         ) : (
                           <span style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>لم يُرسل</span>
                         )}
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>
                         {(() => {
                           const reqForms = getRequiredForms(v.procedures);
                           const hl = (formId: FormId) => reqForms.has(formId);
