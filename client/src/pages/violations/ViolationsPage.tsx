@@ -1840,12 +1840,15 @@ const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, 
   }, [activeStage]);
 
   useEffect(() => {
-    if (!selectedStudent || batchMode) { setRepInfo(null); return; }
+    if (!selectedStudent && !batchMode) { setRepInfo(null); return; }
+    // In batch mode, use first selected student for procedures preview
+    const previewStudent = batchMode ? batchStudents[0] : selectedStudent;
+    if (!previewStudent) { setRepInfo(null); return; }
     const code = selectedViolCode || undefined;
-    violationsApi.getRepetition(selectedStudent.id, degree, code).then((res) => {
+    violationsApi.getRepetition(previewStudent.id, degree, code).then((res) => {
       if (res.data?.data) setRepInfo(res.data.data);
     }).catch(() => {});
-  }, [selectedStudent, degree, selectedViolCode, batchMode]);
+  }, [selectedStudent, degree, selectedViolCode, batchMode, batchStudents]);
 
   const filteredStudents = useMemo(() => {
     if (!studentSearch) return students.slice(0, 20);
@@ -2032,7 +2035,7 @@ const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, 
       )}
 
       {/* Repetition Info (single mode only) */}
-      {!batchMode && repInfo && (
+      {repInfo && (
         <div style={{ background: repInfo.nextRepetition > 1 ? '#fff7ed' : '#eff6ff', borderRadius: '8px', padding: '12px 16px', border: `1px solid ${repInfo.nextRepetition > 1 ? '#fed7aa' : '#bfdbfe'}` }}>
           {repInfo.nextRepetition > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: '#c2410c', fontWeight: 700, fontSize: '14px' }}>
@@ -2067,13 +2070,6 @@ const AddViolationModal: React.FC<AddViolationModalProps> = ({ stages, onClose, 
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
           placeholder="وصف المخالفة..."
           style={{ width: '100%', padding: '10px 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }} />
-      </div>
-
-      {/* Notes */}
-      <div>
-        <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '4px' }}>ملاحظات</label>
-        <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="ملاحظات إضافية (اختياري)"
-          style={{ width: '100%', height: '40px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', boxSizing: 'border-box' }} />
       </div>
     </InputModal>
   );
