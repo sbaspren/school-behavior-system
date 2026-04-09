@@ -467,84 +467,69 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-xl" style={{ overflow: 'hidden' }}>
-          <table className="sht">
+        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#ea580c' }}>
-                <th style={{ width: 36 }}>#</th>
-                <th style={{ minWidth: 120 }}>اسم الطالب</th>
-                <th>المعلم</th>
-                <th style={{ width: 80 }}>الحالة</th>
-                <th style={{ minWidth: 160 }}>الإجراءات والتواصل</th>
-                <th style={{ width: 36 }}></th>
+                <th style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, width: 36 }}>
+                  <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} />
+                </th>
+                <th style={{ padding: '10px 8px', textAlign: 'right', color: '#fff', fontSize: '12px', fontWeight: 700, width: 36 }}>#</th>
+                <th style={{ padding: '10px 8px', textAlign: 'right', color: '#fff', fontSize: '12px', fontWeight: 700 }}>الطالب</th>
+                <th style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>الصف</th>
+                <th style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>الحالة</th>
+                <th style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>الإرسال</th>
+                <th style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>إجراءات</th>
               </tr>
             </thead>
             <tbody>
-              {groupedRecords.map((group, gIdx) => {
-                const offset = groupedRecords.slice(0, gIdx).reduce((sum, g) => sum + g.records.length, 0);
+              {filtered.sort((a, b) => sortByGradeClass(a, b) || a.studentName.localeCompare(b.studentName, 'ar')).map((r, idx) => {
+                const teacher = (!r.recordedBy || r.recordedBy === 'يدوي' || r.recordedBy === 'مدير_النظام') ? 'الوكيل' : r.recordedBy;
+                const isExcused = r.excuseType === 'Excused';
+                const isLate = r.tardinessStatus === 'متأخر';
                 return (
-                <React.Fragment key={group.key}>
-                  {gIdx > 0 && <tr className="sht-sep"><td colSpan={6}></td></tr>}
-                  <tr className="sht-gh">
-                    <td colSpan={6}><span className="sht-gl">{group.label}</span> <span className="sht-gc">({group.records.length})</span></td>
+                  <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6', background: selected.has(r.id) ? '#eff6ff' : (idx % 2 === 0 ? '#fff' : '#f9fafb') }}>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center', fontSize: '12px', color: '#6b7280' }}>{idx + 1}</td>
+                    <td style={{ padding: '10px 8px', fontWeight: 600 }}>
+                      {r.studentName}
+                      {r.notes?.includes('منصة') && <span style={{ fontSize: 10, color: '#0891b2', fontWeight: 700, marginRight: 4 }}>(منصة)</span>}
+                      <div style={{ fontSize: '11px', color: '#9ca3af' }}>{r.studentNumber}</div>
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center', fontSize: '12px' }}>{r.grade} / {classToLetter(r.className)}</td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                      {isLate ? (
+                        <button onClick={() => openLateModal(r)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', background: '#fef3c7', color: '#a16207', borderRadius: 9999, fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>schedule</span> متأخر {r.arrivalTime}
+                        </button>
+                      ) : (
+                        <button onClick={() => handleToggleExcuse(r)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 72, padding: '4px 10px', background: isExcused ? '#dcfce7' : '#fee2e2', color: isExcused ? '#15803d' : '#b91c1c', borderRadius: 9999, fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
+                          {isExcused ? 'بعذر' : 'بدون عذر'}
+                        </button>
+                      )}
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                      {r.isSent ? <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>تم</span>
+                        : <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>لم يُرسل</span>}
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                        <button onClick={() => handleSendWhatsApp(r)} disabled={sendingId === r.id} title="إرسال واتساب" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: sendingId === r.id ? 'not-allowed' : 'pointer', opacity: sendingId === r.id ? 0.5 : 1 }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>smartphone</span></button>
+                        <button onClick={() => handlePrintForm('tawtheeq_tawasol', r)} title="توثيق تواصل" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>contact_phone</span></button>
+                        <button onClick={() => handlePrintForm('tahood_hodoor', r)} title="تعهد حضور" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>verified</span></button>
+                        <button onClick={() => setConfirmDelete(r)} title="حذف" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>delete</span></button>
+                      </div>
+                    </td>
                   </tr>
-                  {group.records.map((r, idx) => {
-                    const teacher = (!r.recordedBy || r.recordedBy === 'يدوي' || r.recordedBy === 'مدير_النظام') ? 'الوكيل' : r.recordedBy;
-                    const isExcused = r.excuseType === 'Excused';
-                    const isLate = r.tardinessStatus === 'متأخر';
-                    return (
-                      <tr key={r.id} className={idx % 2 === 0 ? 'rw' : 'rg'}>
-                        <td>{offset + idx + 1}</td>
-                        <td className="nm">
-                          {r.studentName}
-                          {r.notes?.includes('منصة') && <span style={{ fontSize: 10, color: '#0891b2', fontWeight: 700, marginRight: 4 }}>(منصة)</span>}
-                        </td>
-                        <td style={{ fontSize: 12, color: teacher === '-' ? '#9ca3af' : '#374151' }}>{teacher}</td>
-                        <td>
-                          {isLate ? (
-                            <button onClick={() => openLateModal(r)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', background: '#fef3c7', color: '#a16207', borderRadius: 9999, fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
-                              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>schedule</span> متأخر {r.arrivalTime}
-                            </button>
-                          ) : (
-                            <button onClick={() => handleToggleExcuse(r)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 72, padding: '6px 12px', background: isExcused ? '#dcfce7' : '#fee2e2', color: isExcused ? '#15803d' : '#b91c1c', borderRadius: 8, fontSize: 12, fontWeight: 700, border: `1px solid ${isExcused ? '#bbf7d0' : '#fecaca'}`, cursor: 'pointer' }}>
-                              {isExcused ? 'بعذر' : 'بدون عذر'}
-                            </button>
-                          )}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
-                            <button onClick={() => handleSendWhatsApp(r)} disabled={sendingId === r.id} className="cnt-badge-btn" style={{ padding: '4px 10px', background: r.isSent ? '#16a34a' : '#16a34a', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{r.isSent ? 'check_circle' : 'send'}</span> {r.isSent ? 'تم' : 'إرسال'}
-                            </button>
-                            <button onClick={() => handlePrintForm('tahood_hodoor', r)} className="tbl-action-btn" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', borderRadius: 8 }} title="تعهد حضور">
-                              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>verified</span>
-                            </button>
-                            <button onClick={() => handlePrintForm('ehalat_absence', r)} className="tbl-action-btn" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#3b82f6', borderRadius: 8 }} title="إحالة غياب">
-                              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>forward_to_inbox</span>
-                            </button>
-                            <button onClick={() => handlePrintForm('tawtheeq_tawasol', r)} className="tbl-action-btn" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#22c55e', borderRadius: 8 }} title="توثيق تواصل">
-                              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>contact_phone</span>
-                            </button>
-                          </div>
-                        </td>
-                        <td>
-                          <button onClick={() => setConfirmDelete(r)} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', borderRadius: 8 }} title="حذف">
-                            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </React.Fragment>
                 );
               })}
             </tbody>
           </table>
-          <div className="tbl-footer">
-            <div className="s"><div className="d" style={{ background: '#fee2e2', borderColor: '#fca5a5' }}></div> غائب: {cntAbsent}</div>
-            <div className="s"><div className="d" style={{ background: '#fef3c7', borderColor: '#fde68a' }}></div> متأخر: {cntLate}</div>
-            <div className="s" style={{ marginRight: 'auto' }}><div className="d" style={{ background: '#d1fae5' }}></div> تم: {cntSent}</div>
-            <div className="s"><div className="d" style={{ background: '#fef3c7' }}></div> لم يُرسل: {filtered.length - cntSent}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', flexWrap: 'wrap', fontSize: 13 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 2, background: '#fee2e2', display: 'inline-block' }} /> غائب: {cntAbsent}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 2, background: '#fef3c7', display: 'inline-block' }} /> متأخر: {cntLate}</span>
+            <span style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 2, background: '#dcfce7', display: 'inline-block' }} /> تم: {cntSent}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 2, background: '#fef3c7', display: 'inline-block' }} /> لم يُرسل: {filtered.length - cntSent}</span>
           </div>
         </div>
       )}
@@ -554,24 +539,16 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
         <span className="material-symbols-outlined" style={{fontSize:14,verticalAlign:'middle'}}>info</span> سيتم ترحيل بيانات اليوم تلقائياً إلى السجل التراكمي الساعة 12:00 صباحاً
       </div>
 
-      {/* Selection bar */}
-      {selected.size > 0 && (
-        <div style={{ position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)', background: 'rgba(31,41,55,0.95)', color: '#fff', padding: '12px 24px', borderRadius: 24, boxShadow: '0 10px 40px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 16, zIndex: 50, backdropFilter: 'blur(8px)' }}>
-          <span><span className="material-symbols-outlined" style={{fontSize:14,verticalAlign:'middle',color:'#a7f3d0'}}>check_circle</span> <strong>{selected.size}</strong> محدد</span>
-          <span style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.3)' }} />
-          <button onClick={() => handlePrintToday()} style={{ color: '#c4b5fd', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
-          <button onClick={handleSendBulk} style={{ color: '#86efac', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال</button>
-          {selected.size === 1 && (() => {
-            const r = filtered.find(x => selected.has(x.id));
-            return r ? (<>
-              <button onClick={() => handlePrintForm('tahood_hodoor', r)} style={{ color: '#fde68a', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>assignment</span> تعهد فردي</button>
-              <button onClick={() => handlePrintForm('ehalat_absence', r)} style={{ color: '#93c5fd', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>upload</span> إحالة فردي</button>
-            </>) : null;
-          })()}
-          <button onClick={handleDeleteBulk} style={{ color: '#fca5a5', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>delete</span> حذف</button>
-          <button onClick={() => setSelected(new Set())} style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span></button>
-        </div>
-      )}
+      {/* Selection bar — unified FloatingBar */}
+      <FloatingBar
+        count={selected.size}
+        actions={[
+          { icon: 'print', label: 'طباعة', variant: 'print', onClick: () => handlePrintToday() },
+          { icon: 'smartphone', label: 'إرسال', variant: 'send', onClick: handleSendBulk },
+          { icon: 'delete', label: 'حذف', variant: 'delete', onClick: handleDeleteBulk },
+        ]}
+        onCancel={() => setSelected(new Set())}
+      />
 
       {/* Late Modal */}
       {lateModal && (
