@@ -281,96 +281,69 @@ const SchoolTab: React.FC<SchoolTabProps> = ({ data, onChange, onSaved }) => {
               <h4 style={{ margin: 0, fontWeight: 700, color: '#1f2937' }}>نوع الكليشة في المطبوعات</h4>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px', background: '#fff', borderRadius: '16px', border: '1px solid #e5e7eb', cursor: 'pointer' }}>
-                <input type="radio" checked={data.letterheadMode === 'Image'} onChange={() => onChange({ ...data, letterheadMode: 'Image' })} style={{ marginTop: '2px' }} />
-                <div>
-                  <span style={{ fontWeight: 700, color: '#1f2937' }}>صورة كليشة جاهزة</span>
-                  <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0' }}>ارفع صورة الكليشة الكاملة كما هي (شعارات + نصوص)</p>
-                </div>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px', background: '#fff', borderRadius: '16px', border: '1px solid #e5e7eb', cursor: 'pointer' }}>
-                <input type="radio" checked={data.letterheadMode === 'Text'} onChange={() => onChange({ ...data, letterheadMode: 'Text' })} style={{ marginTop: '2px' }} />
-                <div>
-                  <span style={{ fontWeight: 700, color: '#1f2937' }}>كليشة نصية</span>
-                  <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0' }}>أدخل بيانات المدرسة وسيتم بناء الكليشة تلقائياً</p>
-                </div>
-              </label>
-            </div>
-
-            {/* Image mode */}
-            {data.letterheadMode === 'Image' && (
-              <div>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '8px' }}>رابط صورة الكليشة</label>
-                <input
-                  type="url" dir="ltr"
-                  value={data.letterheadImageUrl}
-                  onChange={(e) => onChange({ ...data, letterheadImageUrl: e.target.value })}
-                  placeholder="https://i.ibb.co/xxxxx/logo.png"
-                  style={{ width: '100%', padding: '12px 16px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', boxSizing: 'border-box' }}
-                />
-                <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '8px' }}>
-                  يمكنك رفع الصورة على imgbb.com ولصق الرابط المباشر هنا
-                </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* صورة كليشة جاهزة + حقولها */}
+              <div style={{ background: '#fff', borderRadius: '16px', border: data.letterheadMode === 'Image' ? '2px solid #6366f1' : '1px solid #e5e7eb', overflow: 'hidden' }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px', cursor: 'pointer' }}>
+                  <input type="radio" checked={data.letterheadMode === 'Image'} onChange={() => onChange({ ...data, letterheadMode: 'Image' })} style={{ marginTop: '2px' }} />
+                  <div>
+                    <span style={{ fontWeight: 700, color: '#1f2937' }}>صورة كليشة جاهزة</span>
+                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0' }}>ارفع صورة الكليشة الكاملة كما هي (شعارات + نصوص)</p>
+                  </div>
+                </label>
+                {data.letterheadMode === 'Image' && (
+                  <div style={{ padding: '0 16px 16px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '8px' }}>رابط صورة الكليشة</label>
+                    <input
+                      type="url" dir="ltr"
+                      value={data.letterheadImageUrl}
+                      onChange={(e) => onChange({ ...data, letterheadImageUrl: e.target.value })}
+                      placeholder="https://i.ibb.co/xxxxx/logo.png"
+                      style={{ width: '100%', padding: '12px 16px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', boxSizing: 'border-box' }}
+                    />
+                    <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '8px' }}>
+                      يمكنك رفع الصورة على imgbb.com ولصق الرابط المباشر هنا
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
 
-            {/* Text mode */}
-            {data.letterheadMode === 'Text' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ background: '#fff', borderRadius: '8px', padding: '12px', border: '1px solid #e5e7eb', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
-                  <div style={{ fontWeight: 700, color: '#374151' }}>المملكة العربية السعودية</div>
-                  <div style={{ color: '#4b5563' }}>وزارة التعليم</div>
-                  <div style={{ color: '#4b5563' }}>الشؤون التعليمية</div>
-                  <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>↑ ثابت تلقائياً ↑</div>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '4px' }}>الإدارة التعليمية</label>
-                  <input type="text" value={data.eduAdmin}
-                    onChange={(e) => onChange({ ...data, eduAdmin: e.target.value })}
-                    placeholder="الإدارة العامة للتعليم بمنطقة (اكتب منطقتك)"
-                    style={{ width: '100%', padding: '10px 16px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', textAlign: 'center', boxSizing: 'border-box' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '4px' }}>اسم المدرسة</label>
-                  <input type="text" value={data.schoolName}
-                    onChange={(e) => onChange({ ...data, schoolName: e.target.value })}
-                    placeholder="اكتب اسم مدرستك"
-                    style={{ width: '100%', padding: '10px 16px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', textAlign: 'center', fontWeight: 700, boxSizing: 'border-box' }}
-                  />
-                </div>
+              {/* كليشة نصية + حقولها */}
+              <div style={{ background: '#fff', borderRadius: '16px', border: data.letterheadMode === 'Text' ? '2px solid #6366f1' : '1px solid #e5e7eb', overflow: 'hidden' }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px', cursor: 'pointer' }}>
+                  <input type="radio" checked={data.letterheadMode === 'Text'} onChange={() => onChange({ ...data, letterheadMode: 'Text' })} style={{ marginTop: '2px' }} />
+                  <div>
+                    <span style={{ fontWeight: 700, color: '#1f2937' }}>كليشة نصية</span>
+                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0' }}>أدخل بيانات المدرسة وسيتم بناء الكليشة تلقائياً</p>
+                  </div>
+                </label>
+                {data.letterheadMode === 'Text' && (
+                  <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ background: '#f9fafb', borderRadius: '8px', padding: '12px', border: '1px solid #e5e7eb', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                      <div style={{ fontWeight: 700, color: '#374151' }}>المملكة العربية السعودية</div>
+                      <div style={{ color: '#4b5563' }}>وزارة التعليم</div>
+                      <div style={{ color: '#4b5563' }}>الشؤون التعليمية</div>
+                      <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>↑ ثابت تلقائياً ↑</div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '4px' }}>الإدارة التعليمية</label>
+                      <input type="text" value={data.eduAdmin}
+                        onChange={(e) => onChange({ ...data, eduAdmin: e.target.value })}
+                        placeholder="الإدارة العامة للتعليم بمنطقة (اكتب منطقتك)"
+                        style={{ width: '100%', padding: '10px 16px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', textAlign: 'center', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '4px' }}>اسم المدرسة</label>
+                      <input type="text" value={data.schoolName}
+                        onChange={(e) => onChange({ ...data, schoolName: e.target.value })}
+                        placeholder="اكتب اسم مدرستك"
+                        style={{ width: '100%', padding: '10px 16px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', textAlign: 'center', fontWeight: 700, boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-
-          {/* ★ طاقم العمل والتوقيعات — تُستخدم في المطبوعات */}
-          <div style={{ background: 'linear-gradient(to left, #fef9ec, #fffbeb)', borderRadius: '16px', padding: '20px', border: '1px solid #fde68a' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <span className="material-symbols-outlined" style={{ color: '#b45309' }}>badge</span>
-              <h4 style={{ margin: 0, fontWeight: 700, color: '#1f2937' }}>طاقم العمل والتوقيعات</h4>
-              <span style={{ fontSize: '12px', color: '#92400e', background: '#fef3c7', padding: '2px 8px', borderRadius: '9999px' }}>تظهر في أسفل المطبوعات</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              {[
-                { key: 'managerName', label: 'مدير المدرسة', placeholder: 'اسم المدير' },
-                { key: 'deputyName', label: 'وكيل المدرسة', placeholder: 'اسم الوكيل' },
-                { key: 'counselorName', label: 'الموجه الطلابي', placeholder: 'اسم الموجه' },
-                { key: 'committeeName', label: 'لجنة السلوك', placeholder: 'اسم رئيس اللجنة' },
-                { key: 'wakeelName', label: 'الوكيل (للطباعة)', placeholder: 'اسم الوكيل في التقارير' },
-                { key: 'wakeelSignature', label: 'بيانات التوقيع', placeholder: 'النص أسفل التوقيع' },
-              ].map(({ key, label, placeholder }) => (
-                <div key={key}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '4px' }}>{label}</label>
-                  <input
-                    type="text"
-                    value={(data as any)[key] || ''}
-                    onChange={(e) => onChange({ ...data, [key]: e.target.value })}
-                    placeholder={placeholder}
-                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '10px', fontSize: '13px', boxSizing: 'border-box' }}
-                  />
-                </div>
-              ))}
             </div>
           </div>
 
