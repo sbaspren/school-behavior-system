@@ -7,7 +7,6 @@ import AdminsTab from '../components/settings/AdminsTab';
 import TeachersTab from '../components/settings/TeachersTab';
 import StudentsTab from '../components/settings/StudentsTab';
 import LinksTab from '../components/settings/LinksTab';
-import DeputiesSection from '../components/settings/DeputiesSection';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 
 type Tab = 'school' | 'structure' | 'admins' | 'teachers' | 'students' | 'links';
@@ -370,8 +369,6 @@ const SchoolTab: React.FC<SchoolTabProps> = ({ data, onChange, onSaved }) => {
         </>
       )}
 
-      {/* وكلاء شؤون الطلاب */}
-      <DeputiesSection />
 
       {/* تغيير كلمة المرور */}
       <ChangePasswordSection />

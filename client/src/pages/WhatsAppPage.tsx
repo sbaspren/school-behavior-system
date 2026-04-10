@@ -3,6 +3,7 @@ import MI from '../components/shared/MI';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import toast from 'react-hot-toast';
 import { whatsappApi } from '../api/whatsapp';
+import { smsApi } from '../api/sms';
 
 // ===== Interfaces =====
 interface StatusResult {
@@ -101,6 +102,16 @@ const WhatsAppPage: React.FC = () => {
   // Scenario
   const [scenario, setScenario] = useState(1);
   const [deputyChoice, setDeputyChoice] = useState<'school' | 'own' | null>(null);
+
+  // Tabs
+  const [activeTab, setActiveTab] = useState<'whatsapp' | 'sms'>('whatsapp');
+
+  // SMS
+  const [smsProvider, setSmsProvider] = useState('');
+  const [smsSenderName, setSmsSenderName] = useState('');
+  const [smsSaving, setSmsSaving] = useState(false);
+  const [smsTestPhone, setSmsTestPhone] = useState('');
+  const [smsTestSending, setSmsTestSending] = useState(false);
 
   // General
   const [actionLoading, setActionLoading] = useState(false);
@@ -204,7 +215,8 @@ const WhatsAppPage: React.FC = () => {
             await whatsappApi.syncAndSave({ phoneNumber: d.phone, stage: currentStage, userType: 'وكيل' });
           } catch { /* ignore */ }
           setQrConnectedPhone(d.phone);
-          setMainView('qr-success');
+          toast.success(`تم ربط الرقم ${d.phone} بنجاح!`);
+          loadStatus();
         } else if (d?.status === 'waiting' && d.qrData) {
           // تحديث الـ QR بالصورة الجديدة
           setQrImage(d.qrData);
@@ -241,12 +253,13 @@ const WhatsAppPage: React.FC = () => {
   };
 
   const handleDeletePhone = async (id: number, phone: string) => {
-    if (!window.confirm(`هل تريد حذف الرقم ${phone}؟`)) return;
+    if (!window.confirm(`سيتم فصل الرقم ${phone} نهائياً من واتساب وإزالة الجهاز المرتبط.\n\nهل أنت متأكد؟`)) return;
     try {
       await whatsappApi.deleteSession(id);
-      toast.success('تم حذف الرقم');
+      setDeputyChoice(null);
+      toast.success('تم فصل الرقم نهائياً');
       loadStatus();
-    } catch { toast.error('فشل الحذف'); }
+    } catch { toast.error('فشل فصل الرقم'); }
   };
 
   // =========================================================================
@@ -288,51 +301,49 @@ const WhatsAppPage: React.FC = () => {
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
           <button onClick={() => { setPageView('main'); loadStatus(); }} style={{ ...btnStyle('#f3f4f6', '#374151'), padding: '8px 16px' }}>→ رجوع</button>
-          <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>إعدادات الواتساب و SMS</h2>
+          <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>إعدادات الخدمة</h2>
         </div>
         <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', border: '1px solid #e5e7eb' }}>
           <div style={{ display: 'grid', gap: '16px', maxWidth: '600px' }}>
-            <div>
-              <label style={labelStyle}>رابط سيرفر الواتساب</label>
-              <input type="text" value={serverUrl} onChange={e => setServerUrl(e.target.value)}
-                placeholder="https://your-whatsapp-server.com" dir="ltr" style={inputStyle} />
-            </div>
             <div>
               <label style={labelStyle}>حالة الخدمة</label>
               <select value={serviceStatus} onChange={e => setServiceStatus(e.target.value)} style={inputStyle}>
                 <option value="مفعل">مفعل</option>
                 <option value="معطل">معطل</option>
               </select>
+              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>عند التعطيل لن تُرسل أي رسائل واتساب أو SMS</div>
             </div>
+
+            {/* نمط واتساب أولياء الأمور */}
             <div>
-              <label style={labelStyle}>نمط الواتساب</label>
-              <select value={waMode} onChange={e => setWaMode(e.target.value)} style={inputStyle}>
-                <option value="PerStage">رقم لكل مرحلة</option>
-                <option value="Unified">رقم موحد لجميع المراحل</option>
-              </select>
-              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-                {waMode === 'PerStage' ? 'كل مرحلة تستخدم رقم واتساب خاص بها' : 'جميع المراحل تستخدم رقم واتساب واحد'}
+              <label style={labelStyle}>نمط واتساب أولياء الأمور</label>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                {[
+                  { value: 'PerStage', label: 'أرقام متعددة', desc: 'لكل مرحلة رقم واتساب مخصص', icon: 'smartphone' },
+                  { value: 'Unified', label: 'رقم واحد للمدرسة', desc: 'رقم واتساب المدير لجميع أولياء الأمور', icon: 'phone_android' },
+                ].map(opt => (
+                  <label key={opt.value} style={{
+                    flex: 1, display: 'flex', alignItems: 'flex-start', gap: '10px',
+                    padding: '12px', borderRadius: '10px', cursor: 'pointer',
+                    border: `2px solid ${waMode === opt.value ? '#25d366' : '#e5e7eb'}`,
+                    background: waMode === opt.value ? '#f0fdf4' : '#fff',
+                  }}>
+                    <input type="radio" checked={waMode === opt.value} onChange={() => setWaMode(opt.value)} style={{ marginTop: '3px' }} />
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px', color: waMode === opt.value ? '#16a34a' : '#9ca3af' }}>{opt.icon}</span>
+                        <span style={{ fontWeight: 700, color: waMode === opt.value ? '#15803d' : '#374151', fontSize: '13px' }}>{opt.label}</span>
+                      </div>
+                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#6b7280' }}>{opt.desc}</p>
+                    </div>
+                  </label>
+                ))}
               </div>
             </div>
-            <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '12px', color: '#374151' }}>إعدادات SMS (Madar)</h3>
-              <label style={labelStyle}>رمز API</label>
-              <input type="password" value={smsApiToken} placeholder="أدخل رمز Madar API..." dir="ltr" style={inputStyle}
-                onChange={e => setSmsApiToken(e.target.value)} />
-              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>اتركه فارغاً للإبقاء على القيمة الحالية</div>
-            </div>
+
             <button onClick={handleSaveSettings} disabled={settingsLoading} style={{
               ...btnStyle('#25d366', '#fff'), opacity: settingsLoading ? 0.6 : 1, width: 'fit-content',
             }}>{settingsLoading ? 'جاري الحفظ...' : 'حفظ الإعدادات'}</button>
-            <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '8px', color: '#374151' }}>تشخيص سيرفر QR</h3>
-              <button onClick={handleInspectQR} disabled={inspecting} style={{
-                ...btnStyle('#ede9fe', '#5b21b6'), opacity: inspecting ? 0.6 : 1,
-              }}>{inspecting ? 'جاري الفحص...' : <><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>search</span> تشخيص صفحة QR</>}</button>
-              {inspectResult && (
-                <pre style={{ marginTop: '12px', background: '#1e1e2e', color: '#cdd6f4', padding: '16px', borderRadius: '8px', fontSize: '11px', overflow: 'auto', maxHeight: '300px', direction: 'ltr' }}>{inspectResult}</pre>
-              )}
-            </div>
           </div>
         </div>
       </div>
@@ -344,26 +355,18 @@ const WhatsAppPage: React.FC = () => {
   // =========================================================================
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-      {/* ===== Header — مطابق سطر 48-68 ===== */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+      {/* ===== Header ===== */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ padding: '12px', background: '#dcfce7', borderRadius: '16px' }}>
             <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>chat</span>
           </div>
           <div>
-            <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#111', margin: 0 }}>أدوات واتساب</h2>
-            <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>إدارة الرقم الرئيسي للتواصل</p>
+            <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#111', margin: 0 }}>أدوات التواصل</h2>
+            <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>واتساب والرسائل النصية</p>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {/* شارة السيناريو */}
-          <span style={{ padding: '4px 12px', background: '#f5f3ff', color: '#7c3aed', borderRadius: '100px', fontSize: '11px', fontWeight: 700 }}>
-            {scenario === 1 && 'مدير فقط'}
-            {scenario === 2 && 'رقم موحد'}
-            {scenario === 3 && 'مختلط'}
-            {scenario === 4 && 'مستقل'}
-          </span>
-          {/* شارة المرحلة — تظهر فقط للوكيل لمعرفة مرحلته */}
           {userRole !== 'Admin' && (
             <div style={{
               background: stageInfo.bg, color: stageInfo.color, padding: '8px 16px', borderRadius: '12px',
@@ -373,13 +376,33 @@ const WhatsAppPage: React.FC = () => {
               <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>apartment</span> {stageInfo.label}
             </div>
           )}
-          <button onClick={handlePing} style={{ ...btnStyle('#f3f4f6', '#374151'), padding: '8px 12px', fontSize: '12px' }}>إيقاظ</button>
-          <button onClick={() => loadStatus()} style={{ ...btnStyle('#f3f4f6', '#374151'), padding: '8px 12px', fontSize: '12px' }}>تحديث</button>
           <button onClick={() => setPageView('settings')} style={{ ...btnStyle('#f3f4f6', '#374151'), padding: '8px 12px', fontSize: '12px' }}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>settings</span></button>
         </div>
       </div>
 
-      {/* ===== Main Card — مطابق سطر 70-149 ===== */}
+      {/* ===== تبويبات: واتساب | SMS ===== */}
+      <div style={{ display: 'flex', gap: 4, background: '#f3f4f6', borderRadius: 12, padding: 4, marginBottom: 16 }}>
+        <button onClick={() => setActiveTab('whatsapp')} style={{
+          flex: 1, padding: '10px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+          fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          background: activeTab === 'whatsapp' ? '#25d366' : 'transparent',
+          color: activeTab === 'whatsapp' ? '#fff' : '#6b7280',
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chat</span> واتساب
+        </button>
+        <button onClick={() => setActiveTab('sms')} style={{
+          flex: 1, padding: '10px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+          fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          background: activeTab === 'sms' ? '#2563eb' : 'transparent',
+          color: activeTab === 'sms' ? '#fff' : '#6b7280',
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>sms</span> رسائل SMS
+        </button>
+      </div>
+
+      {/* ===== محتوى واتساب ===== */}
+      {activeTab === 'whatsapp' && <>
+      {/* ===== Main Card ===== */}
       <div style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
         {/* Banner */}
         <div style={{ background: 'linear-gradient(to left, #25d366, #128c7e)', padding: '16px 24px' }}>
@@ -451,6 +474,22 @@ const WhatsAppPage: React.FC = () => {
                   </button>
                   <button onClick={() => loadStatus()} style={{ ...btnStyle('#f3f4f6', '#374151'), width: '100%' }}>
                     <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span> تحديث الحالة
+                  </button>
+                  <button onClick={async () => {
+                    const phone = status.primaryPhone || status.phone;
+                    if (!window.confirm(`سيتم فصل الرقم ${phone} نهائياً من واتساب وإزالة الجهاز المرتبط.\n\nهل أنت متأكد؟`)) return;
+                    try {
+                      const session = (status.allSessions || status.sessions || []).find((s: any) => s.phone === phone || s.phoneNumber === phone);
+                      if (session?.id) {
+                        await whatsappApi.deleteSession(session.id);
+                      }
+                      setDeputyChoice(null);
+                      toast.success('تم فصل الرقم نهائياً');
+                      loadStatus();
+                    } catch { toast.error('فشل فصل الرقم'); }
+                  }} style={{ ...btnStyle('#fef2f2', '#dc2626'), width: '100%', border: '1px solid #fca5a5' }}>
+                    <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>logout</span>
+                    {userRole === 'Deputy' && scenario === 3 ? 'فصل رقمي والعودة لرقم المدرسة' : 'فصل الرقم'}
                   </button>
                 </div>
               </div>
@@ -698,6 +737,163 @@ const WhatsAppPage: React.FC = () => {
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
       `}</style>
+      </>}
+
+      {/* ===== محتوى SMS ===== */}
+      {activeTab === 'sms' && (
+        <div style={{ background: '#fff', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+          {/* Banner */}
+          <div style={{ background: 'linear-gradient(to left, #2563eb, #1d4ed8)', padding: '16px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fff' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>sms</span>
+              <span style={{ fontSize: 13 }}>ربط مزود خدمة الرسائل النصية SMS لإرسال الرسائل لأولياء الأمور</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', minHeight: 400 }}>
+            {/* تعليمات SMS */}
+            <div style={{ width: '50%', padding: 24, background: '#f9fafb', borderLeft: '1px solid #e5e7eb' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1f2937', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 4, height: 24, background: '#2563eb', borderRadius: 4, display: 'inline-block' }} />
+                خطوات ربط خدمة SMS
+              </h3>
+              <div style={{ display: 'grid', gap: 14 }}>
+                {[
+                  { title: 'اشترك مع مزود خدمة SMS', desc: 'مثل Madar أو Unifonic أو Taqnyat أو أي مزود آخر' },
+                  { title: 'ادخل لوحة تحكم المزود', desc: 'ستجد فيها: رابط API، رمز API Key، واسم المرسل' },
+                  { title: 'انسخ البيانات الثلاثة وأدخلها هنا', desc: 'رابط API + رمز API Key + اسم المرسل' },
+                  { title: 'اضغط "حفظ" ثم "إرسال تجريبي"', desc: 'أدخل رقم جوالك وتأكد أن الرسالة وصلت' },
+                ].map((step, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    <span style={{
+                      width: 26, height: 26, background: '#2563eb', color: '#fff', borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0,
+                    }}>{i + 1}</span>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', display: 'block' }}>{step.title}</span>
+                      <span style={{ fontSize: 11, color: '#6b7280' }}>{step.desc}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 20, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 12, padding: 12 }}>
+                <p style={{ fontSize: 12, color: '#92400e', margin: '0 0 6px', fontWeight: 700 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>warning</span>{' '}
+                  في حالة فشل الإرسال:
+                </p>
+                <ul style={{ fontSize: 11, color: '#92400e', margin: 0, paddingRight: 16 }}>
+                  <li>تأكد من صحة رابط API ورمز API Key</li>
+                  <li>تأكد من اسم المرسل المسجل لدى المزود</li>
+                  <li>تحقق من رصيدك لدى مزود الخدمة</li>
+                  <li>تواصل مع الدعم الفني لمزود الخدمة</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* إعدادات SMS */}
+            <div style={{ width: '50%', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1f2937', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#2563eb' }}>settings</span>
+                إعدادات مزود الخدمة
+              </h3>
+
+              {/* رابط API */}
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 4 }}>
+                  رابط API <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>(من لوحة تحكم المزود)</span>
+                </label>
+                <input type="text" value={smsProvider} onChange={e => setSmsProvider(e.target.value)}
+                  placeholder="مثال: https://app.mobile.net.sa/api/v1/send"
+                  style={{ width: '100%', height: 42, padding: '0 12px', border: '2px solid #d1d5db', borderRadius: 10, boxSizing: 'border-box' as const, fontSize: 13, direction: 'ltr' as const }} />
+              </div>
+
+              {/* رمز API */}
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 4 }}>
+                  رمز API Key <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>(من لوحة تحكم المزود)</span>
+                </label>
+                <input type="text" value={smsApiToken} onChange={e => setSmsApiToken(e.target.value)}
+                  placeholder="الصق رمز API هنا..."
+                  style={{ width: '100%', height: 42, padding: '0 12px', border: '2px solid #d1d5db', borderRadius: 10, boxSizing: 'border-box' as const, fontSize: 13, direction: 'ltr' as const }} />
+              </div>
+
+              {/* اسم المرسل */}
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 4 }}>
+                  اسم المرسل <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>(من لوحة تحكم المزود)</span>
+                </label>
+                <input type="text" value={smsSenderName} onChange={e => setSmsSenderName(e.target.value)}
+                  placeholder="مثال: School1"
+                  style={{ width: '100%', height: 42, padding: '0 12px', border: '2px solid #d1d5db', borderRadius: 10, boxSizing: 'border-box' as const, fontSize: 13, direction: 'ltr' as const }} />
+                <p style={{ fontSize: 11, color: '#9ca3af', margin: '4px 0 0' }}>الاسم المسجل لدى مزود الخدمة — يظهر كمرسل عند المستقبل</p>
+              </div>
+
+              {/* أزرار */}
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <button onClick={async () => {
+                  setSmsSaving(true);
+                  try {
+                    await whatsappApi.saveSettings({ smsApiToken: smsApiToken, smsSenderName: smsSenderName });
+                    toast.success('تم حفظ إعدادات SMS');
+                  } catch { toast.error('فشل حفظ الإعدادات'); }
+                  finally { setSmsSaving(false); }
+                }} disabled={smsSaving} style={{
+                  flex: 1, padding: '12px 20px', background: '#2563eb', color: '#fff', border: 'none',
+                  borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer', opacity: smsSaving ? 0.7 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>save</span>
+                  {smsSaving ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
+                </button>
+              </div>
+
+              {/* إرسال تجريبي */}
+              {smsApiToken && (
+                <div style={{ padding: 14, background: '#f9fafb', borderRadius: 10, border: '1px solid #e5e7eb' }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 6 }}>إرسال رسالة تجريبية</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input type="tel" value={smsTestPhone} onChange={e => setSmsTestPhone(e.target.value)}
+                      placeholder="05XXXXXXXX"
+                      style={{ flex: 1, height: 40, padding: '0 12px', border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' as const, fontSize: 14, direction: 'ltr' as const }} />
+                    <button onClick={async () => {
+                      if (!smsTestPhone || !/^05\d{8}$/.test(smsTestPhone)) { toast.error('أدخل رقم جوال صحيح يبدأ بـ 05'); return; }
+                      setSmsTestSending(true);
+                      try {
+                        const res = await smsApi.send(smsTestPhone, 'رسالة تجريبية من نظام شؤون الطلاب — الربط يعمل بنجاح ✅');
+                        if (res.data?.data?.success) toast.success('تم إرسال الرسالة التجريبية بنجاح!');
+                        else toast.error(res.data?.data?.error || 'فشل الإرسال — تحقق من رمز API والرصيد');
+                      } catch { toast.error('فشل الاتصال بمزود الخدمة'); }
+                      finally { setSmsTestSending(false); }
+                    }} disabled={smsTestSending} style={{
+                      padding: '0 20px', height: 40, background: '#16a34a', color: '#fff', border: 'none',
+                      borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: smsTestSending ? 0.7 : 1,
+                      display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' as const,
+                    }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>send</span>
+                      {smsTestSending ? 'جاري الإرسال...' : 'إرسال تجريبي'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* حالة */}
+              <div style={{
+                padding: 12, borderRadius: 10,
+                background: smsApiToken ? '#f0fdf4' : '#fef2f2',
+                border: `1px solid ${smsApiToken ? '#bbf7d0' : '#fecaca'}`,
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: smsApiToken ? '#16a34a' : '#dc2626' }}>
+                  {smsApiToken ? 'check_circle' : 'cancel'}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: smsApiToken ? '#15803d' : '#dc2626' }}>
+                  {smsApiToken ? 'مزود SMS مُعيّن — جاهز للإرسال' : 'لم يتم تعيين مزود SMS — أدخل البيانات أعلاه'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
