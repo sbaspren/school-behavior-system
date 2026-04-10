@@ -22,46 +22,38 @@ interface NavGroup {
 }
 
 const NAV_ITEMS: NavGroup[] = [
-  // ── 0. لوحة المتابعة (بدون عنوان مجموعة) ──
+  // ── 0. لوحة المتابعة ──
   { section: '', items: [
     { path: '/', label: 'لوحة المتابعة', icon: 'dashboard', iconColor: '#4f46e5' },
   ]},
 
-  // ── 1. السلوك والمخالفات ──
-  { section: 'السلوك والمخالفات', items: [
-    { path: '/violations', label: 'المخالفات السلوكية', icon: 'gavel', iconColor: '#6366f1' },
-  ]},
-
-  // ── 2. الشؤون التعليمية ──
-  { section: 'الشؤون التعليمية', items: [
-    { path: '/notes', label: 'الملاحظات التربوية', icon: 'menu_book', iconColor: '#10b981' },
-    { path: '/academic', label: 'التحصيل الدراسي', icon: 'analytics', iconColor: '#14b8a6' },
-  ]},
-
-  // ── 3. المواظبة والغياب ──
+  // ── 1. المواظبة (يومي — أول ما يبدأ به الوكيل) ──
   { section: 'المواظبة والغياب', items: [
     { path: '/tardiness', label: 'التأخر', icon: 'timer_off', iconColor: '#ef4444', roles: ['Admin', 'Deputy', 'Counselor', 'Guard'] },
-    { path: '/permissions', label: 'الاستئذان', icon: 'exit_to_app', iconColor: '#06b6d4', roles: ['Admin', 'Deputy', 'Counselor', 'Guard'] },
     { path: '/absence', label: 'الغياب', icon: 'event_busy', iconColor: '#f97316', roles: ['Admin', 'Deputy', 'Counselor'] },
+    { path: '/permissions', label: 'الاستئذان', icon: 'exit_to_app', iconColor: '#06b6d4', roles: ['Admin', 'Deputy', 'Counselor', 'Guard'] },
   ]},
 
-  // ── 4. ملف الإنجاز ──
-  { section: 'ملف الإنجاز', items: [
-    { path: '/portfolio', label: 'ملف الإنجاز واللجان', icon: 'folder_special', iconColor: '#1B3A6B', roles: ['Admin', 'Deputy', 'Counselor'] },
+  // ── 2. السلوك ──
+  { section: 'السلوك والمخالفات', items: [
+    { path: '/violations', label: 'المخالفات السلوكية', icon: 'gavel', iconColor: '#6366f1' },
+    { path: '/notes', label: 'الملاحظات التربوية', icon: 'menu_book', iconColor: '#10b981' },
   ]},
 
-  // ── 5. نظام نور ──
+  // ── 3. التوثيق ──
   { section: 'نظام نور', items: [
     { path: '/noor', label: 'التوثيق في نور', icon: 'cloud_sync', iconColor: '#00897b', roles: ['Admin', 'Deputy', 'Counselor'] },
   ]},
 
-  // ── 6. خدمات التواصل ──
-  { section: 'خدمات التواصل', items: [
-    { path: '/whatsapp', label: 'أدوات واتساب', icon: 'chat', iconColor: '#22c55e', roles: ['Admin', 'Deputy'] },
+  // ── 4. أقل استخداماً ──
+  { section: 'خدمات أخرى', items: [
     { path: '/communication', label: 'سجل التواصل', icon: 'history', iconColor: '#3b82f6', roles: ['Admin', 'Deputy', 'Counselor'] },
+    { path: '/academic', label: 'التحصيل الدراسي', icon: 'analytics', iconColor: '#14b8a6' },
+    { path: '/whatsapp', label: 'أدوات واتساب', icon: 'chat', iconColor: '#22c55e', roles: ['Admin', 'Deputy'] },
+    { path: '/portfolio', label: 'ملف الإنجاز واللجان', icon: 'folder_special', iconColor: '#1B3A6B', roles: ['Admin', 'Deputy', 'Counselor'] },
   ]},
 
-  // ── 7. النظام ──
+  // ── 5. النظام ──
   { section: 'النظام', items: [
     { path: '/settings', label: 'الإعدادات', icon: 'settings', iconColor: '#64748b', roles: ['Admin'] },
   ]},
