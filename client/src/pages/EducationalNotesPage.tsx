@@ -250,7 +250,6 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
       ) : records.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
           <p style={{ color: '#9ca3af', fontSize: '18px' }}>لا توجد ملاحظات مسجلة اليوم</p>
-          <button onClick={() => setModalOpen(true)} style={{ ...btnStyle(SECTION_THEMES.notes, '#fff'), marginTop: '16px' }}>+ تسجيل ملاحظة</button>
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'auto' }}>

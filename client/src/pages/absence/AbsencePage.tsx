@@ -437,15 +437,7 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
         <div className="bg-white rounded-xl" style={{ textAlign: 'center', padding: '64px 20px' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>event_available</span>
           <p style={{ color: '#6b7280', marginTop: 16, fontSize: 18 }}>لا يوجد غياب مسجل اليوم</p>
-          <p style={{ color: '#9ca3af', fontSize: 14, marginTop: 8 }}>استيراد ملف منصة أو أضف يدوياً</p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 24 }}>
-            <button onClick={() => platformFileRef.current?.click()} style={{ padding: '8px 16px', background: '#059669', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <span className="material-symbols-outlined" style={{fontSize:18}}>upload_file</span> استيراد منصة
-            </button>
-            <button onClick={onAdd} style={{ padding: '8px 16px', background: '#ea580c', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <span className="material-symbols-outlined" style={{fontSize:18}}>add_circle</span> تسجيل غياب
-            </button>
-          </div>
+          <p style={{ color: '#9ca3af', fontSize: 14, marginTop: 8 }}>استيراد ملف منصة أو أضف يدوياً من الأزرار أعلاه</p>
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>

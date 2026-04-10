@@ -129,7 +129,6 @@ const TodayTab: React.FC<{ records: TardinessRow[]; allRecords: TardinessRow[]; 
         <div style={{ textAlign: 'center', padding: '64px 20px', color: '#9ca3af' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>event_available</span>
           <p style={{ fontSize: 18, fontWeight: 500 }}>لا يوجد متأخرون اليوم</p>
-          <button onClick={onAdd} style={{ marginTop: 16, padding: '8px 20px', background: '#dc2626', color: '#fff', borderRadius: 8, border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>add_circle</span> تسجيل تأخر</button>
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
