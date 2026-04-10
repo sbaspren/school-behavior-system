@@ -10,6 +10,7 @@ import InputModal from '../../components/shared/InputModal';
 import StudentSelector from '../../components/shared/StudentSelector';
 import FilterBtn from '../../components/shared/FilterBtn';
 import LoadingSpinner from '../../components/shared/LoadingSpinner';
+import SendMessageModal from '../../components/shared/SendMessageModal';
 import { absenceApi, AbsenceData } from '../../api/absence';
 import { parentExcuseApi, ParentExcuseRow } from '../../api/parentExcuse';
 import { StageConfigData } from '../../api/settings';
@@ -64,6 +65,8 @@ const AbsencePage: React.FC = () => {
         title={`الغياب — ${SETTINGS_STAGES.find(s => s.id === stageFilter)?.name || stageFilter}`}
         subtitle={`${getTodayDates().dayName} - ${getTodayDates().hijri}`}
         gradient="linear-gradient(135deg, #ea580c, #f97316)"
+        accentColor="#ea580c"
+        variant="outlined"
         stats={[
           { icon: 'event_busy', label: 'غياب اليوم', value: todayRecords.length, color: '#f97316' },
           { icon: 'description', label: 'أعذار معلقة', value: pendingExcuses, color: '#8b5cf6' },
@@ -422,9 +425,9 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
       <ActionBar
         sectionColor="#ea580c"
         leftButtons={[
-          { icon: 'upload_file', label: 'استيراد منصة', variant: 'primary', onClick: () => platformFileRef.current?.click() },
           { icon: 'add_circle', label: 'تسجيل غياب', variant: 'primary', onClick: onAdd },
           { icon: 'refresh', label: 'تحديث', variant: 'outline', onClick: onRefresh },
+          { icon: 'upload_file', label: 'استيراد منصة', variant: 'primary', onClick: () => platformFileRef.current?.click() },
         ]}
         rightButtons={[
           { icon: 'send', label: bulkSending ? `${bulkProgress.sent}/${bulkProgress.total}` : 'إرسال للجميع', variant: 'success', onClick: handleSendAll, disabled: bulkSending || filtered.filter(r => !r.isSent).length === 0, id: 'btn-send-all' },
@@ -559,7 +562,7 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
       )}
 
       {/* Message Editor Modal */}
-      {msgEditorRow && <AdvancedMessageEditor row={msgEditorRow} onSend={handleConfirmSend} onClose={() => setMsgEditorRow(null)} sending={sendingId === msgEditorRow.id} includeLink={includeLink} onToggleLink={() => setIncludeLink(!includeLink)} settings={settings} />}
+      {msgEditorRow && <AbsenceSendModal row={msgEditorRow} onSend={handleConfirmSend} onClose={() => setMsgEditorRow(null)} sending={sendingId === msgEditorRow.id} includeLink={includeLink} onToggleLink={() => setIncludeLink(!includeLink)} settings={settings} />}
 
       {/* Delete Confirm */}
       {confirmDelete && <ConfirmModal title="حذف السجل" message={`هل أنت متأكد من حذف سجل ${confirmDelete.studentName}؟`} onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} />}
@@ -688,9 +691,9 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
 };
 
 // ============================================================
-// Advanced Message Editor — with templates, link toggle, save/restore
+// Absence Send Modal — wraps shared SendMessageModal with link toggle
 // ============================================================
-const AdvancedMessageEditor: React.FC<{
+const AbsenceSendModal: React.FC<{
   row: AbsenceRow; onSend: (msg: string) => void; onClose: () => void;
   sending: boolean; includeLink: boolean; onToggleLink: () => void; settings: any;
 }> = ({ row, onSend, onClose, sending, includeLink, onToggleLink, settings }) => {
@@ -698,12 +701,7 @@ const AdvancedMessageEditor: React.FC<{
   const schoolName = settings?.schoolName || 'المدرسة';
   const [excuseLink, setExcuseLink] = useState('');
   const [loadingLink, setLoadingLink] = useState(false);
-  const [templateSaved, setTemplateSaved] = useState(false);
-
-  // Load saved template
-  const savedTemplate = useMemo(() => {
-    try { return localStorage.getItem('absence_msg_template') || ''; } catch { return ''; }
-  }, []);
+  const [message, setMessage] = useState('');
 
   const buildMessage = useCallback((withLink: boolean, link: string) => {
     let msg = `*إشعار غياب*\n\nالسلام عليكم ورحمة الله وبركاته\nولي أمر الطالب: *${row.studentName}*\n\nنفيدكم بأن ابنكم *${row.studentName}* غائب اليوم\nالتاريخ: ${dayName} - ${hijri}\nالصف: ${row.grade} - الفصل: ${classToLetter(row.className)}`;
@@ -714,41 +712,10 @@ const AdvancedMessageEditor: React.FC<{
     return msg;
   }, [row, dayName, hijri, schoolName]);
 
-  const [message, setMessage] = useState(() => {
-    if (savedTemplate) {
-      // Replace placeholders in template with actual data
-      return savedTemplate
-        .replace(/\{اسم_الطالب\}/g, row.studentName)
-        .replace(/\{الصف\}/g, row.grade)
-        .replace(/\{الفصل\}/g, classToLetter(row.className))
-        .replace(/\{اليوم\}/g, dayName)
-        .replace(/\{التاريخ\}/g, hijri);
-    }
-    return buildMessage(false, '');
-  });
-  const defaultMsg = useMemo(() => buildMessage(false, ''), [buildMessage]);
-
-  const handleSaveTemplate = () => {
-    // Convert current message back to template by replacing data with placeholders
-    let tmpl = message;
-    const replacements = [
-      { val: row.studentName, key: 'اسم_الطالب' },
-      { val: row.grade, key: 'الصف' },
-      { val: classToLetter(row.className), key: 'الفصل' },
-      { val: dayName, key: 'اليوم' },
-      { val: hijri, key: 'التاريخ' },
-    ];
-    replacements.sort((a, b) => b.val.length - a.val.length);
-    replacements.forEach(r => { if (r.val.trim()) tmpl = tmpl.split(r.val).join(`{${r.key}}`); });
-    try { localStorage.setItem('absence_msg_template', tmpl); setTemplateSaved(true); showSuccess('تم حفظ القالب كافتراضي'); } catch { showError('فشل حفظ القالب'); }
-  };
-
-  const handleResetTemplate = () => {
-    try { localStorage.removeItem('absence_msg_template'); } catch { /* skip */ }
-    setMessage(defaultMsg);
-    setTemplateSaved(false);
-    showSuccess('تم استعادة القالب الافتراضي');
-  };
+  // Initialize message
+  useEffect(() => {
+    setMessage(buildMessage(false, ''));
+  }, [buildMessage]);
 
   // Fetch excuse link
   useEffect(() => {
@@ -761,64 +728,43 @@ const AdvancedMessageEditor: React.FC<{
         setExcuseLink(link);
         setMessage(buildMessage(true, link));
       }
-    }).catch(() => { /* skip */ }).finally(() => setLoadingLink(false));
+    }).catch(() => {}).finally(() => setLoadingLink(false));
   }, [includeLink, row.studentNumber, row.stage, buildMessage]);
 
   const handleToggle = () => {
     onToggleLink();
-    if (includeLink) {
-      // Turning off
-      setMessage(buildMessage(false, ''));
-    } else if (excuseLink) {
-      setMessage(buildMessage(true, excuseLink));
-    }
+    if (includeLink) setMessage(buildMessage(false, ''));
+    else if (excuseLink) setMessage(buildMessage(true, excuseLink));
   };
 
-  return (
-    <div style={modalOverlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ ...modalBox, maxWidth: 520 }}>
-        <div style={{ padding: '12px 20px', background: '#25d366', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>edit</span> تعديل الرسالة قبل الإرسال</h3>
-          <button onClick={onClose} style={{ ...closeBtn, color: 'rgba(255,255,255,0.8)' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span></button>
-        </div>
-        <div style={{ padding: '10px 20px', background: '#f0fdf4', borderBottom: '1px solid #d1fae5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>{row.studentName}</span>
-            <span style={{ fontSize: 11, color: '#6b7280', marginRight: 8 }}>إشعار غياب</span>
-          </div>
-          <span style={{ fontSize: 11, color: '#9ca3af', direction: 'ltr' }}>{row.mobile || '-'}</span>
-        </div>
-        {/* Link Toggle */}
-        <div style={{ padding: '8px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: includeLink && excuseLink ? '#f0fdf4' : '#f9fafb' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16, color: includeLink ? '#16a34a' : '#9ca3af' }}>link</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: includeLink ? '#15803d' : '#6b7280' }}>
-              {loadingLink ? 'جاري جلب الرابط...' : (excuseLink ? 'إرفاق رابط إدخال العذر' : 'الرابط غير متاح')}
-            </span>
-          </div>
-          <label style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
-            <input type="checkbox" checked={includeLink} onChange={handleToggle} style={{ width: 40, height: 22, appearance: 'none', background: includeLink ? '#22c55e' : '#d1d5db', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s' }} />
-          </label>
-        </div>
-        <div style={{ padding: 20 }}>
-          <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={14}
-            style={{ width: '100%', padding: 12, border: '2px solid #d1d5db', borderRadius: 10, fontSize: 13, lineHeight: 1.7, resize: 'vertical', fontFamily: 'Traditional Arabic, Tahoma, serif', direction: 'rtl', boxSizing: 'border-box' }} />
-        </div>
-        <div style={{ padding: '12px 20px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handleSaveTemplate} style={{ padding: '6px 12px', background: '#2563eb', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{fontSize:14,verticalAlign:'middle'}}>bookmark</span> حفظ كقالب افتراضي</button>
-            <button onClick={handleResetTemplate} style={{ padding: '6px 12px', background: '#e5e7eb', color: '#4b5563', borderRadius: 8, fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span> استعادة</button>
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} style={{ padding: '8px 16px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>إلغاء</button>
-            <button onClick={() => onSend(message)} disabled={sending || !message.trim()} style={{ padding: '8px 20px', background: '#25d366', color: '#fff', borderRadius: 8, fontWeight: 700, border: 'none', cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.6 : 1 }}>
-              {sending ? 'جاري الإرسال...' : <><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال</>}
-            </button>
-          </div>
-        </div>
-        {templateSaved && <div style={{ padding: '6px 20px', background: '#eff6ff', borderTop: '1px solid #bfdbfe', fontSize: 11, color: '#2563eb' }}><span className="material-symbols-outlined" style={{fontSize:12,verticalAlign:'middle'}}>info</span> يتم استخدام قالبك المحفوظ</div>}
+  const linkToggle = (
+    <div style={{ padding: '8px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: includeLink && excuseLink ? '#f0fdf4' : '#f9fafb' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 16, color: includeLink ? '#16a34a' : '#9ca3af' }}>link</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: includeLink ? '#15803d' : '#6b7280' }}>
+          {loadingLink ? 'جاري جلب الرابط...' : (excuseLink ? 'إرفاق رابط إدخال العذر' : 'الرابط غير متاح')}
+        </span>
       </div>
+      <label style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+        <input type="checkbox" checked={includeLink} onChange={handleToggle} style={{ width: 40, height: 22, appearance: 'none', background: includeLink ? '#22c55e' : '#d1d5db', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s' }} />
+      </label>
     </div>
+  );
+
+  return (
+    <SendMessageModal
+      studentName={row.studentName}
+      mobile={row.mobile}
+      defaultMessage={buildMessage(false, '')}
+      templateType="غياب"
+      templatePlaceholders={{ '{اسم_الطالب}': row.studentName, '{الصف}': row.grade, '{الفصل}': classToLetter(row.className), '{اليوم}': dayName, '{التاريخ}': hijri }}
+      message={message}
+      onMessageChange={setMessage}
+      onSend={(msg) => onSend(msg)}
+      onClose={onClose}
+      sending={sending}
+      extraContent={linkToggle}
+    />
   );
 };
 
@@ -1464,11 +1410,8 @@ const ApprovedTab: React.FC<{ records: CumulativeRow[]; dailyRecords: AbsenceRow
       {/* Filters — مطابق: بطاقة بيضاء sticky مع بحث + فلاتر + حالة */}
       <div className="bg-white rounded-xl" style={{ padding: 12, marginBottom: 16, position: 'sticky', top: 0, zIndex: 20 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18, position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }}>search</span>
-            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث بالاسم..."
-              style={{ width: 192, paddingRight: 36, paddingLeft: 8, height: 34, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }} />
-          </div>
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث بالاسم..."
+            style={{ width: 180, padding: '6px 12px', border: '2px solid #d1d5db', borderRadius: 12, fontSize: 13 }} />
           <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); }}
             style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 12, background: '#f9fafb', flexShrink: 0 }}>
             <option value="">كل الصفوف</option>{grades.map(g => <option key={g} value={g}>{g}</option>)}
@@ -1481,31 +1424,24 @@ const ApprovedTab: React.FC<{ records: CumulativeRow[]; dailyRecords: AbsenceRow
             style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 12, background: '#f9fafb', flexShrink: 0 }}>
             <option value="desc">الأكثر غياباً (تنازلي)</option><option value="asc">الأقل غياباً</option><option value="alpha">أبجدياً</option>
           </select>
-          <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 8, padding: 2, flexShrink: 0 }}>
-            <button onClick={() => setViewMode('cards')} style={{ padding: 4, borderRadius: 4, border: 'none', cursor: 'pointer', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? '#4f46e5' : '#9ca3af' }}>
-              <span className="material-symbols-outlined" style={{fontSize:18}}>grid_view</span>
-            </button>
-            <button onClick={() => setViewMode('table')} style={{ padding: 4, borderRadius: 4, border: 'none', cursor: 'pointer', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? '#4f46e5' : '#9ca3af' }}>
-              <span className="material-symbols-outlined" style={{fontSize:18}}>table_rows</span>
-            </button>
+          <div style={{ width: 1, height: 20, background: '#e5e7eb' }} />
+          <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)}
+            style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 12, background: levelFilter === 'all' ? '#f9fafb' : levelFilter === 'zero' ? '#dcfce7' : ['warning','danger','critical'].includes(levelFilter) ? '#fee2e2' : '#dbeafe', fontWeight: 700, color: levelFilter === 'all' ? '#374151' : levelFilter === 'zero' ? '#15803d' : ['warning','danger','critical'].includes(levelFilter) ? '#dc2626' : '#1d4ed8', flexShrink: 0 }}>
+            <option value="all">كل المستويات</option>
+            <option value="zero">⭐ المنضبطين</option>
+            <option disabled>── بدون عذر ──</option>
+            <option value="warning">إنذار (3-4)</option>
+            <option value="danger">لجنة (5-9)</option>
+            <option value="critical">حماية (10+)</option>
+            <option disabled>── بعذر ──</option>
+            <option value="mo_ref">إحالة موجه (3-4)</option>
+            <option value="mo_com">لجنة توجيه (5-9)</option>
+            <option value="mo_risk">اشتباه إهمال (10+)</option>
+          </select>
+          <div style={{ display: 'flex', gap: 2, background: '#f3f4f6', borderRadius: 8, padding: 2, flexShrink: 0 }}>
+            <button onClick={() => setViewMode('cards')} style={{ padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? '#ea580c' : '#9ca3af', fontSize: 12, fontWeight: 700 }}>بطاقات</button>
+            <button onClick={() => setViewMode('table')} style={{ padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? '#ea580c' : '#9ca3af', fontSize: 12, fontWeight: 700 }}>جدول</button>
           </div>
-        </div>
-        {/* فلاتر الحالة — 9 أزرار مع فواصل وتصنيفات */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid #f1f5f9' }}>
-          <button onClick={() => setLevelFilter('all')} style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'all' ? '#f3f4f6' : 'transparent', color: '#4b5563', border: '1px solid #e5e7eb' }}>الكل</button>
-          <button onClick={() => setLevelFilter('zero')} style={{ padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'zero' ? '#dcfce7' : '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <span className="material-symbols-outlined" style={{fontSize:14}}>stars</span> المنضبطين
-          </button>
-          <span style={{ width: 1, height: 20, background: '#d1d5db' }} />
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', background: '#fef2f2', padding: '2px 6px', borderRadius: 4, border: '1px solid #fecaca' }}>بدون عذر:</span>
-          <button onClick={() => setLevelFilter('warning')} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'warning' ? '#fef9c3' : 'transparent', color: '#a16207', border: '1px solid #fde68a' }}>إنذار (3-4)</button>
-          <button onClick={() => setLevelFilter('danger')} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'danger' ? '#ffedd5' : 'transparent', color: '#c2410c', border: '1px solid #fdba74' }}>لجنة (5-9)</button>
-          <button onClick={() => setLevelFilter('critical')} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'critical' ? '#fee2e2' : 'transparent', color: '#dc2626', border: '1px solid #fca5a5' }}>حماية (10+)</button>
-          <span style={{ width: 1, height: 20, background: '#d1d5db' }} />
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#3b82f6', background: '#eff6ff', padding: '2px 6px', borderRadius: 4, border: '1px solid #bfdbfe' }}>بعذر:</span>
-          <button onClick={() => setLevelFilter('mo_ref')} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'mo_ref' ? '#e0f2fe' : 'transparent', color: '#0369a1', border: '1px solid #7dd3fc' }}>إحالة موجه (3-4)</button>
-          <button onClick={() => setLevelFilter('mo_com')} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'mo_com' ? '#dbeafe' : 'transparent', color: '#1d4ed8', border: '1px solid #93c5fd' }}>لجنة توجيه (5-9)</button>
-          <button onClick={() => setLevelFilter('mo_risk')} style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: levelFilter === 'mo_risk' ? '#e0e7ff' : 'transparent', color: '#4338ca', border: '1px solid #a5b4fc' }}>اشتباه إهمال (10+)</button>
         </div>
       </div>
 

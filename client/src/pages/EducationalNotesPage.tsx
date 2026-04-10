@@ -7,11 +7,12 @@ import FloatingBar from '../components/shared/FloatingBar';
 import EmptyState from '../components/shared/EmptyState';
 import ActionIcon from '../components/shared/ActionIcon';
 import FilterBtn from '../components/shared/FilterBtn';
+import HijriDatePicker from '../components/shared/HijriDatePicker';
 import InputModal from '../components/shared/InputModal';
 import StudentSelector from '../components/shared/StudentSelector';
 import { educationalNotesApi } from '../api/educationalNotes';
 import { StageConfigData } from '../api/settings';
-import { templatesApi } from '../api/templates';
+import SendMessageModal from '../components/shared/SendMessageModal';
 import { showSuccess, showError } from '../components/shared/Toast';
 import { SETTINGS_STAGES, SECTION_THEMES, sortGrades, sortClasses, btnOutline } from '../utils/constants';
 import { printForm } from '../utils/printTemplates';
@@ -69,6 +70,7 @@ const EducationalNotesPage: React.FC = () => {
         title={`الملاحظات التربوية — ${stageName(currentStage)}`}
         subtitle={getHijriDate()}
         gradient="linear-gradient(135deg, #059669, #10b981)"
+        accentColor="#059669" variant="outlined"
         stats={[
           { icon: 'menu_book', label: 'ملاحظات اليوم', value: stats.todayCount, color: '#fbbf24' },
           { icon: 'bar_chart', label: 'إجمالي الملاحظات', value: stats.totalCount ?? 0, color: '#c084fc' },
@@ -306,20 +308,19 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
       {modalOpen && <AddNoteModal stage={stage} noteTypes={noteTypes} onClose={() => setModalOpen(false)} onSaved={() => { setModalOpen(false); loadToday(); onRefresh(); }} />}
       {typesModalOpen && <NoteTypesModal stage={stage} types={noteTypes} onClose={() => setTypesModalOpen(false)} onSaved={(t) => { onTypesUpdated(t); setTypesModalOpen(false); }} />}
 
-      {msgEditorRow && (
-        <div style={overlayStyle} onClick={e => { if (e.target === e.currentTarget) setMsgEditorRow(null); }}>
-          <div style={{ background: '#fff', borderRadius: '20px', maxWidth: '520px', width: '95%', overflow: 'hidden' }}>
-            <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #dcfce7, #f0fdf4)', borderBottom: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#15803d' }}>إرسال رسالة واتساب</h3>
-                <span style={{ fontSize: '13px', color: '#4b5563' }}>{msgEditorRow.studentName} - {msgEditorRow.mobile || 'لا يوجد رقم'}</span>
-              </div>
-              <button onClick={() => setMsgEditorRow(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}>x</button>
-            </div>
-            <EduMsgEditor record={msgEditorRow} onSend={(msg) => handleConfirmSend(msgEditorRow.id, msg)} onClose={() => setMsgEditorRow(null)} />
-          </div>
-        </div>
-      )}
+      {msgEditorRow && (() => {
+        const hijriDate = msgEditorRow.hijriDate || new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { year: 'numeric', month: 'long', day: 'numeric' });
+        const defaultMsg = `ولي أمر الطالب / ${msgEditorRow.studentName}\nالسلام عليكم ورحمة الله وبركاته\nنفيدكم بأنه تم تسجيل ملاحظة تربوية على ابنكم:\nنوع الملاحظة: ${msgEditorRow.noteType}${msgEditorRow.details ? `\nالتفاصيل: ${msgEditorRow.details}` : ''}\nالتاريخ: ${hijriDate}\nنأمل متابعة الطالب والتعاون معنا.\nمع تحيات إدارة المدرسة`;
+        return <SendMessageModal
+          studentName={msgEditorRow.studentName}
+          mobile={msgEditorRow.mobile}
+          defaultMessage={defaultMsg}
+          templateType="ملاحظة"
+          templatePlaceholders={{ '{اسم_الطالب}': msgEditorRow.studentName, '{نوع_الملاحظة}': msgEditorRow.noteType || '', '{التفاصيل}': msgEditorRow.details || '', '{التاريخ}': hijriDate }}
+          onSend={(msg) => handleConfirmSend(msgEditorRow.id, msg)}
+          onClose={() => setMsgEditorRow(null)}
+        />;
+      })()}
 
       {/* ★ Floating Selection Bar */}
       <FloatingBar
@@ -334,59 +335,7 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
     </div>
   );
 };
-const EduMsgEditor: React.FC<{ record: NoteRow; onSend: (msg: string) => void; onClose: () => void }> = ({ record, onSend, onClose }) => {
-  const hijriDate = record.hijriDate || new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { year: 'numeric', month: 'long', day: 'numeric' });
-  const defaultMsg = `ولي أمر الطالب / ${record.studentName}\nالسلام عليكم ورحمة الله وبركاته\nنفيدكم بأنه تم تسجيل ملاحظة تربوية على ابنكم:\nنوع الملاحظة: ${record.noteType}${record.details ? `\nالتفاصيل: ${record.details}` : ''}\nالتاريخ: ${hijriDate}\nنأمل متابعة الطالب والتعاون معنا.\nمع تحيات إدارة المدرسة`;
-  const [message, setMessage] = useState(defaultMsg);
-  const [templateLoaded, setTemplateLoaded] = useState(false);
 
-  // تحميل القالب المحفوظ عند الفتح
-  useEffect(() => {
-    templatesApi.getByType('ملاحظة').then(res => {
-      const saved = res.data?.data?.template;
-      if (saved) {
-        const filled = saved.replace('{اسم_الطالب}', record.studentName).replace('{نوع_الملاحظة}', record.noteType || '').replace('{التفاصيل}', record.details || '').replace('{التاريخ}', hijriDate);
-        setMessage(filled);
-        setTemplateLoaded(true);
-      }
-    }).catch(() => {});
-  }, []);
-
-  const handleSaveAsTemplate = async () => {
-    try {
-      await templatesApi.save('ملاحظة', message);
-      showSuccess('تم حفظ القالب');
-    } catch { showError('فشل حفظ القالب'); }
-  };
-
-  const handleResetTemplate = async () => {
-    try {
-      await templatesApi.delete('ملاحظة');
-      setMessage(defaultMsg);
-      setTemplateLoaded(false);
-      showSuccess('تم استعادة القالب الافتراضي');
-    } catch { showError('فشل استعادة القالب'); }
-  };
-
-  return (
-    <>
-      <div style={{ padding: '20px 24px' }}>
-        <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '8px' }}>نص الرسالة</label>
-        <textarea value={message} onChange={e => setMessage(e.target.value)} rows={8}
-          style={{ width: '100%', padding: '12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', lineHeight: 1.8, resize: 'vertical', boxSizing: 'border-box', direction: 'rtl' }} />
-        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-          <button onClick={handleSaveAsTemplate} style={{ padding: '4px 12px', background: '#eef2ff', color: '#4f46e5', borderRadius: '6px', border: '1px solid #c7d2fe', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>save</span> حفظ كقالب</button>
-          <button onClick={handleResetTemplate} style={{ padding: '4px 12px', background: '#f3f4f6', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '12px', color: '#6b7280' }}>إعادة تعيين</button>
-          {templateLoaded && <span style={{ fontSize: '11px', color: '#059669', alignSelf: 'center' }}><span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle' }}>check</span> تم تحميل القالب المحفوظ</span>}
-        </div>
-      </div>
-      <div style={{ padding: '16px 24px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-        <button onClick={onClose} style={{ padding: '8px 16px', color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer' }}>إلغاء</button>
-        <button onClick={() => onSend(message)} style={{ padding: '8px 24px', background: '#25d366', color: '#fff', borderRadius: '8px', fontWeight: 700, border: 'none', cursor: 'pointer' }}>إرسال</button>
-      </div>
-    </>
-  );
-};
 
 // ────────────────────────── APPROVED TAB ──────────────────────────
 const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings: Record<string, string> }> = ({ stage, noteTypes, schoolSettings }) => {
@@ -470,14 +419,10 @@ const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings
           <button onClick={() => setViewMode('cards')} style={{ padding: '4px 8px', borderRadius: '6px', border: 'none', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? SECTION_THEMES.notes : '#9ca3af', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>بطاقات</button>
           <button onClick={() => setViewMode('table')} style={{ padding: '4px 8px', borderRadius: '6px', border: 'none', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? SECTION_THEMES.notes : '#9ca3af', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>جدول</button>
         </div>
-        <span style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280' }}>الفترة:</span>
-        <input type="text" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="من (هجري)"
-          style={{ padding: '6px 10px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '12px', width: '120px' }} />
-        <input type="text" value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="إلى (هجري)"
-          style={{ padding: '6px 10px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '12px', width: '120px' }} />
-        {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ padding: '4px 8px', background: '#fee2e2', color: '#dc2626', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 700 }}>مسح</button>
-        )}
+        <div style={{ width: 1, height: 20, background: '#e5e7eb' }} />
+        <HijriDatePicker value={dateFrom} onChange={setDateFrom} placeholder="من تاريخ" accentColor={SECTION_THEMES.notes} />
+        <span style={{ fontSize: 12, color: '#9ca3af' }}>إلى</span>
+        <HijriDatePicker value={dateTo} onChange={setDateTo} placeholder="إلى تاريخ" accentColor={SECTION_THEMES.notes} />
       </div>
 
       {/* Type quick filters */}
@@ -678,11 +623,11 @@ const ReportsTab: React.FC<{ stage: string }> = ({ stage }) => {
         </div>
         <div>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>من تاريخ</label>
-          <input type="text" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="هجري" style={{ ...selectStyle, width: '120px' }} />
+          <HijriDatePicker value={dateFrom} onChange={setDateFrom} placeholder="من تاريخ" accentColor={SECTION_THEMES.notes} />
         </div>
         <div>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>إلى تاريخ</label>
-          <input type="text" value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="هجري" style={{ ...selectStyle, width: '120px' }} />
+          <HijriDatePicker value={dateTo} onChange={setDateTo} placeholder="إلى تاريخ" accentColor={SECTION_THEMES.notes} />
         </div>
         <button onClick={loadAll} style={btnOutline(SECTION_THEMES.notes)}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span> تحديث</button>
       </div>

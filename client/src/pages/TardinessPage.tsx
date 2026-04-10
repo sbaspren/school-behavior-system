@@ -9,6 +9,7 @@ import ActionIcon from '../components/shared/ActionIcon';
 import InputModal from '../components/shared/InputModal';
 import StudentSelector from '../components/shared/StudentSelector';
 import FilterBtn from '../components/shared/FilterBtn';
+import HijriDatePicker from '../components/shared/HijriDatePicker';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { tardinessApi, TardinessData } from '../api/tardiness';
 import { showSuccess, showError } from '../components/shared/Toast';
@@ -17,7 +18,7 @@ import { StageConfigData } from '../api/settings';
 import { printForm, printListReport, ListReportRow } from '../utils/printTemplates';
 import { printDailyReport } from '../utils/printDaily';
 import { toIndic, escapeHtml, classToLetter } from '../utils/printUtils';
-import { templatesApi } from '../api/templates';
+import SendMessageModal from '../components/shared/SendMessageModal';
 import { usePageData, getHijriDate } from '../hooks/usePageData';
 import type { TardinessRow, StudentOption } from '../types';
 
@@ -45,6 +46,7 @@ const TardinessPage: React.FC = () => {
   return (
     <div className="sec-tardiness">
       <PageHero title={heroTitle} subtitle={getHijriDate()} gradient="linear-gradient(135deg, #dc2626, #ef4444)"
+        accentColor="#dc2626" variant="outlined"
         stats={[
           { icon: 'schedule', label: 'متأخرو اليوم', value: todayRecords.length, color: '#fbbf24' },
           { icon: 'bar_chart', label: 'إجمالي التأخر', value: filteredByStage.length, color: '#c084fc' },
@@ -169,45 +171,24 @@ const TodayTab: React.FC<{ records: TardinessRow[]; allRecords: TardinessRow[]; 
         </div>
       )}
       {confirmDelete && <ConfirmModal title="تأكيد حذف سجل التأخر" message={`هل أنت متأكد من حذف سجل التأخر للطالب ${confirmDelete.studentName}؟`} onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} />}
-      {msgEditorRow && <MessageEditorModal record={msgEditorRow} onSend={(msg) => handleConfirmSend(msgEditorRow, msg)} onClose={() => setMsgEditorRow(null)} />}
+      {msgEditorRow && (() => {
+        const hijriDate = msgEditorRow.hijriDate || new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { year: 'numeric', month: 'long', day: 'numeric' });
+        const typeLabel = TARDINESS_TYPES[msgEditorRow.tardinessType]?.label || msgEditorRow.tardinessType;
+        const defaultMsg = `ولي أمر الطالب / ${msgEditorRow.studentName}\nالسلام عليكم ورحمة الله وبركاته\nنفيدكم بأن ابنكم قد سُجّل عليه ${typeLabel}${msgEditorRow.period ? ` (${msgEditorRow.period})` : ''} بتاريخ ${hijriDate}.\nنأمل متابعة الطالب والحرص على الحضور في الوقت المحدد.\nمع تحيات إدارة المدرسة`;
+        return <SendMessageModal
+          studentName={msgEditorRow.studentName}
+          mobile={msgEditorRow.mobile}
+          defaultMessage={defaultMsg}
+          templateType="تأخر"
+          templatePlaceholders={{ '{اسم_الطالب}': msgEditorRow.studentName, '{نوع_التأخر}': typeLabel, '{الحصة}': msgEditorRow.period || '', '{التاريخ}': hijriDate }}
+          onSend={(msg) => handleConfirmSend(msgEditorRow, msg)}
+          onClose={() => setMsgEditorRow(null)}
+        />;
+      })()}
     </>
   );
 };
 
-// ============================== Message Editor Modal ==============================
-const MessageEditorModal: React.FC<{ record: TardinessRow; onSend: (message: string) => void; onClose: () => void }> = ({ record, onSend, onClose }) => {
-  const hijriDate = record.hijriDate || new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { year: 'numeric', month: 'long', day: 'numeric' });
-  const typeLabel = TARDINESS_TYPES[record.tardinessType]?.label || record.tardinessType;
-  const defaultMsg = `ولي أمر الطالب / ${record.studentName}\nالسلام عليكم ورحمة الله وبركاته\nنفيدكم بأن ابنكم قد سُجّل عليه ${typeLabel}${record.period ? ` (${record.period})` : ''} بتاريخ ${hijriDate}.\nنأمل متابعة الطالب والحرص على الحضور في الوقت المحدد.\nمع تحيات إدارة المدرسة`;
-  const [message, setMessage] = useState(defaultMsg);
-  const [templateLoaded, setTemplateLoaded] = useState(false);
-  useEffect(() => { templatesApi.getByType('تأخر').then(res => { const saved = res.data?.data?.template; if (saved) { setMessage(saved.replace('{اسم_الطالب}', record.studentName).replace('{نوع_التأخر}', typeLabel).replace('{الحصة}', record.period || '').replace('{التاريخ}', hijriDate)); setTemplateLoaded(true); } }).catch(() => {}); }, []);
-  const handleSaveAsTemplate = async () => { try { await templatesApi.save('تأخر', message); showSuccess('تم حفظ القالب'); } catch { showError('فشل'); } };
-  const handleResetTemplate = async () => { try { await templatesApi.delete('تأخر'); setMessage(defaultMsg); setTemplateLoaded(false); showSuccess('تم استعادة القالب الافتراضي'); } catch { showError('فشل'); } };
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,.6)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 20, boxShadow: '0 25px 50px rgba(0,0,0,.25)', width: '100%', maxWidth: 520, overflow: 'hidden' }}>
-        <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #dcfce7, #f0fdf4)', borderBottom: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div><h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#15803d' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>smartphone</span> إرسال رسالة واتساب</h3><span style={{ fontSize: 13, color: '#4b5563' }}>{record.studentName} - {record.mobile || 'لا يوجد رقم'}</span></div>
-          <button onClick={onClose} style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span></button>
-        </div>
-        <div style={{ padding: '20px 24px' }}>
-          <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#4b5563', marginBottom: 8 }}>نص الرسالة</label>
-          <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={8} style={{ width: '100%', padding: 12, border: '2px solid #d1d5db', borderRadius: 12, fontSize: 14, lineHeight: 1.8, resize: 'vertical', boxSizing: 'border-box', direction: 'rtl' }} />
-          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-            <button onClick={handleSaveAsTemplate} style={{ padding: '4px 12px', background: '#eef2ff', color: '#4f46e5', borderRadius: 6, border: '1px solid #c7d2fe', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}><span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>save</span> حفظ كقالب</button>
-            <button onClick={handleResetTemplate} style={{ padding: '4px 12px', background: '#f3f4f6', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, color: '#6b7280' }}>إعادة تعيين</button>
-            {templateLoaded && <span style={{ fontSize: 11, color: '#059669', alignSelf: 'center' }}><span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>check</span> قالب محفوظ</span>}
-          </div>
-        </div>
-        <div style={{ padding: '16px 24px', background: '#f9fafb', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer' }}>إلغاء</button>
-          <button onClick={() => onSend(message)} style={{ padding: '8px 24px', background: '#25d366', color: '#fff', borderRadius: 8, fontWeight: 700, border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>smartphone</span> إرسال</button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // ============================== Approved Tab ==============================
 const ApprovedTab: React.FC<{ records: TardinessRow[]; onRefresh: () => void; schoolSettings: Record<string, string>; stageFilter: string }> = ({ records, onRefresh, schoolSettings, stageFilter }) => {
@@ -263,22 +244,19 @@ const ApprovedTab: React.FC<{ records: TardinessRow[]; onRefresh: () => void; sc
       {/* ★ فلاتر مدمجة في بطاقة واحدة */}
       <div style={{ background: '#fff', padding: 12, borderRadius: 12, border: '1px solid #e5e7eb', marginBottom: 12 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="ابحث بالاسم..." style={{ width: 180, height: 34, padding: '0 10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }} />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="ابحث بالاسم..." style={{ width: 180, padding: '6px 12px', border: '2px solid #d1d5db', borderRadius: 12, fontSize: 13 }} />
           <select value={gradeFilter} onChange={e => { setGradeFilter(e.target.value); setClassFilter(''); }} style={{ height: 34, padding: '0 8px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb' }}><option value="">كل الصفوف</option>{grades.map(g => <option key={g} value={g}>{g}</option>)}</select>
           <select value={classFilter} onChange={e => setClassFilter(e.target.value)} style={{ height: 34, padding: '0 8px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb' }}><option value="">كل الفصول</option>{classes.map(c => <option key={c} value={c}>{c}</option>)}</select>
           <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ height: 34, padding: '0 8px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb' }}><option value="">كل الأنواع</option>{Object.entries(TARDINESS_TYPES).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}</select>
-          <div style={{ display: 'flex', gap: 2, background: '#f3f4f6', borderRadius: 8, padding: 2 }}>
-            <button onClick={() => setViewMode('cards')} style={{ padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? '#dc2626' : '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: 18 }}>grid_view</span></button>
-            <button onClick={() => setViewMode('table')} style={{ padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? '#dc2626' : '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: 18 }}>table_rows</span></button>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 8, paddingTop: 8, borderTop: '1px solid #f3f4f6', alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af' }}>فترة:</span>
-          <input type="text" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="من تاريخ (هجري)" style={{ height: 30, padding: '0 8px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 12, width: 130 }} />
+          <div style={{ width: 1, height: 20, background: '#e5e7eb' }} />
+          <HijriDatePicker value={dateFrom} onChange={setDateFrom} placeholder="من تاريخ" accentColor="#dc2626" />
           <span style={{ fontSize: 12, color: '#9ca3af' }}>إلى</span>
-          <input type="text" value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="إلى تاريخ (هجري)" style={{ height: 30, padding: '0 8px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 12, width: 130 }} />
-          {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ padding: '2px 8px', background: 'none', color: '#9ca3af', border: 'none', cursor: 'pointer', fontSize: 11 }}><span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>clear</span> مسح</button>}
+          <HijriDatePicker value={dateTo} onChange={setDateTo} placeholder="إلى تاريخ" accentColor="#dc2626" />
           <span style={{ fontSize: 10, color: '#9ca3af', marginRight: 'auto' }}>{allFilteredRecords.length} سجل</span>
+          <div style={{ display: 'flex', gap: 2, background: '#f3f4f6', borderRadius: 8, padding: 2 }}>
+            <button onClick={() => setViewMode('cards')} style={{ padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? '#dc2626' : '#9ca3af', fontSize: 12, fontWeight: 700 }}>بطاقات</button>
+            <button onClick={() => setViewMode('table')} style={{ padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? '#dc2626' : '#9ca3af', fontSize: 12, fontWeight: 700 }}>جدول</button>
+          </div>
         </div>
       </div>
 

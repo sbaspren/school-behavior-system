@@ -13,11 +13,13 @@ import TabBar from '../../components/shared/TabBar';
 import ActionBar from '../../components/shared/ActionBar';
 import FloatingBar from '../../components/shared/FloatingBar';
 import EmptyState from '../../components/shared/EmptyState';
+import HijriDatePicker from '../../components/shared/HijriDatePicker';
 import ActionIcon from '../../components/shared/ActionIcon';
 import InputModal from '../../components/shared/InputModal';
 import StudentSelector from '../../components/shared/StudentSelector';
 import FilterBtn from '../../components/shared/FilterBtn';
 import LoadingSpinner from '../../components/shared/LoadingSpinner';
+import SendMessageModal from '../../components/shared/SendMessageModal';
 import { printForm, printListReport, PrintFormData, ListReportRow, FormId as PrintFormId } from '../../utils/printTemplates';
 import { toIndic, formatClass, classToLetter } from '../../utils/printUtils';
 import { usePageData, getHijriDate } from '../../hooks/usePageData';
@@ -61,6 +63,7 @@ const ViolationsPage: React.FC = () => {
         title={`المخالفات السلوكية${stageName ? ' — ' + stageName : ''}`}
         subtitle={hijriDate}
         gradient="linear-gradient(135deg, #4f46e5, #6366f1)"
+        accentColor="#4f46e5" variant="outlined"
         stats={[
           { icon: 'gavel', label: 'مخالفات اليوم', value: todayViolations.length, color: '#ef4444' },
           { icon: 'bar_chart', label: 'إجمالي المخالفات', value: filteredByStage.length, color: '#8b5cf6' },
@@ -423,24 +426,26 @@ const TodayTab: React.FC<{
         <DawatModal violation={dawatModal} onClose={() => setDawatModal(null)} schoolSettings={schoolSettings} />
       )}
 
-      {/* Message Editor Modal */}
+      {/* Message Editor Modal — unified */}
       {messageModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.6)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-          <div style={{ background: '#fff', borderRadius: '20px', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', width: '100%', maxWidth: '500px', padding: '24px' }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: 700 }}>تعديل رسالة الواتساب</h3>
-            <p style={{ margin: '0 0 8px', fontSize: '14px', color: '#6b7280' }}>الطالب: {messageModal.studentName}</p>
-            <textarea value={messageText} onChange={(e) => setMessageText(e.target.value)} rows={8}
-              style={{ width: '100%', padding: '12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }} />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
-              <button onClick={() => setMessageModal(null)} style={{ padding: '8px 16px', color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer' }}>إلغاء</button>
-              <button onClick={handleSendWithMessage} disabled={sendingId === messageModal.id} style={{
-                padding: '8px 24px', background: '#25d366', color: '#fff', borderRadius: '8px', fontWeight: 700, border: 'none', cursor: 'pointer',
-              }}>
-                {sendingId === messageModal.id ? 'جاري الإرسال...' : <><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال</>}
-              </button>
-            </div>
-          </div>
-        </div>
+        <SendMessageModal
+          studentName={messageModal.studentName}
+          mobile={messageModal.mobile}
+          defaultMessage={messageText}
+          templateType="مخالفة"
+          templatePlaceholders={{ '{اسم_الطالب}': messageModal.studentName, '{المخالفة}': messageModal.description || '', '{الدرجة}': String(messageModal.degree || ''), '{الحسم}': String(messageModal.deduction || ''), '{التاريخ}': messageModal.hijriDate || '' }}
+          onSend={async (msg) => {
+            setSendingId(messageModal.id);
+            try {
+              const res = await violationsApi.sendWhatsApp(messageModal.id, { message: msg });
+              if (res.data?.data?.success) { showSuccess('تم إرسال الرسالة'); setMessageModal(null); onRefresh(); }
+              else showError(res.data?.message || 'فشل الإرسال');
+            } catch { showError('خطأ في الاتصال'); }
+            finally { setSendingId(null); }
+          }}
+          onClose={() => setMessageModal(null)}
+          sending={sendingId === messageModal.id}
+        />
       )}
     </>
   );
@@ -588,30 +593,8 @@ const ApprovedTab: React.FC<{
 
   return (
     <>
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="بحث بالاسم أو رقم الطالب..."
-          style={{ flex: 1, minWidth: '200px', height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px' }} />
-        <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); }}
-          style={{ height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', background: '#fff' }}>
-          <option value="">كل الصفوف</option>
-          {grades.map((g) => <option key={g} value={g}>{g}</option>)}
-        </select>
-        <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}
-          style={{ height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', background: '#fff' }}>
-          <option value="">كل الفصول</option>
-          {classes.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={degreeFilter} onChange={(e) => setDegreeFilter(Number(e.target.value))}
-          style={{ height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '14px', background: '#fff' }}>
-          <option value={0}>كل الدرجات</option>
-          {[1, 2, 3, 4, 5].map((d) => <option key={d} value={d}>الدرجة {DEGREE_LABELS[d].label}</option>)}
-        </select>
-        <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '8px', padding: '2px' }}>
-          <button onClick={() => setViewMode('cards')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? '#dc2626' : '#6b7280', fontWeight: 700, fontSize: '13px' }}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>view_carousel</span> بطاقات</button>
-          <button onClick={() => setViewMode('table')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? '#dc2626' : '#6b7280', fontWeight: 700, fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>assignment</span> جدول</button>
-        </div>
+      {/* أزرار الإجراءات */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <button onClick={handlePrintArchive} style={btnOutline('#4f46e5')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
         <button onClick={handleSendAllUnsent} disabled={sendingAll} style={{...btnOutline('#4f46e5'), opacity: sendingAll ? 0.6 : 1}}>
           {sendingAll ? 'جاري الإرسال...' : <><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال الكل</>}
@@ -619,38 +602,37 @@ const ApprovedTab: React.FC<{
         <button onClick={handlePrintContactReport} style={btnOutline('#4f46e5')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>contact_phone</span> تقرير التواصل</button>
       </div>
 
-      {/* Quick Degree Filter Buttons */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={() => setDegreeFilter(0)} style={{
-          padding: '4px 12px', borderRadius: '8px', border: degreeFilter === 0 ? '2px solid #4b5563' : '1px solid #d1d5db',
-          background: degreeFilter === 0 ? '#f3f4f6' : '#fff', color: '#4b5563', fontWeight: 700, fontSize: '12px', cursor: 'pointer',
-        }}>الكل ({violations.length})</button>
-        {[1, 2, 3, 4, 5].map((d) => {
-          const count = violations.filter((v) => v.degree === d).length;
-          const info = DEGREE_LABELS[d];
-          return (
-            <button key={d} onClick={() => setDegreeFilter(degreeFilter === d ? 0 : d)} style={{
-              padding: '4px 12px', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer',
-              background: degreeFilter === d ? info.bg : '#fff',
-              color: degreeFilter === d ? info.color : info.color + '99',
-              border: degreeFilter === d ? `2px solid ${info.color}` : `1px solid ${info.color}40`,
-            }}>درجة {d} ({count})</button>
-          );
-        })}
-        <span style={{ marginRight: 'auto', fontSize: '12px', color: '#9ca3af' }}>{allFilteredRecords.length} مخالفة | {studentGroups.length} طالب</span>
-      </div>
-
-      {/* Date range filter */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '13px', fontWeight: 700, color: '#6b7280' }}>الفترة:</span>
-        <input type="text" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} placeholder="من تاريخ (هجري)"
-          style={{ height: '34px', padding: '0 10px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '13px', width: '140px' }} />
-        <input type="text" value={dateTo} onChange={(e) => setDateTo(e.target.value)} placeholder="إلى تاريخ (هجري)"
-          style={{ height: '34px', padding: '0 10px', border: '2px solid #d1d5db', borderRadius: '12px', fontSize: '13px', width: '140px' }} />
-        {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(''); setDateTo(''); }}
-            style={{ height: '34px', padding: '0 12px', background: '#fee2e2', color: '#dc2626', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}>مسح</button>
-        )}
+      {/* فلاتر مدمجة في بطاقة واحدة */}
+      <div style={{ background: '#fff', padding: 12, borderRadius: 12, border: '1px solid #e5e7eb', marginBottom: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="ابحث بالاسم..."
+            style={{ width: 180, padding: '6px 12px', border: '2px solid #d1d5db', borderRadius: 12, fontSize: 13 }} />
+          <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); }}
+            style={{ height: 34, padding: '0 8px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb' }}>
+            <option value="">كل الصفوف</option>
+            {grades.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}
+            style={{ height: 34, padding: '0 8px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb' }}>
+            <option value="">كل الفصول</option>
+            {classes.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <div style={{ width: 1, height: 20, background: '#e5e7eb' }} />
+          <HijriDatePicker value={dateFrom} onChange={setDateFrom} placeholder="من تاريخ" accentColor="#4f46e5" />
+          <span style={{ fontSize: 12, color: '#9ca3af' }}>إلى</span>
+          <HijriDatePicker value={dateTo} onChange={setDateTo} placeholder="إلى تاريخ" accentColor="#4f46e5" />
+          <select value={degreeFilter} onChange={(e) => setDegreeFilter(Number(e.target.value))}
+            style={{ height: 34, padding: '0 8px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb' }}>
+            <option value={0}>كل المستويات</option>
+            {[1, 2, 3, 4, 5].map((d) => <option key={d} value={d}>الدرجة {DEGREE_LABELS[d].label}</option>)}
+          </select>
+          <span style={{ fontSize: 10, color: '#9ca3af', marginRight: 'auto' }}>{allFilteredRecords.length} مخالفة | {studentGroups.length} طالب</span>
+          <div style={{ display: 'flex', gap: 2, background: '#f3f4f6', borderRadius: 8, padding: 2 }}>
+            <button onClick={() => setViewMode('cards')} style={{ padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? '#4f46e5' : '#9ca3af', fontSize: 12, fontWeight: 700 }}>بطاقات</button>
+            <button onClick={() => setViewMode('table')} style={{ padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? '#4f46e5' : '#9ca3af', fontSize: 12, fontWeight: 700 }}>جدول</button>
+          </div>
+        </div>
       </div>
 
       {studentGroups.length === 0 ? (

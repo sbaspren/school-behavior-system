@@ -19,3 +19,5 @@ export { default as StageSelector } from './StageSelector';
 export { default as InputModal } from './InputModal';
 export { default as StudentSelector } from './StudentSelector';
 export type { StudentOption } from './StudentSelector';
+export { default as SendMessageModal } from './SendMessageModal';
+export type { SendMessageModalProps, SendChannel } from './SendMessageModal';
