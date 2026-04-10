@@ -623,13 +623,6 @@ const StructureTab: React.FC<StructureTabProps> = ({ stages: initialStages, scho
                   <input type="checkbox" checked={stage.isEnabled} onChange={() => toggleStage(stage.stage)} />
                   <span style={{ fontWeight: 700, color: '#1f2937' }}>{stageInfo?.name || stage.stage}</span>
                 </label>
-                {isSecondary && (
-                  <select value={secondarySystem} onChange={(e) => setSecondarySystem(e.target.value)}
-                    style={{ padding: '6px 12px', border: '2px solid #d1d5db', borderRadius: '8px', fontSize: '14px', background: '#fff' }}>
-                    <option value="Semester">فصلي</option>
-                    <option value="Tracks">مسارات</option>
-                  </select>
-                )}
               </div>
 
               {/* Grades */}
