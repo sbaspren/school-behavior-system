@@ -14,7 +14,7 @@ import { absenceApi, AbsenceData } from '../../api/absence';
 import { parentExcuseApi, ParentExcuseRow } from '../../api/parentExcuse';
 import { StageConfigData } from '../../api/settings';
 import { showSuccess, showError } from '../../components/shared/Toast';
-import { SETTINGS_STAGES, SCHOOL_DAYS, SECTION_THEMES, PERIODS, sortClasses } from '../../utils/constants';
+import { SETTINGS_STAGES, SCHOOL_DAYS, SECTION_THEMES, PERIODS, sortClasses, btnOutline } from '../../utils/constants';
 import { printForm, PrintFormData, FormId, printListReport, ListReportRow } from '../../utils/printTemplates';
 import { toIndic, escapeHtml, getTodayDates, formatClass, sortByClass, sortGrades, sortByGradeClass, classToLetter } from '../../utils/printUtils';
 import { usePageData, getHijriDate } from '../../hooks/usePageData';
@@ -1453,22 +1453,22 @@ const ApprovedTab: React.FC<{ records: CumulativeRow[]; dailyRecords: AbsenceRow
 
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button onClick={() => noorFileRef.current?.click()} disabled={importing} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#7c3aed', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <button onClick={() => noorFileRef.current?.click()} disabled={importing} style={{...btnOutline('#ea580c'), opacity: importing ? 0.6 : 1}}>
           <span className="material-symbols-outlined" style={{fontSize:16}}>cloud_upload</span> {importing ? 'جاري الاستيراد...' : 'استيراد نور'}
         </button>
-        <button onClick={() => setConfirmDeleteNoor(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#dc2626', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <button onClick={() => setConfirmDeleteNoor(true)} style={btnOutline('#ea580c')}>
           <span className="material-symbols-outlined" style={{fontSize:16}}>delete_sweep</span> حذف بيانات نور
         </button>
-        <button onClick={handlePrint} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#4f46e5', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <button onClick={handlePrint} style={btnOutline('#ea580c')}>
           <span className="material-symbols-outlined" style={{fontSize:16}}>print</span> طباعة القوائم
         </button>
-        <button onClick={handleBulkSend} disabled={sending} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#2563eb', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <button onClick={handleBulkSend} disabled={sending} style={{...btnOutline('#ea580c'), opacity: sending ? 0.6 : 1}}>
           <span className="material-symbols-outlined" style={{fontSize:16}}>send</span> إرسال
         </button>
-        <button onClick={handlePrintDiscipline} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#059669', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <button onClick={handlePrintDiscipline} style={btnOutline('#ea580c')}>
           <span className="material-symbols-outlined" style={{fontSize:16}}>print</span> طباعة المنضبطين
         </button>
-        <button onClick={handlePrintContactReport} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#0d9488', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <button onClick={handlePrintContactReport} style={btnOutline('#ea580c')}>
           <span className="material-symbols-outlined" style={{fontSize:16}}>contact_phone</span> تقرير التواصل
         </button>
       </div>

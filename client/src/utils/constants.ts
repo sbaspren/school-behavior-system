@@ -1,3 +1,4 @@
+import React from 'react';
 import type { StageConfigData } from '../api/settings';
 
 // Exact stage/grade mappings — أسماء مطابقة لنظام نور
@@ -227,4 +228,15 @@ export type SectionName = keyof typeof SECTION_THEMES;
 /** فلترة المراحل المفعلة التي تحتوي على صفوف وفصول */
 export function filterEnabledStages(stages: StageConfigData[]): StageConfigData[] {
   return stages.filter(s => s.isEnabled && s.grades.some(g => g.isEnabled && g.classCount > 0));
+}
+
+/** ستايل زر موحد — outline بلون القسم */
+export function btnOutline(sectionColor: string): React.CSSProperties {
+  return {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '9px 18px', borderRadius: 12, fontFamily: 'inherit',
+    fontSize: 13, fontWeight: 600, cursor: 'pointer',
+    background: '#fff', color: sectionColor, border: `1.5px solid ${sectionColor}`,
+    transition: 'all 0.2s', whiteSpace: 'nowrap',
+  };
 }

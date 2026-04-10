@@ -6,7 +6,7 @@ import { studentsApi } from '../../api/students';
 import { StageConfigData } from '../../api/settings';
 import { whatsappApi } from '../../api/whatsapp';
 import { showSuccess, showError } from '../../components/shared/Toast';
-import { SETTINGS_STAGES, DEGREE_LABELS, TYPE_LABELS, FORM_PATTERNS, getRequiredForms, sortGrades, sortClasses } from '../../utils/constants';
+import { SETTINGS_STAGES, DEGREE_LABELS, TYPE_LABELS, FORM_PATTERNS, getRequiredForms, sortGrades, sortClasses, btnOutline } from '../../utils/constants';
 import type { FormId } from '../../utils/constants';
 import PageHero from '../../components/shared/PageHero';
 import TabBar from '../../components/shared/TabBar';
@@ -338,17 +338,17 @@ const TodayTab: React.FC<{
             <table className="data-table">
               <thead>
                 <tr style={{ background: '#4f46e5' }}>
-                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center', width: '40px' }}>
+                  <th style={{ width: '40px' }}>
                     <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0}
                       onChange={toggleSelectAll} />
                   </th>
-                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>الطالب</th>
-                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>الصف</th>
-                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>المخالفة</th>
-                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>الدرجة</th>
-                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>الحسم</th>
-                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>الإرسال</th>
-                  <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>إجراءات</th>
+                  <th style={{ textAlign: 'right' }}>الطالب</th>
+                  <th style={{ textAlign: 'right' }}>الصف</th>
+                  <th style={{ textAlign: 'right' }}>المخالفة</th>
+                  <th>الدرجة</th>
+                  <th>الحسم</th>
+                  <th>الإرسال</th>
+                  <th>إجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -356,34 +356,34 @@ const TodayTab: React.FC<{
                   const degreeInfo = DEGREE_LABELS[v.degree] || DEGREE_LABELS[1];
                   return (
                     <tr key={v.id} style={{ borderBottom: '1px solid #f3f4f6', background: selected.has(v.id) ? '#eff6ff' : (idx % 2 === 0 ? '#fff' : '#f9fafb') }}>
-                      <td style={{ padding: '10px 12px', fontSize: '13px' }}>
+                      <td>
                         <input type="checkbox" checked={selected.has(v.id)} onChange={() => toggleSelect(v.id)} />
                       </td>
-                      <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: 600 }}>{v.studentName}</td>
-                      <td style={{ padding: '10px 12px', fontSize: '13px' }}>{v.grade} / {classToLetter(v.className)}</td>
-                      <td style={{ padding: '10px 12px', fontSize: '13px' }}>
+                      <td style={{ fontWeight: 600, textAlign: 'right' }}>{v.studentName}</td>
+                      <td style={{ textAlign: 'right' }}>{v.grade} / {classToLetter(v.className)}</td>
+                      <td style={{ textAlign: 'right' }}>
                         <div style={{ color: '#374151' }}>{v.description || v.violationCode}</div>
                       </td>
-                      <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>
+                      <td>
                         <span style={{ padding: '4px 10px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700, background: degreeInfo.bg, color: degreeInfo.color }}>
                           {degreeInfo.label}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>
+                      <td>
                         {v.deduction > 0 ? (
                           <span style={{ fontWeight: 700, color: '#dc2626' }}>-{v.deduction}</span>
                         ) : (
                           <span style={{ color: '#9ca3af' }}>-</span>
                         )}
                       </td>
-                      <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>
+                      <td>
                         {v.isSent ? (
                           <span style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>تم</span>
                         ) : (
                           <span style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>لم يُرسل</span>
                         )}
                       </td>
-                      <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>
+                      <td>
                         {(() => {
                           const reqForms = getRequiredForms(v.procedures);
                           const hl = (formId: FormId) => reqForms.has(formId);
@@ -615,11 +615,11 @@ const ApprovedTab: React.FC<{
           <button onClick={() => setViewMode('cards')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: viewMode === 'cards' ? '#fff' : 'transparent', color: viewMode === 'cards' ? '#dc2626' : '#6b7280', fontWeight: 700, fontSize: '13px' }}><span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>view_carousel</span> بطاقات</button>
           <button onClick={() => setViewMode('table')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: viewMode === 'table' ? '#fff' : 'transparent', color: viewMode === 'table' ? '#dc2626' : '#6b7280', fontWeight: 700, fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>assignment</span> جدول</button>
         </div>
-        <button onClick={handlePrintArchive} style={{ height: '38px', padding: '0 16px', background: '#4f46e5', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
-        <button onClick={handleSendAllUnsent} disabled={sendingAll} style={{ height: '38px', padding: '0 16px', background: '#25d366', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '13px', opacity: sendingAll ? 0.6 : 1 }}>
+        <button onClick={handlePrintArchive} style={btnOutline('#4f46e5')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
+        <button onClick={handleSendAllUnsent} disabled={sendingAll} style={{...btnOutline('#4f46e5'), opacity: sendingAll ? 0.6 : 1}}>
           {sendingAll ? 'جاري الإرسال...' : <><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال الكل</>}
         </button>
-        <button onClick={handlePrintContactReport} style={{ height: '38px', padding: '0 16px', background: '#0d9488', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>contact_phone</span> تقرير التواصل</button>
+        <button onClick={handlePrintContactReport} style={btnOutline('#4f46e5')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>contact_phone</span> تقرير التواصل</button>
       </div>
 
       {/* Quick Degree Filter Buttons */}
@@ -859,8 +859,8 @@ const StudentDetailModal: React.FC<{
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button onClick={handleSendAll} style={{ padding: '6px 12px', background: '#25d366', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '12px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال الكل</button>
-            <button onClick={handlePrintAll} style={{ padding: '6px 12px', background: '#4f46e5', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '12px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
+            <button onClick={handleSendAll} style={btnOutline('#4f46e5')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال الكل</button>
+            <button onClick={handlePrintAll} style={btnOutline('#4f46e5')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
             <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span></button>
           </div>
         </div>
@@ -1041,7 +1041,7 @@ const PositiveTab: React.FC<{ stageFilter: string; schoolSettings: Record<string
             { label: 'السلوك المتمايز', width: '30%' }, { label: 'الدرجة', width: '10%' },
             { label: 'المعلم', width: '18%' },
           ], rows: printRows }, schoolSettings as any);
-        }} style={{ padding: '6px 12px', background: '#059669', color: '#fff', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
+        }} style={btnOutline('#4f46e5')}>
           <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة
         </button>
       </div>
@@ -1329,7 +1329,7 @@ const CompensationTab: React.FC<{
             }}>{f.label}</button>
           ))}
         </div>
-        <button onClick={handlePrint} style={{ padding: '6px 16px', background: '#4f46e5', color: '#fff', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
+        <button onClick={handlePrint} style={btnOutline('#4f46e5')}>
           <span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة
         </button>
       </div>
@@ -1573,7 +1573,7 @@ const ReportsTab: React.FC<{
             <input type="date" value={repDateTo} onChange={(e) => setRepDateTo(e.target.value)}
               style={{ height: '38px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '10px', fontSize: '14px' }} />
           </div>
-          <button onClick={handlePrintReport} style={{ height: '38px', padding: '0 20px', background: '#4f46e5', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة التقرير</button>
+          <button onClick={handlePrintReport} style={btnOutline('#4f46e5')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة التقرير</button>
         </div>
       </div>
 

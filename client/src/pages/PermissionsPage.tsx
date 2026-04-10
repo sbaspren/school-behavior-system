@@ -13,7 +13,7 @@ import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { permissionsApi, PermissionData } from '../api/permissions';
 import { StageConfigData } from '../api/settings';
 import { showSuccess, showError } from '../components/shared/Toast';
-import { SETTINGS_STAGES, PERMISSION_REASONS, sortGrades, sortClasses } from '../utils/constants';
+import { SETTINGS_STAGES, PERMISSION_REASONS, sortGrades, sortClasses, btnOutline } from '../utils/constants';
 import { printForm, printListReport, ListReportRow } from '../utils/printTemplates';
 import { printDailyReport } from '../utils/printDaily';
 import { toIndic, escapeHtml, getTodayDates, classToLetter } from '../utils/printUtils';
@@ -179,30 +179,30 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
           <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
             <table className="data-table">
               <thead><tr style={{ background: '#0891b2' }}>
-                <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center', width: '40px' }}><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} /></th>
-                <th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>الطالب</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>الصف</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>وقت الخروج</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>السبب</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>المستلم</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>التأكيد</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>الإرسال</th><th style={{ padding: '10px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, textAlign: 'center' }}>إجراءات</th>
+                <th style={{ width: '40px' }}><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} /></th>
+                <th style={{ textAlign: 'right' }}>الطالب</th><th style={{ textAlign: 'right' }}>الصف</th><th>وقت الخروج</th><th style={{ textAlign: 'right' }}>السبب</th><th style={{ textAlign: 'right' }}>المستلم</th><th>التأكيد</th><th>الإرسال</th><th>إجراءات</th>
               </tr></thead>
               <tbody>
                 {filtered.map((r, idx) => (
                   <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6', background: selected.has(r.id) ? '#eff6ff' : (idx % 2 === 0 ? '#fff' : '#f9fafb') }}>
-                    <td style={{ padding: '10px 12px', fontSize: '13px' }}><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
-                    <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: 600 }}>{r.studentName}</td>
-                    <td style={{ padding: '10px 12px', fontSize: '13px' }}>{r.grade} / {classToLetter(r.className)}</td>
-                    <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>{r.exitTime || '-'}</td>
-                    <td style={{ padding: '10px 12px', fontSize: '13px' }}><span style={{ padding: '4px 10px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700, background: '#f5f3ff', color: '#7c3aed' }}>{r.reason || '-'}</span></td>
-                    <td style={{ padding: '10px 12px', fontSize: '13px' }}>{r.receiver || '-'}</td>
-                    <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>
+                    <td><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} /></td>
+                    <td style={{ fontWeight: 600, textAlign: 'right' }}>{r.studentName}</td>
+                    <td style={{ textAlign: 'right' }}>{r.grade} / {classToLetter(r.className)}</td>
+                    <td>{r.exitTime || '-'}</td>
+                    <td style={{ textAlign: 'right' }}><span style={{ padding: '4px 10px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700, background: '#f5f3ff', color: '#7c3aed' }}>{r.reason || '-'}</span></td>
+                    <td style={{ textAlign: 'right' }}>{r.receiver || '-'}</td>
+                    <td>
                       {r.confirmationTime ? (
                         <span style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>{r.confirmationTime}</span>
                       ) : (
                         <button onClick={() => handleConfirmExit(r)} style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', background: '#fef3c7', color: '#92400e', fontWeight: 700, border: 'none', cursor: 'pointer' }}>تأكيد</button>
                       )}
                     </td>
-                    <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>
+                    <td>
                       {r.isSent ? <span style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>تم</span>
                         : <span style={{ padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>لم يُرسل</span>}
                     </td>
-                    <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center' }}>
+                    <td>
                       <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                         <button onClick={() => handleSendWhatsApp(r)} disabled={sendingId === r.id} title="إرسال واتساب" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: sendingId === r.id ? 'not-allowed' : 'pointer', fontSize: '14px', opacity: sendingId === r.id ? 0.5 : 1 }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span></button>
                         <button onClick={() => { printForm('tawtheeq_tawasol', { studentName: r.studentName, grade: r.grade + ' / ' + classToLetter(r.className), contactType: 'استئذان', contactReason: 'استئذان: ' + (r.reason || ''), violationDate: r.hijriDate || '', contactResult: r.isSent ? 'تم التواصل' : 'لم يتم الإرسال' }, schoolSettings as any); }} title="توثيق تواصل" style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>contact_phone</span></button>
@@ -501,8 +501,8 @@ const StudentDetailModal: React.FC<{ studentName: string; records: PermissionRow
         <div style={{ padding: '16px 24px', background: 'linear-gradient(to left, #f5f3ff, #ede9fe)', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div><h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>{studentName}</h3><span style={{ fontSize: '14px', color: '#6b7280' }}>إجمالي الاستئذان: <strong>{records.length}</strong></span></div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={handleSendAll} style={{ padding: '6px 12px', background: '#25d366', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '12px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال الكل</button>
-            <button onClick={handlePrint} style={{ padding: '6px 12px', background: '#4f46e5', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '12px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
+            <button onClick={handleSendAll} style={btnOutline('#0891b2')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>smartphone</span> إرسال الكل</button>
+            <button onClick={handlePrint} style={btnOutline('#0891b2')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>
             <button onClick={onClose} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span></button>
           </div>
         </div>
@@ -598,7 +598,7 @@ const ReportsTab: React.FC<{ records: PermissionRow[]; schoolSettings: Record<st
             <select value={gradeFilter} onChange={(e) => { setGradeFilter(e.target.value); setClassFilter(''); }} style={{ width: '160px', height: '40px', padding: '0 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px' }}><option value="">كل الصفوف</option>{grades.map((g) => <option key={g} value={g}>{g}</option>)}</select></div>
           <div><label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>الفصل</label>
             <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} disabled={!gradeFilter} style={{ width: '120px', height: '40px', padding: '0 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', background: gradeFilter ? '#fff' : '#f9fafb' }}><option value="">كل الفصول</option>{classes.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
-          <button onClick={handlePrint} style={{ height: '40px', padding: '0 20px', background: '#4f46e5', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '14px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة التقرير</button>
+          <button onClick={handlePrint} style={btnOutline('#0891b2')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة التقرير</button>
         </div>
       </div>
 
