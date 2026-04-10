@@ -469,6 +469,7 @@ const ApprovedTab: React.FC<{
   const [detailStudent, setDetailStudent] = useState<{ studentId: number; studentName: string } | null>(null);
   const [bulkSelected, setBulkSelected] = useState<Set<number>>(new Set());
   const [sendingAll, setSendingAll] = useState(false);
+  const [bulkPreviewOpen, setBulkPreviewOpen] = useState(false);
 
   // Filtered flat list (for print)
   const allFilteredRecords = useMemo(() => {
@@ -519,14 +520,17 @@ const ApprovedTab: React.FC<{
     }, schoolSettings as any);
   };
 
-  // إرسال كل غير المرسلين (sendApprovedViolations)
-  const handleSendAllUnsent = async () => {
-    const unsent = allFilteredRecords.filter((v) => !v.isSent);
-    if (unsent.length === 0) { showError('جميع المخالفات تم إرسالها'); return; }
-    if (!window.confirm(`سيتم إرسال ${unsent.length} إشعار واتساب. متابعة؟`)) return;
+  // إرسال كل غير المرسلين — يفتح معاينة أولاً
+  const unsentViolations = allFilteredRecords.filter((v) => !v.isSent);
+  const handleSendAllUnsent = () => {
+    if (unsentViolations.length === 0) { showError('جميع المخالفات تم إرسالها'); return; }
+    setBulkPreviewOpen(true);
+  };
+  const handleConfirmSendAll = async () => {
+    setBulkPreviewOpen(false);
     setSendingAll(true);
     try {
-      const res = await violationsApi.sendWhatsAppBulk(unsent.map((v) => v.id));
+      const res = await violationsApi.sendWhatsAppBulk(unsentViolations.map((v) => v.id));
       if (res.data?.data) {
         showSuccess(`تم إرسال ${res.data.data.sentCount} من ${res.data.data.total} | فشل: ${res.data.data.failedCount}`);
         onRefresh();
@@ -593,6 +597,18 @@ const ApprovedTab: React.FC<{
 
   return (
     <>
+      {bulkPreviewOpen && (
+        <SendMessageModal
+          studentName="إشعار مخالفة سلوكية"
+          defaultMessage={`المكرم ولي أمر الطالب / {اسم_الطالب}\nالسلام عليكم ورحمة الله وبركاته\nنود إبلاغكم بتسجيل مخالفة سلوكية بحق ابنكم:\nالمخالفة: {المخالفة}\nالدرجة: {الدرجة}\nالحسم: {الحسم} درجة\nالتاريخ: {التاريخ}\nنأمل التواصل مع المدرسة لمتابعة الموضوع.`}
+          onSend={handleConfirmSendAll}
+          onClose={() => setBulkPreviewOpen(false)}
+          sending={sendingAll}
+          isBulkPreview
+          bulkCount={unsentViolations.length}
+          enableSms={false}
+        />
+      )}
       {/* أزرار الإجراءات */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <button onClick={handlePrintArchive} style={btnOutline('#4f46e5')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة</button>

@@ -82,6 +82,7 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
   const [confirmDelete, setConfirmDelete] = useState<PermissionRow | null>(null);
   const [sendingId, setSendingId] = useState<number | null>(null);
   const [msgEditorRow, setMsgEditorRow] = useState<PermissionRow | null>(null);
+  const [bulkPreviewOpen, setBulkPreviewOpen] = useState(false);
 
   const filtered = useMemo(() => {
     if (!search) return records;
@@ -142,10 +143,14 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
   const pendingCount = filtered.filter(r => !r.confirmationTime).length;
   const sentCount = filtered.filter(r => r.isSent).length;
 
-  const handleSendAll = async () => {
-    const unsent = filtered.filter(r => !r.isSent);
-    if (unsent.length === 0) { showError('تم إرسال الجميع سابقاً'); return; }
-    try { const res = await permissionsApi.sendWhatsAppBulk(unsent.map(r => r.id)); if (res.data?.data) { showSuccess(`تم إرسال ${res.data.data.sentCount} من ${unsent.length}`); onRefresh(); } }
+  const unsentFiltered = filtered.filter(r => !r.isSent);
+  const handleSendAll = () => {
+    if (unsentFiltered.length === 0) { showError('تم إرسال الجميع سابقاً'); return; }
+    setBulkPreviewOpen(true);
+  };
+  const handleConfirmSendAll = async () => {
+    setBulkPreviewOpen(false);
+    try { const res = await permissionsApi.sendWhatsAppBulk(unsentFiltered.map(r => r.id)); if (res.data?.data) { showSuccess(`تم إرسال ${res.data.data.sentCount} من ${unsentFiltered.length}`); onRefresh(); } }
     catch { showError('خطأ'); }
   };
 
@@ -231,6 +236,17 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
         </div>
       )}
 
+      {bulkPreviewOpen && (
+        <SendMessageModal
+          studentName="إشعار استئذان"
+          defaultMessage={`المكرم ولي أمر الطالب / {اسم_الطالب}\nالسلام عليكم\nنود إبلاغكم باستئذان ابنكم للخروج من المدرسة\nالسبب: {السبب}\nوقت الخروج: {وقت_الخروج}\nالتاريخ: {التاريخ}`}
+          onSend={handleConfirmSendAll}
+          onClose={() => setBulkPreviewOpen(false)}
+          isBulkPreview
+          bulkCount={unsentFiltered.length}
+          enableSms={false}
+        />
+      )}
       {msgEditorRow && (() => {
         const hijriDate = msgEditorRow.hijriDate || new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { year: 'numeric', month: 'long', day: 'numeric' });
         const defaultMsg = `ولي أمر الطالب / ${msgEditorRow.studentName}\nالسلام عليكم ورحمة الله وبركاته\nنفيدكم بأن ابنكم قد تم تسجيل استئذان له بتاريخ ${hijriDate}${msgEditorRow.exitTime ? ` الساعة ${msgEditorRow.exitTime}` : ''}${msgEditorRow.reason ? ` بسبب: ${msgEditorRow.reason}` : ''}${msgEditorRow.receiver ? `\nوتم تسليمه إلى: ${msgEditorRow.receiver}` : ''}.\nمع تحيات إدارة المدرسة`;

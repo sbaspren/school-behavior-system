@@ -109,6 +109,7 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
   const [lateTime, setLateTime] = useState('');
   const [includeLink, setIncludeLink] = useState(true);
   const [bulkSending, setBulkSending] = useState(false);
+  const [bulkPreviewOpen, setBulkPreviewOpen] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ sent: 0, total: 0 });
   const [bulkTypeModal, setBulkTypeModal] = useState(false);
   const [bulkType, setBulkType] = useState('FullDay');
@@ -303,21 +304,24 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
     finally { setSendingId(null); }
   };
 
-  // Bulk send with progress
-  const handleSendAll = async () => {
-    const unsent = filtered.filter(r => !r.isSent);
-    if (unsent.length === 0) { showError('تم إرسال جميع الإشعارات سابقاً'); return; }
-    if (!window.confirm(`سيتم إرسال إشعارات لـ ${unsent.length} ولي أمر.\nالتقدير: ~${Math.ceil(unsent.length * 10 / 60)} دقائق\n\nهل تريد المتابعة؟`)) return;
+  // Bulk send — يفتح معاينة أولاً
+  const unsentAbsence = filtered.filter(r => !r.isSent);
+  const handleSendAll = () => {
+    if (unsentAbsence.length === 0) { showError('تم إرسال جميع الإشعارات سابقاً'); return; }
+    setBulkPreviewOpen(true);
+  };
+  const handleConfirmSendAll = async () => {
+    setBulkPreviewOpen(false);
     setBulkSending(true);
-    setBulkProgress({ sent: 0, total: unsent.length });
+    setBulkProgress({ sent: 0, total: unsentAbsence.length });
     let sentCount = 0;
-    for (const r of unsent) {
+    for (const r of unsentAbsence) {
       try { await absenceApi.sendWhatsApp(r.id, {}); sentCount++; } catch { /* skip */ }
-      setBulkProgress({ sent: sentCount, total: unsent.length });
+      setBulkProgress({ sent: sentCount, total: unsentAbsence.length });
     }
     setBulkSending(false);
-    showSuccess(`تم الإرسال: ${sentCount} ناجح من ${unsent.length}`);
-    setRecords(prev => prev.map(rec => unsent.some(u => u.id === rec.id) ? { ...rec, isSent: true } : rec));
+    showSuccess(`تم الإرسال: ${sentCount} ناجح من ${unsentAbsence.length}`);
+    setRecords(prev => prev.map(rec => unsentAbsence.some(u => u.id === rec.id) ? { ...rec, isSent: true } : rec));
   };
 
   // Bulk actions for selected
@@ -562,6 +566,18 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
       )}
 
       {/* Message Editor Modal */}
+      {bulkPreviewOpen && (
+        <SendMessageModal
+          studentName="إشعار غياب"
+          defaultMessage={`إشعار غياب\n\nالسلام عليكم ورحمة الله وبركاته\nولي أمر الطالب: {اسم_الطالب}\n\nنفيدكم بأن ابنكم {اسم_الطالب} غائب اليوم\nالتاريخ: {اليوم} - {التاريخ}\nالصف: {الصف} - الفصل: {الفصل}\n\nلتقديم عذر الغياب:\n{رابط_العذر}\nالرابط صالح لمدة ٢٤ ساعة فقط\n\nمع تحيات إدارة المدرسة`}
+          onSend={handleConfirmSendAll}
+          onClose={() => setBulkPreviewOpen(false)}
+          sending={bulkSending}
+          isBulkPreview
+          bulkCount={unsentAbsence.length}
+          enableSms={false}
+        />
+      )}
       {msgEditorRow && <AbsenceSendModal row={msgEditorRow} onSend={handleConfirmSend} onClose={() => setMsgEditorRow(null)} sending={sendingId === msgEditorRow.id} includeLink={includeLink} onToggleLink={() => setIncludeLink(!includeLink)} settings={settings} />}
 
       {/* Delete Confirm */}

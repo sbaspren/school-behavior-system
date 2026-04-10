@@ -29,12 +29,17 @@ export interface SendMessageModalProps {
   message?: string;
   /** Controlled mode: callback عند تغيير الرسالة */
   onMessageChange?: (message: string) => void;
+  /** وضع المعاينة الجماعية — يعرض القالب مع placeholders للتأكيد قبل الإرسال */
+  isBulkPreview?: boolean;
+  /** عدد المستلمين في الإرسال الجماعي */
+  bulkCount?: number;
 }
 
 const SendMessageModal: React.FC<SendMessageModalProps> = ({
   studentName, mobile, defaultMessage, templateType, templatePlaceholders,
   onSend, onClose, sending = false, extraContent, enableSms = true,
   message: controlledMessage, onMessageChange,
+  isBulkPreview = false, bulkCount = 0,
 }) => {
   const isControlled = controlledMessage !== undefined;
   const [internalMessage, setInternalMessage] = useState(defaultMessage);
@@ -44,9 +49,9 @@ const SendMessageModal: React.FC<SendMessageModalProps> = ({
   const [templateLoaded, setTemplateLoaded] = useState(false);
   const [templateSaved, setTemplateSaved] = useState(false);
 
-  // تحميل القالب المحفوظ عند الفتح
+  // تحميل القالب المحفوظ عند الفتح (لا يعمل في وضع المعاينة)
   useEffect(() => {
-    if (!templateType) return;
+    if (!templateType || isBulkPreview) return;
     templatesApi.getByType(templateType).then(res => {
       const saved = res.data?.data?.template;
       if (saved && templatePlaceholders) {
@@ -102,16 +107,27 @@ const SendMessageModal: React.FC<SendMessageModalProps> = ({
           <div>
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#15803d', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 18, verticalAlign: 'middle' }}>
-                {channel === 'sms' ? 'sms' : 'smartphone'}
+                {isBulkPreview ? 'groups' : (channel === 'sms' ? 'sms' : 'smartphone')}
               </span>
-              إرسال رسالة {channel === 'sms' ? 'SMS' : 'واتساب'}
+              {isBulkPreview ? 'معاينة الإرسال الجماعي' : `إرسال رسالة ${channel === 'sms' ? 'SMS' : 'واتساب'}`}
             </h3>
-            <span style={{ fontSize: 13, color: '#4b5563' }}>{studentName} - {mobile || 'لا يوجد رقم'}</span>
+            {isBulkPreview
+              ? <span style={{ fontSize: 13, color: '#4b5563' }}>{studentName}</span>
+              : <span style={{ fontSize: 13, color: '#4b5563' }}>{studentName} - {mobile || 'لا يوجد رقم'}</span>
+            }
           </div>
           <button onClick={onClose} style={closeBtnStyle}>
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
           </button>
         </div>
+
+        {/* Bulk count bar */}
+        {isBulkPreview && bulkCount > 0 && (
+          <div style={{ padding: '10px 24px', background: '#eff6ff', borderBottom: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#2563eb' }}>send</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#1e40af' }}>سيتم الإرسال لـ {bulkCount} ولي أمر</span>
+          </div>
+        )}
 
         {/* Channel Selector */}
         {enableSms && (
@@ -140,12 +156,13 @@ const SendMessageModal: React.FC<SendMessageModalProps> = ({
           <textarea
             value={message}
             onChange={e => setMessage(e.target.value)}
+            readOnly={isBulkPreview}
             rows={8}
-            style={textareaStyle}
+            style={{ ...textareaStyle, ...(isBulkPreview ? { background: '#f9fafb', color: '#374151' } : {}) }}
           />
 
-          {/* Template buttons */}
-          {templateType && (
+          {/* Template buttons — hidden in bulk preview */}
+          {templateType && !isBulkPreview && (
             <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <button onClick={handleSaveTemplate} style={templateBtnStyle}>
                 <span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>bookmark</span> حفظ كقالب
@@ -176,7 +193,12 @@ const SendMessageModal: React.FC<SendMessageModalProps> = ({
               opacity: (sending || !message.trim()) ? 0.6 : 1,
             }}
           >
-            {sending ? 'جاري الإرسال...' : (
+            {sending ? 'جاري الإرسال...' : isBulkPreview ? (
+              <>
+                <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>send</span>
+                {' '}تأكيد الإرسال ({bulkCount})
+              </>
+            ) : (
               <>
                 <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>
                   {channel === 'sms' ? 'sms' : 'smartphone'}

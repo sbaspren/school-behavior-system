@@ -112,6 +112,7 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
   const [typesModalOpen, setTypesModalOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [msgEditorRow, setMsgEditorRow] = useState<NoteRow | null>(null);
+  const [bulkPreviewOpen, setBulkPreviewOpen] = useState(false);
 
   const initialLoadDone = useRef(false);
   const loadToday = useCallback(async () => {
@@ -177,12 +178,16 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
     finally { setSending(false); }
   };
 
-  const handleSendAll = async () => {
-    const unsent = records.filter(r => !r.isSent);
-    if (unsent.length === 0) { showError('جميع السجلات تم إرسالها'); return; }
+  const unsentNotes = records.filter(r => !r.isSent);
+  const handleSendAll = () => {
+    if (unsentNotes.length === 0) { showError('جميع السجلات تم إرسالها'); return; }
+    setBulkPreviewOpen(true);
+  };
+  const handleConfirmSendAll = async () => {
+    setBulkPreviewOpen(false);
     setSending(true);
     try {
-      const res = await educationalNotesApi.sendWhatsAppBulk(unsent.map(r => r.id));
+      const res = await educationalNotesApi.sendWhatsAppBulk(unsentNotes.map(r => r.id));
       if (res.data?.data) showSuccess(`تم: ${res.data.data.success} ناجح، ${res.data.data.fail} فاشل`);
       loadToday();
       onRefresh();
@@ -308,6 +313,18 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
       {modalOpen && <AddNoteModal stage={stage} noteTypes={noteTypes} onClose={() => setModalOpen(false)} onSaved={() => { setModalOpen(false); loadToday(); onRefresh(); }} />}
       {typesModalOpen && <NoteTypesModal stage={stage} types={noteTypes} onClose={() => setTypesModalOpen(false)} onSaved={(t) => { onTypesUpdated(t); setTypesModalOpen(false); }} />}
 
+      {bulkPreviewOpen && (
+        <SendMessageModal
+          studentName="إشعار ملاحظة تربوية"
+          defaultMessage={`ولي أمر الطالب: {اسم_الطالب}\nالسلام عليكم ورحمة الله وبركاته\nنود إبلاغكم بتسجيل ملاحظة تربوية على ابنكم:\nنوع الملاحظة: {نوع_الملاحظة}\nالتفاصيل: {التفاصيل}\nالتاريخ: {التاريخ}\nنأمل متابعة الطالب والتواصل مع المدرسة.`}
+          onSend={handleConfirmSendAll}
+          onClose={() => setBulkPreviewOpen(false)}
+          sending={sending}
+          isBulkPreview
+          bulkCount={unsentNotes.length}
+          enableSms={false}
+        />
+      )}
       {msgEditorRow && (() => {
         const hijriDate = msgEditorRow.hijriDate || new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { year: 'numeric', month: 'long', day: 'numeric' });
         const defaultMsg = `ولي أمر الطالب / ${msgEditorRow.studentName}\nالسلام عليكم ورحمة الله وبركاته\nنفيدكم بأنه تم تسجيل ملاحظة تربوية على ابنكم:\nنوع الملاحظة: ${msgEditorRow.noteType}${msgEditorRow.details ? `\nالتفاصيل: ${msgEditorRow.details}` : ''}\nالتاريخ: ${hijriDate}\nنأمل متابعة الطالب والتعاون معنا.\nمع تحيات إدارة المدرسة`;

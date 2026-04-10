@@ -72,6 +72,7 @@ const TodayTab: React.FC<{ records: TardinessRow[]; allRecords: TardinessRow[]; 
   const [sendingId, setSendingId] = useState<number | null>(null);
   const [msgEditorRow, setMsgEditorRow] = useState<TardinessRow | null>(null);
   const [sendingAll, setSendingAll] = useState(false);
+  const [bulkPreviewOpen, setBulkPreviewOpen] = useState(false);
 
   const filtered = useMemo(() => {
     let list = records;
@@ -86,12 +87,16 @@ const TodayTab: React.FC<{ records: TardinessRow[]; allRecords: TardinessRow[]; 
   const handleSendWhatsApp = (r: TardinessRow) => setMsgEditorRow(r);
   const handleConfirmSend = async (r: TardinessRow, message: string) => { setSendingId(r.id); setMsgEditorRow(null); try { const res = await tardinessApi.sendWhatsApp(r.id, { message }); if (res.data?.data?.success) { showSuccess('تم إرسال الرسالة'); onRefresh(); } else showError(res.data?.message || 'فشل الإرسال'); } catch { showError('خطأ'); } finally { setSendingId(null); } };
 
-  // ★ إرسال للجميع
-  const handleSendAll = async () => {
-    const unsent = records.filter(r => !r.isSent);
-    if (unsent.length === 0) { showError('جميع السجلات تم إرسالها'); return; }
+  // ★ إرسال للجميع — يفتح معاينة أولاً
+  const unsentRecords = records.filter(r => !r.isSent);
+  const handleSendAll = () => {
+    if (unsentRecords.length === 0) { showError('جميع السجلات تم إرسالها'); return; }
+    setBulkPreviewOpen(true);
+  };
+  const handleConfirmSendAll = async () => {
+    setBulkPreviewOpen(false);
     setSendingAll(true);
-    try { const res = await tardinessApi.sendWhatsAppBulk(unsent.map(r => r.id)); if (res.data?.data) { showSuccess(`تم إرسال ${res.data.data.sentCount} من ${res.data.data.total}`); onRefresh(); } } catch { showError('خطأ في الإرسال الجماعي'); } finally { setSendingAll(false); }
+    try { const res = await tardinessApi.sendWhatsAppBulk(unsentRecords.map(r => r.id)); if (res.data?.data) { showSuccess(`تم إرسال ${res.data.data.sentCount} من ${res.data.data.total}`); onRefresh(); } } catch { showError('خطأ في الإرسال الجماعي'); } finally { setSendingAll(false); }
   };
   const handleSendBulk = async () => { if (selected.size === 0) return; try { const res = await tardinessApi.sendWhatsAppBulk(Array.from(selected)); if (res.data?.data) { showSuccess(`تم إرسال ${res.data.data.sentCount} من ${res.data.data.total}`); setSelected(new Set()); onRefresh(); } } catch { showError('خطأ'); } };
   const handleDeleteBulk = async () => { if (selected.size === 0) return; try { const res = await tardinessApi.deleteBulk(Array.from(selected)); if (res.data?.data) { showSuccess(`تم حذف ${res.data.data.deletedCount} سجل`); setSelected(new Set()); onRefresh(); } } catch { showError('خطأ'); } };
@@ -171,6 +176,18 @@ const TodayTab: React.FC<{ records: TardinessRow[]; allRecords: TardinessRow[]; 
         </div>
       )}
       {confirmDelete && <ConfirmModal title="تأكيد حذف سجل التأخر" message={`هل أنت متأكد من حذف سجل التأخر للطالب ${confirmDelete.studentName}؟`} onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} />}
+      {bulkPreviewOpen && (
+        <SendMessageModal
+          studentName="إشعار تأخر"
+          defaultMessage={`المكرم ولي أمر الطالب / {اسم_الطالب}\nالسلام عليكم\nنود إبلاغكم بتسجيل {نوع_التأخر} على ابنكم بتاريخ {التاريخ}\nنأمل التواصل مع المدرسة.`}
+          onSend={handleConfirmSendAll}
+          onClose={() => setBulkPreviewOpen(false)}
+          sending={sendingAll}
+          isBulkPreview
+          bulkCount={unsentRecords.length}
+          enableSms={false}
+        />
+      )}
       {msgEditorRow && (() => {
         const hijriDate = msgEditorRow.hijriDate || new Date().toLocaleDateString('ar-SA-u-ca-islamic-umalqura', { year: 'numeric', month: 'long', day: 'numeric' });
         const typeLabel = TARDINESS_TYPES[msgEditorRow.tardinessType]?.label || msgEditorRow.tardinessType;
