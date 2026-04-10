@@ -39,7 +39,6 @@ public class SettingsController : ControllerBase
         // تنظيف المدخلات
         var schoolName = SanitizeInput(request.SchoolName);
         var eduAdmin = SanitizeInput(request.EduAdmin);
-        var eduDept = SanitizeInput(request.EduDept);
         var imageUrl = (request.LetterheadImageUrl ?? "").Trim();
 
         // التحقق من الروابط (مطابق للنظام الأصلي)
@@ -56,7 +55,6 @@ public class SettingsController : ControllerBase
         {
             SchoolName = schoolName,
             EduAdmin = eduAdmin,
-            EduDept = eduDept,
             LetterheadMode = letterheadMode,
             LetterheadImageUrl = imageUrl,
             Letterhead = SanitizeInput(request.Letterhead),

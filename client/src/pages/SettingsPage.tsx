@@ -26,7 +26,7 @@ const SettingsPage: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<Tab>('school');
   const [loading, setLoading] = useState(true);
   const [schoolData, setSchoolData] = useState<SchoolSettingsData>({
-    schoolName: '', eduAdmin: '', eduDept: '',
+    schoolName: '', eduAdmin: '',
     letterheadMode: 'Image', letterheadImageUrl: '',
     whatsAppMode: 'PerStage', schoolType: 'Boys', secondarySystem: 'Semester',
     managerName: '', deputyName: '', counselorName: '', committeeName: '', wakeelName: '', wakeelSignature: '',

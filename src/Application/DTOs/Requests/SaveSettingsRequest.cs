@@ -4,7 +4,6 @@ public class SaveSettingsRequest
 {
     public string SchoolName { get; set; } = "";
     public string EduAdmin { get; set; } = "";
-    public string EduDept { get; set; } = "";
     public string LetterheadMode { get; set; } = "text";        // text | image
     public string LetterheadImageUrl { get; set; } = "";
     public string? Letterhead { get; set; }

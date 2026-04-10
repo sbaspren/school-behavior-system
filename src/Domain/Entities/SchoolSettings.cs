@@ -9,7 +9,6 @@ public class SchoolSettings : ITenantEntity
     public int TenantId { get; set; } = 1;
     public string SchoolName { get; set; } = "";
     public string EduAdmin { get; set; } = "";
-    public string EduDept { get; set; } = "";
     public LetterheadMode LetterheadMode { get; set; } = LetterheadMode.Text;
     public string LetterheadImageUrl { get; set; } = "";
     public string Letterhead { get; set; } = "";

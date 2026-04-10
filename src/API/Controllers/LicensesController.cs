@@ -95,7 +95,6 @@ public class LicensesController : ControllerBase
             {
                 SchoolName = req.SchoolName?.Trim() ?? "مدرسة جديدة",
                 EduAdmin = "",
-                EduDept = "",
                 TenantId = tenant.Id,
             });
         }

@@ -47,7 +47,7 @@ const FORM_CATEGORIES: FormCategory[] = [
 ];
 
 interface ViolationOption { id: number; description: string; degree: number; hijriDate: string; procedures: string; deduction: number; }
-interface SchoolSettingsData { schoolName: string; eduAdmin: string; eduDept: string; letterheadMode: string; letterheadImageUrl: string; }
+interface SchoolSettingsData { schoolName: string; eduAdmin: string; letterheadMode: string; letterheadImageUrl: string; }
 
 // ===== Utilities =====
 const getDayName = (d?: Date) => ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][(d || new Date()).getDay()];

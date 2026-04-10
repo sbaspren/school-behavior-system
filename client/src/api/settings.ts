@@ -4,7 +4,6 @@ export interface SchoolSettingsData {
   id?: number;
   schoolName: string;
   eduAdmin: string;
-  eduDept: string;
   letterheadMode: string;
   letterheadImageUrl: string;
   whatsAppMode: string;

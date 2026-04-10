@@ -3,7 +3,6 @@ import React from 'react';
 interface Props {
   schoolName: string;
   eduAdmin: string;
-  eduDept: string;
   letterheadMode: string;
   letterheadImageUrl?: string;
 }
@@ -11,7 +10,6 @@ interface Props {
 const SchoolHeader: React.FC<Props> = ({
   schoolName,
   eduAdmin,
-  eduDept,
   letterheadMode,
   letterheadImageUrl,
 }) => {

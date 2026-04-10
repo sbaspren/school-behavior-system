@@ -104,7 +104,6 @@ export function buildLetterheadHtml(settings: {
   letterheadImageUrl?: string;
   schoolName?: string;
   eduAdmin?: string;
-  eduDept?: string;
   letterhead?: string;
 }): string {
   if (settings.letterheadMode === 'image' || settings.letterheadMode === 'Image') {

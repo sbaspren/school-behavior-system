@@ -91,7 +91,6 @@ export interface SchoolSettings {
   letterheadImageUrl?: string;
   schoolName?: string;
   eduAdmin?: string;
-  eduDept?: string;
   letterhead?: string;
 }
 

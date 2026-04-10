@@ -45,7 +45,6 @@ public class SchoolConfigService : ISchoolConfigService
         {
             existing.SchoolName = settings.SchoolName;
             existing.EduAdmin = settings.EduAdmin;
-            existing.EduDept = settings.EduDept;
             existing.LetterheadMode = settings.LetterheadMode;
             existing.LetterheadImageUrl = settings.LetterheadImageUrl;
             existing.Letterhead = settings.Letterhead;
