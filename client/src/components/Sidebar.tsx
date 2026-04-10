@@ -47,9 +47,9 @@ const NAV_ITEMS: NavGroup[] = [
 
   // ── 4. أقل استخداماً ──
   { section: 'خدمات أخرى', items: [
-    { path: '/communication', label: 'سجل التواصل', icon: 'history', iconColor: '#3b82f6', roles: ['Admin', 'Deputy', 'Counselor'] },
     { path: '/academic', label: 'التحصيل الدراسي', icon: 'analytics', iconColor: '#14b8a6' },
-    { path: '/whatsapp', label: 'أدوات واتساب', icon: 'chat', iconColor: '#22c55e', roles: ['Admin', 'Deputy'] },
+    { path: '/communication', label: 'سجل التواصل', icon: 'history', iconColor: '#3b82f6', roles: ['Admin', 'Deputy', 'Counselor'] },
+    { path: '/whatsapp', label: 'أدوات التواصل', icon: 'chat', iconColor: '#22c55e', roles: ['Admin', 'Deputy'] },
     { path: '/portfolio', label: 'ملف الإنجاز واللجان', icon: 'folder_special', iconColor: '#1B3A6B', roles: ['Admin', 'Deputy', 'Counselor'] },
   ]},
 
@@ -140,13 +140,11 @@ const Sidebar: React.FC<Props> = ({ open, role, schoolName, whatsAppMode }) => {
                   padding: '8px 12px', borderRadius: '8px',
                   textDecoration: 'none', fontSize: '13px',
                   color: isActive ? '#fff' : 'var(--c-text-secondary)',
-                  background: isActive ? 'var(--c-primary)' : 'transparent',
                   fontWeight: isActive ? 600 : 500,
                   marginBottom: '2px',
                   transition: 'all 0.15s cubic-bezier(.4,0,.2,1)',
-                  borderRight: isActive ? '3px solid var(--c-primary-dark)' : '3px solid transparent',
-                  boxShadow: isActive ? '0 2px 8px var(--c-primary-glow)' : 'none',
-                })}
+                  '--nav-color': item.iconColor,
+                } as React.CSSProperties)}
               >
                 {({ isActive }) => (
                   <>
