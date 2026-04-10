@@ -434,10 +434,8 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
 
       {/* Table with grouped display */}
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-xl" style={{ textAlign: 'center', padding: '64px 20px' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>event_available</span>
-          <p style={{ color: '#6b7280', marginTop: 16, fontSize: 18 }}>لا يوجد غياب مسجل اليوم</p>
-          <p style={{ color: '#9ca3af', fontSize: 14, marginTop: 8 }}>استيراد ملف منصة أو أضف يدوياً من الأزرار أعلاه</p>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
+          <EmptyState icon="event_available" title="لا يوجد غياب مسجل اليوم" description="استيراد ملف منصة أو أضف يدوياً من الأزرار أعلاه" />
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
@@ -1013,10 +1011,8 @@ const ExcusesTab: React.FC<{ excuses: ParentExcuseRow[]; onRefresh: () => void; 
 
       {/* Excuses list */}
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-xl" style={{ textAlign: 'center', padding: '64px 20px' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>assignment_late</span>
-          <p style={{ color: '#6b7280', marginTop: 16, fontSize: 18 }}>لا توجد أعذار</p>
-          <p style={{ color: '#9ca3af', fontSize: 14, marginTop: 8 }}>ستظهر هنا الأعذار المقدمة من أولياء الأمور</p>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
+          <EmptyState icon="assignment_late" title="لا توجد أعذار" description="ستظهر هنا الأعذار المقدمة من أولياء الأمور" />
         </div>
       ) : groupedByDay ? (
         /* Grouped by day view (when week filter) */
@@ -1548,9 +1544,8 @@ const ApprovedTab: React.FC<{ records: CumulativeRow[]; dailyRecords: AbsenceRow
 
       {/* Content */}
       {sorted.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>assignment</span>
-          <p style={{ color: '#6b7280', marginTop: 12, fontSize: 16 }}>لا توجد سجلات مطابقة</p>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
+          <EmptyState icon="assignment" title="لا توجد سجلات مطابقة" />
         </div>
       ) : viewMode === 'cards' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>

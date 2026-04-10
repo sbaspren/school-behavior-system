@@ -6,6 +6,7 @@ import { communicationApi } from '../api/communication';
 import { SETTINGS_STAGES } from '../utils/constants';
 import { useAppContext } from '../hooks/useAppContext';
 import { escapeHtml, toIndic, getTodayDates, classToLetter } from '../utils/printUtils';
+import EmptyState from '../components/shared/EmptyState';
 import { printListReport, printSingleDetail, ListReportRow } from '../utils/printTemplates';
 
 const MESSAGE_TYPES: Record<string, { label: string; color: string; bg: string }> = {
@@ -283,11 +284,7 @@ const CommunicationPage: React.FC = () => {
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>جاري التحميل...</div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 20px', color: '#9ca3af' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '48px', display: 'block', marginBottom: '12px' }}>mark_email_read</span>
-          <p style={{ fontSize: '16px', fontWeight: 500 }}>لا توجد رسائل مسجلة</p>
-          <p style={{ fontSize: '13px' }}>سيتم تسجيل الرسائل هنا عند إرسالها من الأقسام الأخرى</p>
-        </div>
+        <EmptyState icon="mail" title="لا توجد رسائل مسجلة" description="سيتم تسجيل الرسائل هنا عند إرسالها من الأقسام الأخرى" />
       ) : (
         <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e7eb', overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>

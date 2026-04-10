@@ -328,9 +328,6 @@ const TodayTab: React.FC<{
           icon="verified_user"
           title="لا توجد مخالفات لهذا اليوم"
           description="لم يتم تسجيل أي مخالفة سلوكية اليوم"
-          actionLabel="تسجيل مخالفة"
-          actionIcon="add_circle"
-          sectionColor="#4f46e5"
         />
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
@@ -657,10 +654,7 @@ const ApprovedTab: React.FC<{
       </div>
 
       {studentGroups.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 20px', color: '#9ca3af' }}>
-          <p style={{ fontSize: '48px' }}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>assignment</span></p>
-          <p style={{ fontSize: '18px', fontWeight: 500 }}>لا توجد مخالفات تراكمية</p>
-        </div>
+        <EmptyState icon="assignment" title="لا توجد مخالفات تراكمية" />
       ) : viewMode === 'cards' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
           {studentGroups.map(({ student, violations: vList }) => {
@@ -1047,10 +1041,7 @@ const PositiveTab: React.FC<{ stageFilter: string; schoolSettings: Record<string
       </div>
 
       {studentGroups.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 20px', color: '#9ca3af' }}>
-          <p style={{ fontSize: '48px' }}><span className="material-symbols-outlined" style={{ fontSize: '48px' }}>star</span></p>
-          <p style={{ fontSize: '18px', fontWeight: 500 }}>لا توجد سجلات سلوك متمايز</p>
-        </div>
+        <EmptyState icon="star" title="لا توجد سجلات سلوك متمايز" />
       ) : viewMode === 'cards' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
           {studentGroups.map(({ student, records: recs }) => {
@@ -1339,10 +1330,7 @@ const CompensationTab: React.FC<{
       </div>
 
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 20px', color: '#9ca3af' }}>
-          <p style={{ fontSize: '48px' }}><span className="material-symbols-outlined" style={{ fontSize: '48px' }}>emoji_events</span></p>
-          <p style={{ fontSize: '18px', fontWeight: 500 }}>لا توجد مخالفات قابلة للتعويض</p>
-        </div>
+        <EmptyState icon="emoji_events" title="لا توجد مخالفات قابلة للتعويض" />
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
           <div style={{ maxHeight: '500px', overflowY: 'auto' }}>

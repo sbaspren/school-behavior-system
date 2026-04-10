@@ -211,10 +211,8 @@ const LateTab: React.FC<{ records: LateRow[]; onRefresh: () => void; onAdd: () =
       </div>
 
       {records.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-          <p style={{ fontSize: '48px', margin: 0 }}><span className="material-symbols-outlined" style={{fontSize:16,color:'#15803d'}}>check_circle</span></p>
-          <p style={{ fontSize: '18px', color: '#6b7280', fontWeight: 500, margin: '12px 0 4px' }}>لا يوجد متأخرون اليوم</p>
-          <p style={{ fontSize: '13px', color: '#9ca3af' }}>اضغط على "تسجيل تأخر" لإضافة طالب متأخر</p>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
+          <EmptyState icon="event_available" title="لا يوجد متأخرون اليوم" description="اضغط على «تسجيل تأخر» لإضافة طالب متأخر" />
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
@@ -323,10 +321,8 @@ const PermissionTab: React.FC<{ records: PermRow[]; onRefresh: () => void; onAdd
       </div>
 
       {records.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>door_front</span>
-          <p style={{ fontSize: '18px', color: '#6b7280', fontWeight: 500, margin: '12px 0 4px' }}>لا يوجد مستأذنون اليوم</p>
-          <p style={{ fontSize: '13px', color: '#9ca3af' }}>اضغط على "تسجيل استئذان" لإضافة طالب مستأذن</p>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
+          <EmptyState icon="door_front" title="لا يوجد مستأذنون اليوم" description="اضغط على «تسجيل استئذان» لإضافة طالب مستأذن" />
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
@@ -445,9 +441,8 @@ const ArchiveTab: React.FC<{ stageId: string | null; schoolSettings: Record<stri
           <p style={{ fontSize: '16px', color: '#6b7280' }}>اختر النوع والتاريخ ثم اضغط بحث</p>
         </div>
       ) : archiveRecords.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '48px', display: 'block', color: '#9ca3af' }}>search</span>
-          <p style={{ fontSize: '16px', color: '#6b7280' }}>لا توجد سجلات في هذه الفترة</p>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
+          <EmptyState icon="search" title="لا توجد سجلات في هذه الفترة" />
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>

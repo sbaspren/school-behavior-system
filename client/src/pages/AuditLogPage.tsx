@@ -4,6 +4,7 @@ import { studentsApi } from '../api/students';
 import { printForm, printListReport, PrintFormData, ListReportRow } from '../utils/printTemplates';
 import { useAppContext } from '../hooks/useAppContext';
 import { toIndic, escapeHtml, classToLetter } from '../utils/printUtils';
+import EmptyState from '../components/shared/EmptyState';
 
 interface ViolationRecord {
   id: number;
@@ -253,7 +254,7 @@ const AuditLogPage: React.FC = () => {
         {loading ? (
           <div style={S.emptyState}>جاري تحميل السجل...</div>
         ) : filtered.length === 0 ? (
-          <div style={S.emptyState}>لا توجد مخالفات مطابقة</div>
+          <div style={S.emptyState}><EmptyState icon="search" title="لا توجد مخالفات مطابقة" /></div>
         ) : viewMode === 'cards' ? (
           /* Cards view — grouped by student */
           <div style={{ display: 'grid', gap: '16px' }}>
@@ -429,10 +430,8 @@ const S: Record<string, any> = {
     padding: '12px 16px', fontSize: '14px',
   },
   emptyState: {
-    textAlign: 'center' as const, padding: '64px 20px',
     background: '#fff', borderRadius: '12px',
     border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,.05)',
-    color: '#6b7280', fontSize: '15px',
   },
 };
 

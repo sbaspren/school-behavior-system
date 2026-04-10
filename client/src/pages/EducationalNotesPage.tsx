@@ -248,8 +248,8 @@ const TodayTab: React.FC<{ stage: string; noteTypes: string[]; onRefresh: () => 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>جاري التحميل...</div>
       ) : records.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-          <p style={{ color: '#9ca3af', fontSize: '18px' }}>لا توجد ملاحظات مسجلة اليوم</p>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
+          <EmptyState icon="menu_book" title="لا توجد ملاحظات مسجلة اليوم" />
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'auto' }}>
@@ -494,8 +494,8 @@ const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>جاري التحميل...</div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-          <p style={{ color: '#9ca3af' }}>لا توجد ملاحظات مطابقة</p>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
+          <EmptyState icon="search_off" title="لا توجد ملاحظات مطابقة" />
         </div>
       ) : viewMode === 'cards' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>

@@ -8,6 +8,7 @@ import type { StudentOption } from '../types';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { printListReport, ListReportRow } from '../utils/printTemplates';
 import { toIndic, escapeHtml, classToLetter } from '../utils/printUtils';
+import EmptyState from '../components/shared/EmptyState';
 
 // ═══════════════════════════════════════════════════════════════
 // صفحة سجل السلوك والمخالفات — مطابقة لـ JS_History.html
@@ -284,9 +285,8 @@ const HistoryPage: React.FC = () => {
 
       {/* Content */}
       {studentGroups.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 20px', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', color: '#9ca3af' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '48px', display: 'block', color: '#9ca3af' }}>search</span>
-          <p style={{ fontSize: '18px', fontWeight: 500 }}>لا توجد مخالفات مطابقة</p>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
+          <EmptyState icon="search" title="لا توجد مخالفات مطابقة" />
         </div>
       ) : viewMode === 'cards' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

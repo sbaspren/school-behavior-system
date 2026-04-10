@@ -173,7 +173,7 @@ const TodayTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; stag
       />
 
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 20px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>door_front</span><p style={{ fontSize: '18px', fontWeight: 500 }}>لا توجد حالات استئذان لهذا اليوم</p></div>
+        <EmptyState icon="door_front" title="لا توجد حالات استئذان لهذا اليوم" />
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
           <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
@@ -388,7 +388,7 @@ const ApprovedTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; s
       </div>
 
       {studentGroups.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 20px', color: '#9ca3af' }}><span className="material-symbols-outlined" style={{ fontSize: 64, color: '#d1d5db' }}>search_off</span><p style={{ fontSize: '18px', fontWeight: 500, marginTop: '8px' }}>لا توجد سجلات مطابقة</p></div>
+        <EmptyState icon="search_off" title="لا توجد سجلات مطابقة" />
       ) : viewMode === 'cards' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
           {studentGroups.map(({ student, records: rList }) => {

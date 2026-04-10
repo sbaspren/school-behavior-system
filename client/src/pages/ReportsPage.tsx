@@ -3,6 +3,7 @@ import { violationsApi } from '../api/violations';
 import { SETTINGS_STAGES, DEGREE_LABELS as DEGREE_LABELS_OBJ, DEGREE_LABEL_NAMES, sortGrades, sortClasses } from '../utils/constants';
 import { useAppContext } from '../hooks/useAppContext';
 import { classToLetter } from '../utils/printUtils';
+import EmptyState from '../components/shared/EmptyState';
 
 const DEGREE_COLORS: Record<number, string> = Object.fromEntries(
   Object.entries(DEGREE_LABELS_OBJ).map(([k, v]) => [Number(k), v.color])
@@ -91,7 +92,7 @@ const ReportsPage: React.FC = () => {
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px', color: '#9ca3af' }}>جاري التحميل...</div>
       ) : !data ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: '#9ca3af' }}>لا توجد بيانات</div>
+        <EmptyState icon="bar_chart" title="لا توجد بيانات" />
       ) : (
         <>
           {/* بطاقات الإحصائيات */}

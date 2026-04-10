@@ -126,10 +126,7 @@ const TodayTab: React.FC<{ records: TardinessRow[]; allRecords: TardinessRow[]; 
       />
 
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 20px', color: '#9ca3af' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 72, color: '#d1d5db' }}>event_available</span>
-          <p style={{ fontSize: 18, fontWeight: 500 }}>لا يوجد متأخرون اليوم</p>
-        </div>
+        <EmptyState icon="event_available" title="لا يوجد متأخرون اليوم" />
       ) : (
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
           <div style={{ maxHeight: 500, overflowY: 'auto' }}>
@@ -286,7 +283,7 @@ const ApprovedTab: React.FC<{ records: TardinessRow[]; onRefresh: () => void; sc
       </div>
 
       {studentGroups.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 20px', color: '#9ca3af', background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}><span className="material-symbols-outlined" style={{ fontSize: 60, color: '#d1d5db' }}>search_off</span><p style={{ fontSize: 16, fontWeight: 500, marginTop: 8 }}>لا توجد سجلات مطابقة</p></div>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}><EmptyState icon="search_off" title="لا توجد سجلات مطابقة" /></div>
       ) : viewMode === 'cards' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
           {studentGroups.map(({ student, records: rList }) => {
