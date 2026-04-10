@@ -428,7 +428,8 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ teacher, stages, onClose, o
     if (!civilId.trim()) { showError('السجل المدني مطلوب'); return; }
     if (!name.trim()) { showError('الاسم مطلوب'); return; }
     if (!/^[12]\d{9}$/.test(civilId.trim())) { showError('السجل المدني يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2'); return; }
-    if (mobile.trim() && !/^05\d{8}$/.test(mobile.trim())) { showError('رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05'); return; }
+    if (!mobile.trim()) { showError('رقم الجوال مطلوب'); return; }
+    if (!/^05\d{8}$/.test(mobile.trim())) { showError('رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05'); return; }
 
     setSaving(true);
     const data: TeacherData = {
@@ -503,7 +504,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ teacher, stages, onClose, o
 
           {/* Mobile */}
           <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '4px' }}>الجوال</label>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#4b5563', marginBottom: '4px' }}>الجوال *</label>
             <input type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="05XXXXXXXX"
               style={{ width: '100%', height: '44px', padding: '0 12px', border: '2px solid #d1d5db', borderRadius: '12px', boxSizing: 'border-box' }} />
           </div>

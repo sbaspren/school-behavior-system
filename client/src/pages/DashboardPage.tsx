@@ -910,7 +910,10 @@ const PrintItem: React.FC<{ item: NeedsPrintItem; onDismiss?: () => void }> = ({
 // ═══════ بطاقة الحصة الحالية ═══════
 const PeriodCard: React.FC<{ stageFilter: string }> = ({ stageFilter }) => {
   const [selectedPeriod, setSelectedPeriod] = React.useState<number | null>(null);
-  const [showStage, setShowStage] = React.useState<string>(''); // '' = both, 'م' or 'ث'
+  const [showStage, setShowStage] = React.useState<string>(() => {
+    if (stageFilter === 'Secondary' || stageFilter === 'ثانوي') return 'ث';
+    return 'م';
+  });
   const [, forceUpdate] = React.useReducer(x => x + 1, 0);
 
   // Auto-refresh every minute
@@ -957,13 +960,13 @@ const PeriodCard: React.FC<{ stageFilter: string }> = ({ stageFilter }) => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 8, padding: 3 }}>
-          {['', 'م', 'ث'].map(s => (
+          {['م', 'ث'].map(s => (
             <button key={s} onClick={() => setShowStage(s)} style={{
               padding: '5px 12px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', border: 'none',
               background: showStage === s ? '#4f46e5' : 'transparent',
               color: showStage === s ? 'white' : '#64748b',
               transition: 'all .2s ease',
-            }}>{s === '' ? 'الكل' : s === 'م' ? 'متوسط' : 'ثانوي'}</button>
+            }}>{s === 'م' ? 'متوسط' : 'ثانوي'}</button>
           ))}
         </div>
       </div>
