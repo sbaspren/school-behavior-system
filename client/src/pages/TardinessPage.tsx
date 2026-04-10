@@ -260,8 +260,8 @@ const ApprovedTab: React.FC<{ records: TardinessRow[]; onRefresh: () => void; sc
     <>
       {/* ★ أزرار: تحديث + طباعة القائمة + تقرير التواصل */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <button onClick={onRefresh} style={{ height: 34, padding: '0 12px', background: '#f3f4f6', color: '#374151', borderRadius: 8, border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>refresh</span> تحديث</button>
-        <button onClick={handlePrintArchive} style={{ height: 34, padding: '0 12px', background: '#7c3aed', color: '#fff', borderRadius: 8, border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>print</span> طباعة القائمة</button>
+        <button onClick={onRefresh} style={btnOutline('#dc2626')}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>refresh</span> تحديث</button>
+        <button onClick={handlePrintArchive} style={btnOutline('#dc2626')}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>print</span> طباعة القائمة</button>
         <button onClick={handlePrintContactReport} style={btnOutline('#dc2626')}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>contact_phone</span> تقرير التواصل</button>
       </div>
       {/* ★ فلاتر مدمجة في بطاقة واحدة */}

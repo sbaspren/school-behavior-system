@@ -1009,11 +1009,11 @@ const ExcusesTab: React.FC<{ excuses: ParentExcuseRow[]; onRefresh: () => void; 
               <option value="week">هذا الأسبوع</option>
               <option value="month">هذا الشهر</option>
             </select>
-            <button onClick={handlePrint} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: '#7c3aed', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
+            <button onClick={handlePrint} style={btnOutline('#ea580c')}>
               <span className="material-symbols-outlined" style={{fontSize:16}}>print</span> طباعة
             </button>
-            <button onClick={onRefresh} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: '#f9fafb', color: '#4b5563', borderRadius: 8, border: '1px solid #e5e7eb', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
-              <span className="material-symbols-outlined" style={{fontSize:16}}>refresh</span>
+            <button onClick={onRefresh} style={btnOutline('#ea580c')}>
+              <span className="material-symbols-outlined" style={{fontSize:16}}>refresh</span> تحديث
             </button>
           </div>
         </div>
