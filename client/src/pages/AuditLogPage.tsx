@@ -254,7 +254,7 @@ const AuditLogPage: React.FC = () => {
         {loading ? (
           <div style={S.emptyState}>جاري تحميل السجل...</div>
         ) : filtered.length === 0 ? (
-          <div style={S.emptyState}><EmptyState icon="search" title="لا توجد مخالفات مطابقة" /></div>
+          <EmptyState icon="search" title="لا توجد مخالفات مطابقة" />
         ) : viewMode === 'cards' ? (
           /* Cards view — grouped by student */
           <div style={{ display: 'grid', gap: '16px' }}>

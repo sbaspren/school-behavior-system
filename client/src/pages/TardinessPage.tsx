@@ -283,7 +283,7 @@ const ApprovedTab: React.FC<{ records: TardinessRow[]; onRefresh: () => void; sc
       </div>
 
       {studentGroups.length === 0 ? (
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}><EmptyState icon="search_off" title="لا توجد سجلات مطابقة" /></div>
+        <EmptyState icon="search_off" title="لا توجد سجلات مطابقة" />
       ) : viewMode === 'cards' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
           {studentGroups.map(({ student, records: rList }) => {
