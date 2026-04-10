@@ -13,7 +13,7 @@ import { educationalNotesApi } from '../api/educationalNotes';
 import { StageConfigData } from '../api/settings';
 import { templatesApi } from '../api/templates';
 import { showSuccess, showError } from '../components/shared/Toast';
-import { SETTINGS_STAGES, SECTION_THEMES, sortGrades, sortClasses } from '../utils/constants';
+import { SETTINGS_STAGES, SECTION_THEMES, sortGrades, sortClasses, btnOutline } from '../utils/constants';
 import { printForm } from '../utils/printTemplates';
 import { printDailyReport } from '../utils/printDaily';
 import { sortByClass, classToLetter } from '../utils/printUtils';
@@ -455,8 +455,8 @@ const ApprovedTab: React.FC<{ stage: string; noteTypes: string[]; schoolSettings
     <div>
       {/* Action bar */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
-        <button onClick={() => loadAll()} style={btnStyle('#f3f4f6', '#374151')}>تحديث</button>
-        <button onClick={printList} style={btnStyle('#7c3aed', '#fff')}>طباعة القائمة</button>
+        <button onClick={() => loadAll()} style={btnOutline(SECTION_THEMES.notes)}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span> تحديث</button>
+        <button onClick={printList} style={btnOutline(SECTION_THEMES.notes)}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة القائمة</button>
       </div>
 
       {/* Filters */}
@@ -685,7 +685,7 @@ const ReportsTab: React.FC<{ stage: string }> = ({ stage }) => {
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#6b7280', marginBottom: '4px' }}>إلى تاريخ</label>
           <input type="text" value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="هجري" style={{ ...selectStyle, width: '120px' }} />
         </div>
-        <button onClick={loadAll} style={{ ...btnStyle('#4f46e5', '#fff'), height: '40px' }}>تحديث</button>
+        <button onClick={loadAll} style={btnOutline(SECTION_THEMES.notes)}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span> تحديث</button>
       </div>
 
       {/* Stats cards */}

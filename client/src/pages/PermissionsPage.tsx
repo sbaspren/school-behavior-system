@@ -344,9 +344,9 @@ const ApprovedTab: React.FC<{ records: PermissionRow[]; onRefresh: () => void; s
     <>
       {/* أزرار — مطابق: تحديث + طباعة القائمة + تقرير التواصل */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
-        <button onClick={onRefresh} style={{ height: '34px', padding: '0 12px', background: '#f3f4f6', color: '#374151', borderRadius: '8px', border: '1px solid #d1d5db', fontWeight: 700, cursor: 'pointer', fontSize: '12px' }}><span className="material-symbols-outlined" style={{fontSize:14,verticalAlign:'middle'}}>refresh</span> تحديث</button>
-        <button onClick={handlePrintArchive} style={{ height: '34px', padding: '0 12px', background: '#7c3aed', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '12px' }}><span className="material-symbols-outlined" style={{fontSize:14,verticalAlign:'middle'}}>print</span> طباعة القائمة</button>
-        <button onClick={handlePrintContactReport} style={{ height: '34px', padding: '0 12px', background: '#16a34a', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '12px' }}><span className="material-symbols-outlined" style={{fontSize:14,verticalAlign:'middle'}}>contact_phone</span> تقرير التواصل</button>
+        <button onClick={onRefresh} style={btnOutline('#0891b2')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>refresh</span> تحديث</button>
+        <button onClick={handlePrintArchive} style={btnOutline('#0891b2')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>print</span> طباعة القائمة</button>
+        <button onClick={handlePrintContactReport} style={btnOutline('#0891b2')}><span className="material-symbols-outlined" style={{fontSize:16,verticalAlign:'middle'}}>contact_phone</span> تقرير التواصل</button>
       </div>
 
       {/* فلاتر */}

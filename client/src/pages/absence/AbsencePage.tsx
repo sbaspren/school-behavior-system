@@ -427,7 +427,7 @@ const TodayTab: React.FC<{ records: AbsenceRow[]; allRecords: AbsenceRow[]; onRe
           { icon: 'refresh', label: 'تحديث', variant: 'outline', onClick: onRefresh },
         ]}
         rightButtons={[
-          { icon: 'send', label: bulkSending ? `${bulkProgress.sent}/${bulkProgress.total}` : 'إرسال للجميع', variant: 'success', onClick: handleSendAll, disabled: bulkSending, id: 'btn-send-all' },
+          { icon: 'send', label: bulkSending ? `${bulkProgress.sent}/${bulkProgress.total}` : 'إرسال للجميع', variant: 'success', onClick: handleSendAll, disabled: bulkSending || filtered.filter(r => !r.isSent).length === 0, id: 'btn-send-all' },
           { icon: 'print', label: 'طباعة الكشف', variant: 'outline', onClick: () => handlePrintToday(true) },
         ]}
       />

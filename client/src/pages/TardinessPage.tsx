@@ -397,7 +397,7 @@ const ReportsTab: React.FC<{ records: TardinessRow[]; schoolSettings: Record<str
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end' }}>
           <div><label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>الصف</label><select value={gradeFilter} onChange={e => { setGradeFilter(e.target.value); setClassFilter(''); }} style={{ height: 40, width: 160, padding: '0 10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }}><option value="">كل الصفوف</option>{grades.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
           <div><label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>الفصل</label><select value={classFilter} onChange={e => setClassFilter(e.target.value)} disabled={!gradeFilter} style={{ height: 40, width: 130, padding: '0 10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, background: gradeFilter ? '#fff' : '#f9fafb' }}><option value="">كل الفصول</option>{classes.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-          <button onClick={handleUpdate} style={{ height: 40, padding: '0 24px', background: '#4f46e5', color: '#fff', borderRadius: 8, border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}><span className="material-symbols-outlined" style={{ fontSize: 18 }}>refresh</span> تحديث</button>
+          <button onClick={handleUpdate} style={btnOutline('#dc2626')}><span className="material-symbols-outlined" style={{ fontSize: 18 }}>refresh</span> تحديث</button>
         </div>
       </div>
       {/* ★ 4 بطاقات: إجمالي(أحمر) + طلاب(أزرق) + صباحي(أصفر) + حصة(بنفسجي) */}
@@ -428,7 +428,7 @@ const ReportsTab: React.FC<{ records: TardinessRow[]; schoolSettings: Record<str
             </div>))}</div>}</div>
         </div>
       </div>
-      <div style={{ marginTop: 16 }}><button onClick={handlePrint} style={{ padding: '8px 16px', background: '#4f46e5', color: '#fff', borderRadius: 8, border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>print</span> طباعة التقرير</button></div>
+      <div style={{ marginTop: 16 }}><button onClick={handlePrint} style={btnOutline('#dc2626')}><span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: 'middle' }}>print</span> طباعة التقرير</button></div>
     </>
   );
 };
