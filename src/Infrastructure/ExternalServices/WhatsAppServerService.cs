@@ -187,6 +187,48 @@ public class WhatsAppServerService : IWhatsAppServerService
         }
     }
 
+    /// <summary>
+    /// فصل جلسة من السيرفر الخارجي (best-effort).
+    /// يجرب endpoints شائعة في whatsapp-web.js / baileys.
+    /// 2xx = نجاح. 404 = الجلسة ميتة أصلاً (نعتبره نجاح).
+    /// أي خطأ آخر = فشل، لكن لا نرمي exception — المستدعي يحذف من DB بكل الأحوال.
+    /// </summary>
+    public async Task<bool> DisconnectSessionAsync(string serverUrl, string phoneNumber)
+    {
+        if (string.IsNullOrEmpty(serverUrl) || string.IsNullOrEmpty(phoneNumber)) return false;
+
+        var baseUrl = serverUrl.TrimEnd('/');
+        var clean = new string(phoneNumber.Where(char.IsDigit).ToArray());
+
+        // جرّب endpoints شائعة بالترتيب — أول نجاح يكفي.
+        var attempts = new (HttpMethod Method, string Path)[]
+        {
+            (HttpMethod.Delete, $"/session/{clean}"),
+            (HttpMethod.Post,   $"/session/{clean}/logout"),
+            (HttpMethod.Post,   $"/logout/{clean}"),
+            (HttpMethod.Delete, $"/sessions/{clean}"),
+        };
+
+        foreach (var (method, path) in attempts)
+        {
+            try
+            {
+                using var req = new HttpRequestMessage(method, $"{baseUrl}{path}");
+                var response = await _http.SendAsync(req);
+                // 2xx = نجاح، 404 = الجلسة غير موجودة (نعتبره نجاحاً منطقياً)
+                if (response.IsSuccessStatusCode ||
+                    response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    return true;
+            }
+            catch
+            {
+                // نتجاهل ونجرّب الـ endpoint التالي
+            }
+        }
+
+        return false;
+    }
+
     // ★ تشخيص حالة السيرفر و QR
     public async Task<object> InspectQRAsync(string serverUrl)
     {

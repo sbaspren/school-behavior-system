@@ -269,7 +269,17 @@ public class AppDbContext : DbContext
             e.ToTable("parent_access_codes");
             e.HasIndex(x => x.Code).IsUnique();
         });
-        modelBuilder.Entity<WhatsAppSession>(e => { e.ToTable("whatsapp_sessions"); });
+        modelBuilder.Entity<WhatsAppSession>(e =>
+        {
+            e.ToTable("whatsapp_sessions");
+            // ★ العلاقة مع User: حذف المستخدم يحذف جلساته تلقائياً
+            e.HasOne(s => s.User)
+                .WithMany()
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired(false);
+            e.HasIndex(s => s.UserId);
+        });
         modelBuilder.Entity<AuditLog>(e => { e.ToTable("audit_logs"); });
         modelBuilder.Entity<WhatsAppSettings>(e => { e.ToTable("whatsapp_settings"); });
         modelBuilder.Entity<MessageTemplate>(e =>

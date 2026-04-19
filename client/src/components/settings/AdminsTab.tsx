@@ -252,6 +252,7 @@ interface AdminModalProps {
 
 const AdminModal: React.FC<AdminModalProps> = ({ user, allUsers, stages, onClose, onSaved }) => {
   const isEdit = !!user;
+  const isCurrentlyAdmin = user?.role === 'Admin';
   const [name, setName] = useState(user?.name || '');
   const [role, setRole] = useState(user?.permissions || '');
   const [mobile, setMobile] = useState(user?.mobile || '');
@@ -311,7 +312,8 @@ const AdminModal: React.FC<AdminModalProps> = ({ user, allUsers, stages, onClose
     if (enableLogin && loginSupport === 'active' && !isEdit && !password.trim()) { showError('كلمة المرور مطلوبة لإنشاء حساب الدخول'); return; }
 
     setSaving(true);
-    const systemRole = ADMIN_ROLE_TO_SYSTEM_ROLE[role] || 'Staff';
+    // ★ المدير يبقى Admin دائماً. نرسل الصلاحية في permissions فقط (الـ backend يحمي الدور أيضاً).
+    const systemRole = isCurrentlyAdmin ? 'Admin' : (ADMIN_ROLE_TO_SYSTEM_ROLE[role] || 'Staff');
     const data: UserData = {
       name: name.trim(),
       role: systemRole,
@@ -343,6 +345,17 @@ const AdminModal: React.FC<AdminModalProps> = ({ user, allUsers, stages, onClose
 
         {/* Body */}
         <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+          {/* ★ تنبيه: المستخدم مدير — سيبقى مديراً مع إضافة الصلاحية */}
+          {isEdit && isCurrentlyAdmin && (
+            <div style={infoBannerStyle('#fef9c3', '#713f12', '#fde68a')}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>shield_person</span>
+              <span>
+                هذا المستخدم <strong>مدير النظام</strong>. سيبقى مديراً بكامل صلاحياته،
+                وستُضاف له الصلاحية المختارة كواجهة إضافية (مثل واجهة الوكيل على الجوال).
+              </span>
+            </div>
+          )}
+
           {/* الدور */}
           <div style={{ marginBottom: 16 }}>
             <label style={labelStyle}>الدور *</label>

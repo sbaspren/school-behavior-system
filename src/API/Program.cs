@@ -98,6 +98,50 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+
+    // ★ Defensive schema upgrades — تعمل بأمان على DB جديد أو متقدم.
+    //   نستخدم هذا بدل migration كاملة لأن الـ snapshot قد يكون متأخراً عن الكود.
+    //   كل عبارة idempotent — ما تكسر شي لو تم تشغيلها مرتين.
+    try
+    {
+        // إضافة UserId + FK إلى whatsapp_sessions (الإصلاح 5 — per-user deputy sessions).
+        db.Database.ExecuteSqlRaw(@"
+            SET @col := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE()
+                         AND TABLE_NAME = 'whatsapp_sessions'
+                         AND COLUMN_NAME = 'UserId');
+            SET @stmt := IF(@col = 0,
+                'ALTER TABLE whatsapp_sessions ADD COLUMN UserId INT NULL',
+                'SELECT 1');
+            PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;");
+
+        db.Database.ExecuteSqlRaw(@"
+            SET @idx := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                         WHERE TABLE_SCHEMA = DATABASE()
+                         AND TABLE_NAME = 'whatsapp_sessions'
+                         AND INDEX_NAME = 'IX_whatsapp_sessions_UserId');
+            SET @stmt := IF(@idx = 0,
+                'CREATE INDEX IX_whatsapp_sessions_UserId ON whatsapp_sessions(UserId)',
+                'SELECT 1');
+            PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;");
+
+        db.Database.ExecuteSqlRaw(@"
+            SET @fk := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+                        WHERE TABLE_SCHEMA = DATABASE()
+                        AND TABLE_NAME = 'whatsapp_sessions'
+                        AND CONSTRAINT_NAME = 'FK_whatsapp_sessions_users_UserId');
+            SET @stmt := IF(@fk = 0,
+                'ALTER TABLE whatsapp_sessions ADD CONSTRAINT FK_whatsapp_sessions_users_UserId
+                 FOREIGN KEY (UserId) REFERENCES users(Id) ON DELETE CASCADE',
+                'SELECT 1');
+            PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;");
+    }
+    catch (Exception ex)
+    {
+        var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SchemaUpgrade");
+        logger.LogWarning(ex, "Defensive schema upgrade failed (non-fatal)");
+    }
+
     await DataSeeder.SeedAsync(db);
 }
 

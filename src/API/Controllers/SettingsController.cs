@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using SchoolBehaviorSystem.Application.DTOs.Requests;
 using SchoolBehaviorSystem.Application.DTOs.Responses;
 using SchoolBehaviorSystem.Application.Interfaces;
 using SchoolBehaviorSystem.Domain.Entities;
 using SchoolBehaviorSystem.Domain.Enums;
+using SchoolBehaviorSystem.Infrastructure.Data;
 
 namespace SchoolBehaviorSystem.API.Controllers;
 
@@ -14,10 +16,12 @@ namespace SchoolBehaviorSystem.API.Controllers;
 public class SettingsController : ControllerBase
 {
     private readonly ISchoolConfigService _configService;
+    private readonly AppDbContext _db;
 
-    public SettingsController(ISchoolConfigService configService)
+    public SettingsController(ISchoolConfigService configService, AppDbContext db)
     {
         _configService = configService;
+        _db = db;
     }
 
     [HttpGet]
@@ -184,6 +188,29 @@ public class SettingsController : ControllerBase
         }
 
         await _configService.SaveStructureAsync(schoolType, secondarySystem, stageConfigs);
+
+        // ★ تنظيف نطاقات المستخدمين من الصفوف/المراحل المحذوفة.
+        // مفاتيح الفصول: {gradeName}_{stage}_{letter} — نشطب أي مفتاح يحتوي مرحلة محذوفة.
+        if (removedStages.Count > 0)
+        {
+            var removedMarkers = removedStages.Select(s => $"_{s}_").ToList();
+            var affectedUsers = await _db.Users
+                .Where(u => u.ScopeType == "classes" && u.ScopeValue != "")
+                .ToListAsync();
+            foreach (var u in affectedUsers)
+            {
+                var keep = u.ScopeValue.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Where(k => !removedMarkers.Any(m => k.Contains(m)))
+                    .ToArray();
+                var newScope = string.Join(",", keep);
+                if (newScope != u.ScopeValue)
+                {
+                    u.ScopeValue = newScope;
+                    u.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+            await _db.SaveChangesAsync();
+        }
 
         var addedStages = newEnabledIds.Except(oldEnabledIds).Select(s => s.ToArabic()).ToList();
 

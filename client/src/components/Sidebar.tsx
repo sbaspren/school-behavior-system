@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import ChangePasswordModal from './shared/ChangePasswordModal';
 
 interface Props {
   open: boolean;
@@ -60,6 +61,7 @@ const NAV_ITEMS: NavGroup[] = [
 ];
 
 const Sidebar: React.FC<Props> = ({ open, role, schoolName, whatsAppMode }) => {
+  const [pwOpen, setPwOpen] = useState(false);
   if (!open) return null;
 
   const visibleGroups = NAV_ITEMS.map(group => ({
@@ -170,6 +172,37 @@ const Sidebar: React.FC<Props> = ({ open, role, schoolName, whatsAppMode }) => {
           </div>
         ))}
       </nav>
+
+      {/* ★ Footer: زر تغيير كلمة المرور — متاح لكل الأدوار */}
+      <div style={{
+        padding: '12px', borderTop: '1px solid var(--c-border-light)',
+      }}>
+        <button
+          onClick={() => setPwOpen(true)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+            padding: '8px 12px', borderRadius: 8, background: 'transparent',
+            border: '1px solid transparent', cursor: 'pointer',
+            color: 'var(--c-text-secondary)', fontSize: 13, fontWeight: 500,
+            fontFamily: "inherit", textAlign: 'right',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#f3f4f6';
+            e.currentTarget.style.borderColor = '#e5e7eb';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.borderColor = 'transparent';
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#64748b' }}>
+            lock_reset
+          </span>
+          <span>تغيير كلمة المرور</span>
+        </button>
+      </div>
+
+      {pwOpen && <ChangePasswordModal onClose={() => setPwOpen(false)} />}
     </aside>
   );
 };

@@ -37,6 +37,11 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<List<object>>.Ok(users.Cast<object>().ToList()));
     }
 
+    // ★ صيغة البريد الإلكتروني — regex بسيط كافٍ لرفض المدخلات الخاطئة الواضحة.
+    private static bool IsValidEmail(string email) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            email, @"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
+
     [HttpPost]
     public async Task<ActionResult<ApiResponse>> AddUser([FromBody] AddUserRequest request)
     {
@@ -46,12 +51,22 @@ public class UsersController : ControllerBase
         if (!Enum.TryParse<UserRole>(request.Role, true, out var role))
             return Ok(ApiResponse.Fail("الدور غير صالح"));
 
-        // كشف التكرار بالجوال
+        // ★ فحص صيغة البريد (اختياري — لو موجود لازم يكون صحيح)
+        if (!string.IsNullOrWhiteSpace(request.Email) && !IsValidEmail(request.Email))
+            return Ok(ApiResponse.Fail("صيغة البريد الإلكتروني غير صحيحة"));
+
+        // ★ فحص طول كلمة المرور
+        if (!string.IsNullOrEmpty(request.Password) && request.Password.Length < 6)
+            return Ok(ApiResponse.Fail("كلمة المرور يجب أن تكون 6 أحرف على الأقل"));
+
+        // ★ فحص تكرار الجوال عبر كل المدارس (IgnoreQueryFilters) — وليس فقط داخل المدرسة.
+        // في SaaS متعدد المستأجرين، نفس الجوال في مدرستين يسبب ثغرة في تسجيل الدخول.
         if (!string.IsNullOrEmpty(request.Mobile))
         {
-            var exists = await _db.Users.AnyAsync(u => u.Mobile == request.Mobile);
+            var exists = await _db.Users.IgnoreQueryFilters()
+                .AnyAsync(u => u.Mobile == request.Mobile && u.IsActive);
             if (exists)
-                return Ok(ApiResponse.Fail("رقم الجوال مسجل مسبقاً"));
+                return Ok(ApiResponse.Fail("رقم الجوال مسجل مسبقاً في النظام"));
         }
 
         var tokenLink = _authService.GenerateTokenLink();
@@ -90,8 +105,27 @@ public class UsersController : ControllerBase
             return Ok(ApiResponse.Fail("المستخدم غير موجود"));
 
         if (!string.IsNullOrWhiteSpace(request.Name)) user.Name = request.Name;
-        if (Enum.TryParse<UserRole>(request.Role, true, out var role)) user.Role = role;
-        if (request.Mobile != null) user.Mobile = request.Mobile;
+
+        // ★ حماية دور Admin: لا يُغيَّر أبداً عبر هذا الـ endpoint.
+        // لو الواجهة أرسلت دور مختلف، نقبل الصلاحية (Permissions) ونحتفظ بالدور الأساسي.
+        if (user.Role != UserRole.Admin
+            && Enum.TryParse<UserRole>(request.Role, true, out var role))
+        {
+            user.Role = role;
+        }
+
+        // ★ فحص تكرار الجوال عبر جميع المدارس (IgnoreQueryFilters) — وليس فقط داخل المدرسة.
+        if (request.Mobile != null && request.Mobile != user.Mobile)
+        {
+            if (!string.IsNullOrWhiteSpace(request.Mobile))
+            {
+                var duplicate = await _db.Users.IgnoreQueryFilters()
+                    .AnyAsync(u => u.Id != id && u.Mobile == request.Mobile && u.IsActive);
+                if (duplicate)
+                    return Ok(ApiResponse.Fail("رقم الجوال مسجل مسبقاً في النظام"));
+            }
+            user.Mobile = request.Mobile;
+        }
         if (request.Email != null) user.Email = request.Email;
         if (request.Permissions != null) user.Permissions = request.Permissions;
         if (request.ScopeType != null) user.ScopeType = request.ScopeType;
@@ -104,8 +138,17 @@ public class UsersController : ControllerBase
             if (callerRole == "Admin")
                 user.CanUseAdminWhatsApp = request.CanUseAdminWhatsApp.Value;
         }
+        // ★ فحص صيغة البريد عند التعديل
+        if (!string.IsNullOrWhiteSpace(request.Email) && !IsValidEmail(request.Email))
+            return Ok(ApiResponse.Fail("صيغة البريد الإلكتروني غير صحيحة"));
+
+        // ★ فحص طول كلمة المرور عند التعديل
         if (!string.IsNullOrEmpty(request.Password))
+        {
+            if (request.Password.Length < 6)
+                return Ok(ApiResponse.Fail("كلمة المرور يجب أن تكون 6 أحرف على الأقل"));
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        }
 
         user.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
@@ -121,6 +164,21 @@ public class UsersController : ControllerBase
         if (user == null)
             return Ok(ApiResponse.Fail("المستخدم غير موجود"));
 
+        // ★ منع حذف النفس — يفقد المستخدم دخوله فوراً بعد الحذف.
+        var callerIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(callerIdStr, out var callerId) && callerId == id)
+            return Ok(ApiResponse.Fail("لا يمكنك حذف حسابك الشخصي. اطلب من مدير آخر."));
+
+        // ★ حماية آخر مدير — حذفه يعطّل Impersonate ولوحة الإعدادات كلياً.
+        if (user.Role == UserRole.Admin)
+        {
+            var adminCount = await _db.Users
+                .CountAsync(u => u.Role == UserRole.Admin && u.IsActive && u.Id != id);
+            if (adminCount == 0)
+                return Ok(ApiResponse.Fail(
+                    "لا يمكن حذف آخر مدير في المدرسة. أنشئ مديراً آخر أولاً."));
+        }
+
         var deletedName = user.Name;
         _db.Users.Remove(user);
         await _db.SaveChangesAsync();
@@ -132,6 +190,37 @@ public class UsersController : ControllerBase
     // ============================================================
     // Link Management
     // ============================================================
+
+    // ★ تعطيل/تفعيل مستخدم (بدون حذف بياناته) — بديل أخف من الحذف.
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id}/toggle-active")]
+    public async Task<ActionResult<ApiResponse<object>>> ToggleActive(int id)
+    {
+        var user = await _db.Users.FindAsync(id);
+        if (user == null)
+            return Ok(ApiResponse<object>.Fail("المستخدم غير موجود"));
+
+        // منع تعطيل النفس
+        var callerIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(callerIdStr, out var callerId) && callerId == id)
+            return Ok(ApiResponse<object>.Fail("لا يمكنك تعطيل حسابك الشخصي"));
+
+        // منع تعطيل آخر مدير نشط
+        if (user.Role == UserRole.Admin && user.IsActive)
+        {
+            var otherActiveAdmins = await _db.Users
+                .CountAsync(u => u.Role == UserRole.Admin && u.IsActive && u.Id != id);
+            if (otherActiveAdmins == 0)
+                return Ok(ApiResponse<object>.Fail("لا يمكن تعطيل آخر مدير نشط"));
+        }
+
+        user.IsActive = !user.IsActive;
+        user.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return Ok(ApiResponse<object>.Ok(new { id = user.Id, isActive = user.IsActive },
+            user.IsActive ? "تم تفعيل المستخدم" : "تم تعطيل المستخدم"));
+    }
 
     [HttpPost("{id}/create-link")]
     public async Task<ActionResult<ApiResponse<object>>> CreateLink(int id)

@@ -99,7 +99,14 @@ public class WhatsAppController : ControllerBase
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
         var currentUser = await _db.Users.FindAsync(userId);
-        var adminHasPhone = await _db.Users.AnyAsync(u => u.Role == UserRole.Admin && u.IsActive && u.HasWhatsApp && u.WhatsAppPhone != "");
+
+        // ★ فحص وجود رقم مربوط للأدمن — مصدر الحقيقة: WhatsAppSessions.
+        var activeAdminIds = await _db.Users
+            .Where(u => u.Role == UserRole.Admin && u.IsActive)
+            .Select(u => u.Id)
+            .ToListAsync();
+        var adminHasPhone = await _db.WhatsAppSessions.AnyAsync(s =>
+            s.UserId == null || (s.UserId.HasValue && activeAdminIds.Contains(s.UserId.Value)));
 
         // ★ 2. النمط الموحد: effectiveStage = "" — مطابق GAS سطر 994
         var effectiveStage = whatsAppMode == "Unified" ? "" : (stage ?? "");
@@ -119,8 +126,10 @@ public class WhatsAppController : ControllerBase
         var serverStatus = await _waServer.GetStatusAsync(serverUrl);
         var serverOnline = serverStatus.IsOnline;
 
-        // جلب الجلسات المحفوظة للمرحلة
-        var savedQ = _db.WhatsAppSessions.AsQueryable();
+        // ★ جلب الجلسات — كل مستخدم يشوف جلساته فقط (+ جلسات Unified المشتركة بـ UserId=null).
+        // لوحة التحكم (MasterKey) هي الوحيدة اللي ترى الكل — هذا endpoint authenticated.
+        var savedQ = _db.WhatsAppSessions
+            .Where(s => s.UserId == userId || s.UserId == null);
         if (!string.IsNullOrEmpty(effectiveStage))
             savedQ = savedQ.Where(s => s.Stage == effectiveStage);
         var savedSessions = await savedQ.ToListAsync();
@@ -138,6 +147,18 @@ public class WhatsAppController : ControllerBase
             var results = await Task.WhenAll(checkTasks);
             foreach (var (phone, alive) in results)
                 sessionStatuses[phone] = alive;
+
+            // ★ تنظيف تلقائي: لو جلسة IsPrimary=true لكنها ميتة على السيرفر،
+            // نطفّي IsPrimary في DB حتى لا يستخدمها النظام في الإرسال.
+            // يحدث عندما يفصل المستخدم الاتصال من جواله مباشرة.
+            var deadPrimary = savedSessions
+                .Where(s => s.IsPrimary && !sessionStatuses.GetValueOrDefault(s.PhoneNumber, false))
+                .ToList();
+            if (deadPrimary.Count > 0)
+            {
+                foreach (var s in deadPrimary) s.IsPrimary = false;
+                await _db.SaveChangesAsync();
+            }
         }
 
         var allSessions = savedSessions.Select(s => new
@@ -303,15 +324,42 @@ public class WhatsAppController : ControllerBase
         if (string.IsNullOrEmpty(serverUrl))
             return BadRequest(ApiResponse<object>.Fail("رابط سيرفر الواتساب غير مُعيّن"));
 
-        // ★ جلب الرقم المرسل: المحدد → الرئيسي للمرحلة → أول متصل في المرحلة (مطابق GAS)
+        // ★ جلب الرقم المرسل — الأولوية:
+        //   1. المحدد في الـ request
+        //   2. جلسة المستخدم الحالي (per-user)  ← الطبقة الجديدة
+        //   3. الرئيسي العام للمرحلة (legacy / Unified mode)
+        //   4. أول متصل في المرحلة
         var senderPhone  = request.SenderPhone;
         var senderUserType = "وكيل";
 
+        // ★ طبقة per-user: إذا المستخدم الحالي عنده جلسة خاصة، نستخدمها.
+        if (string.IsNullOrEmpty(senderPhone))
+        {
+            var currentUserId = int.TryParse(
+                User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid) ? (int?)uid : null;
+            if (currentUserId.HasValue)
+            {
+                var userSession = await _db.WhatsAppSessions
+                    .Where(s => s.UserId == currentUserId && s.IsPrimary &&
+                           (string.IsNullOrEmpty(request.Stage) || s.Stage == request.Stage))
+                    .FirstOrDefaultAsync();
+                if (userSession != null)
+                {
+                    senderPhone    = userSession.PhoneNumber;
+                    senderUserType = userSession.UserType ?? "وكيل";
+                }
+            }
+        }
+
         if (string.IsNullOrEmpty(senderPhone) && !string.IsNullOrEmpty(request.Stage))
         {
+            // ★ legacy fallback: أي جلسة رئيسية بدون مستخدم (Unified mode).
             var primary = await _db.WhatsAppSessions
-                .Where(s => s.Stage == request.Stage && s.IsPrimary)
-                .FirstOrDefaultAsync();
+                .Where(s => s.Stage == request.Stage && s.IsPrimary && s.UserId == null)
+                .FirstOrDefaultAsync()
+                ?? await _db.WhatsAppSessions
+                    .Where(s => s.Stage == request.Stage && s.IsPrimary)
+                    .FirstOrDefaultAsync();
             senderPhone    = primary?.PhoneNumber;
             senderUserType = primary?.UserType ?? "وكيل";
         }
@@ -367,12 +415,31 @@ public class WhatsAppController : ControllerBase
         if (!string.IsNullOrEmpty(request.Stage) && Enum.TryParse<Stage>(request.Stage, true, out var parsed))
             stageEnum = parsed;
 
-        // ★ 1. جلب رقم الواتساب — أولوية: المستخدم المسؤول عن المرحلة، ثم الجلسات القديمة
+        // ★ 1. جلب رقم الواتساب — أولوية:
+        //   (أ) جلسة المستخدم الحالي في WhatsAppSessions (per-user — الجديد)
+        //   (ب) المستخدم المسؤول عن المرحلة (User.WhatsAppPhone legacy)
+        //   (ج) الرئيسي العام للمرحلة (Unified mode)
         string? senderPhone = null;
         string? senderUserType = null;
 
-        // أولاً: بحث عن مستخدم لديه واتساب ونطاقه يشمل المرحلة
-        if (!string.IsNullOrEmpty(request.Stage))
+        // (أ) جلسة المستخدم الحالي
+        var currentUserIdNullable = int.TryParse(
+            User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uidNow) ? (int?)uidNow : null;
+        if (currentUserIdNullable.HasValue)
+        {
+            var ownSession = await _db.WhatsAppSessions
+                .Where(s => s.UserId == currentUserIdNullable && s.IsPrimary &&
+                       (string.IsNullOrEmpty(request.Stage) || s.Stage == request.Stage))
+                .FirstOrDefaultAsync();
+            if (ownSession != null)
+            {
+                senderPhone = ownSession.PhoneNumber;
+                senderUserType = ownSession.UserType;
+            }
+        }
+
+        // (ب) بحث عن مستخدم لديه واتساب ونطاقه يشمل المرحلة
+        if (string.IsNullOrEmpty(senderPhone) && !string.IsNullOrEmpty(request.Stage))
         {
             var userWithWA = await _db.Users
                 .Where(u => u.IsActive && u.HasWhatsApp && u.WhatsAppPhone != "" &&
@@ -385,13 +452,16 @@ public class WhatsAppController : ControllerBase
             }
         }
 
-        // بديل: الجلسات القديمة (WhatsAppSessions) كـ fallback
+        // (ج) الجلسات القديمة (WhatsAppSessions) كـ fallback — نفضّل UserId==null (Unified)
         WhatsAppSession? senderSession = null;
         if (string.IsNullOrEmpty(senderPhone) && !string.IsNullOrEmpty(request.Stage))
         {
             senderSession = await _db.WhatsAppSessions
-                .Where(s => s.Stage == request.Stage && s.IsPrimary)
-                .FirstOrDefaultAsync();
+                .Where(s => s.Stage == request.Stage && s.IsPrimary && s.UserId == null)
+                .FirstOrDefaultAsync()
+                ?? await _db.WhatsAppSessions
+                    .Where(s => s.Stage == request.Stage && s.IsPrimary)
+                    .FirstOrDefaultAsync();
             if (senderSession != null)
             {
                 senderPhone = senderSession.PhoneNumber;
@@ -509,6 +579,9 @@ public class WhatsAppController : ControllerBase
         return Ok(ApiResponse<List<object>>.Ok(sessions.Cast<object>().ToList()));
     }
 
+    // ★ حد أقصى لأرقام الواتساب لكل مدرسة — يحمي السيرفر الخارجي من الإرهاق.
+    private const int MaxSessionsPerSchool = 8;
+
     [HttpPost("sessions")]
     public async Task<ActionResult<ApiResponse<object>>> AddSession([FromBody] AddSessionRequest request)
     {
@@ -517,24 +590,41 @@ public class WhatsAppController : ControllerBase
 
         var schoolSettings = await _db.SchoolSettings.FirstOrDefaultAsync();
         var whatsAppMode   = schoolSettings?.WhatsAppMode.ToString() ?? "PerStage";
-        // ★ في النمط الموحد: المرحلة تكون "" (الكل) — مطابق GAS سطر 511
         var effectiveStage = whatsAppMode == "Unified" ? "" : (request.Stage ?? "");
         var cleanPhone     = CleanPhoneNumber(request.PhoneNumber);
 
-        // ★ جلب جميع جلسات المرحلة لإزالة الرئيسي القديم لاحقاً
+        // ★ UserId من الـ JWT (null إذا كان استدعاء anonymous — مثلاً من لوحة التحكم).
+        var currentUserId = int.TryParse(
+            User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var uid)
+            ? (int?)uid : null;
+
+        // ★ حد أقصى: 8 أرقام لكل مدرسة (tenant) — يُتخطّى إذا كان الرقم موجود ونحن نحدّث فقط.
+        var alreadyExistsForUser = await _db.WhatsAppSessions.AnyAsync(s =>
+            CleanPhoneNumber(s.PhoneNumber) == cleanPhone && s.UserId == currentUserId);
+        if (!alreadyExistsForUser)
+        {
+            var schoolSessionCount = await _db.WhatsAppSessions.CountAsync();
+            if (schoolSessionCount >= MaxSessionsPerSchool)
+                return Ok(ApiResponse<object>.Fail(
+                    $"وصلت للحد الأقصى ({MaxSessionsPerSchool} أرقام لكل مدرسة). احذف رقماً قديماً قبل ربط رقم جديد."));
+        }
+
+        // ★ جلسات المرحلة — نحتاجها لتعديل IsPrimary داخل scope المستخدم.
         var stageSessions = await _db.WhatsAppSessions
             .Where(s => s.Stage == effectiveStage)
             .ToListAsync();
 
-        // ★ التحقق من وجود الرقم مسبقاً — إذا موجود نُحدّثه (مطابق GAS سطر 517-527)
+        // ★ Dedupe per-user: نفس الرقم لنفس المستخدم = تحديث.
+        // نفس الرقم لمستخدم آخر = جلسة مستقلة (لكل وكيل رقمه).
         var existing = stageSessions.FirstOrDefault(s =>
             CleanPhoneNumber(s.PhoneNumber) == cleanPhone &&
-            s.UserType == (request.UserType ?? ""));
+            s.UserId == currentUserId);
 
         if (existing != null)
         {
-            // تحديث الرقم الموجود وجعله رئيسياً
-            foreach (var s in stageSessions) s.IsPrimary = false;
+            // IsPrimary محصور بـ scope المستخدم: نطفّي الرئيسي فقط لجلسات هذا المستخدم.
+            foreach (var s in stageSessions.Where(s => s.UserId == currentUserId))
+                s.IsPrimary = false;
             existing.ConnectionStatus = "متصل";
             existing.LastUsed         = DateTime.UtcNow;
             existing.IsPrimary        = true;
@@ -547,12 +637,13 @@ public class WhatsAppController : ControllerBase
             }));
         }
 
-        // ★ إزالة الرئيسي القديم للمرحلة — مطابق GAS سطر 531
-        foreach (var s in stageSessions) s.IsPrimary = false;
+        // رقم جديد: نطفّي الرئيسي فقط لهذا المستخدم (لا نلمس جلسات المستخدمين الآخرين)
+        foreach (var s in stageSessions.Where(s => s.UserId == currentUserId))
+            s.IsPrimary = false;
 
-        // إضافة رقم جديد كرئيسي
         var session = new WhatsAppSession
         {
+            UserId           = currentUserId,
             PhoneNumber      = cleanPhone,
             Stage            = effectiveStage,
             UserType         = request.UserType ?? "",
@@ -578,29 +669,98 @@ public class WhatsAppController : ControllerBase
     {
         var session = await _db.WhatsAppSessions.FindAsync(id);
         if (session == null)
-            return NotFound(ApiResponse.Fail("\u0627\u0644\u062c\u0644\u0633\u0629 \u063a\u064a\u0631 \u0645\u0648\u062c\u0648\u062f\u0629")); // الجلسة غير موجودة
+            return NotFound(ApiResponse.Fail("الجلسة غير موجودة"));
 
-        // Clear all primary in same stage
-        var sameStageSessions = await _db.WhatsAppSessions
-            .Where(s => s.Stage == session.Stage)
+        // ★ (1) فحص الملكية — الأدمن يعدّل أي جلسة، غيره جلساته فقط.
+        var currentUserId = int.TryParse(
+            User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid) ? uid : 0;
+        var currentRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "";
+        var isAdmin = currentRole == "Admin";
+
+        if (!isAdmin && session.UserId != currentUserId)
+            return Ok(ApiResponse.Fail("لا تملك صلاحية تعديل هذه الجلسة"));
+
+        // ★ (2) إزالة الرئيسي ضمن نفس scope المستخدم (per-user) — لا نلمس جلسات الآخرين.
+        // هذا يحافظ على إصلاح per-user IsPrimary الذي عملناه سابقاً.
+        var sameUserSessions = await _db.WhatsAppSessions
+            .Where(s => s.Stage == session.Stage && s.UserId == session.UserId)
             .ToListAsync();
-        foreach (var s in sameStageSessions) s.IsPrimary = false;
+        foreach (var s in sameUserSessions) s.IsPrimary = false;
         session.IsPrimary = true;
 
         await _db.SaveChangesAsync();
-        return Ok(ApiResponse.Ok());
+        return Ok(ApiResponse.Ok("تم تعيين الرقم الرئيسي"));
     }
 
     [HttpDelete("sessions/{id}")]
-    public async Task<ActionResult<ApiResponse>> DeleteSession(int id)
+    public async Task<ActionResult<ApiResponse>> DeleteSession(
+        int id,
+        [FromServices] ILogger<WhatsAppController> logger)
     {
         var session = await _db.WhatsAppSessions.FindAsync(id);
         if (session == null)
-            return NotFound(ApiResponse.Fail("\u0627\u0644\u062c\u0644\u0633\u0629 \u063a\u064a\u0631 \u0645\u0648\u062c\u0648\u062f\u0629")); // الجلسة غير موجودة
+            return NotFound(ApiResponse.Fail("الجلسة غير موجودة"));
 
+        // ★ (1) فحص الملكية — الأدمن يحذف أي جلسة، غيره يحذف جلسته فقط.
+        var currentUserId = int.TryParse(
+            User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid) ? uid : 0;
+        var currentRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "";
+        var isAdmin = currentRole == "Admin";
+
+        if (!isAdmin && session.UserId != currentUserId)
+            return Ok(ApiResponse.Fail("لا تملك صلاحية حذف هذه الجلسة"));
+
+        // ★ (2) حماية آخر جلسة أدمن في Unified mode.
+        // لو الوضع موحد وفيه وكلاء يعتمدون على رقم الأدمن، لا يُسمح بحذفه.
+        var schoolSettings = await _db.SchoolSettings.FirstOrDefaultAsync();
+        var isUnifiedMode = schoolSettings?.WhatsAppMode == Domain.Enums.WhatsAppMode.Unified;
+        if (isUnifiedMode)
+        {
+            var adminIds = await _db.Users
+                .Where(u => u.Role == UserRole.Admin && u.IsActive)
+                .Select(u => u.Id).ToListAsync();
+            var isAdminSession = session.UserId == null ||
+                (session.UserId.HasValue && adminIds.Contains(session.UserId.Value));
+            if (isAdminSession)
+            {
+                var otherAdminSessions = await _db.WhatsAppSessions
+                    .CountAsync(s => s.Id != id &&
+                        (s.UserId == null || adminIds.Contains(s.UserId ?? 0)));
+                var hasDeputies = await _db.Users
+                    .AnyAsync(u => u.Role == UserRole.Deputy && u.IsActive);
+                if (otherAdminSessions == 0 && hasDeputies)
+                    return Ok(ApiResponse.Fail(
+                        "لا يمكن حذف آخر رقم للمدرسة في الوضع الموحد — الوكلاء يعتمدون عليه. " +
+                        "غيّر الوضع إلى 'متعدد' أولاً، أو اربط رقماً بديلاً."));
+            }
+        }
+
+        // ★ (3) محاولة فصل الجلسة من السيرفر الخارجي — best-effort، لا يمنع الحذف.
+        try
+        {
+            var settings = await GetOrCreateSettingsAsync();
+            var serverUrl = settings?.ServerUrl ?? "";
+            if (!string.IsNullOrEmpty(serverUrl))
+            {
+                var disconnected = await _waServer.DisconnectSessionAsync(serverUrl, session.PhoneNumber);
+                if (!disconnected)
+                    logger.LogWarning("فشل فصل الجلسة من السيرفر الخارجي — سنحذف من DB فقط. Phone: {Phone}",
+                        session.PhoneNumber);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "خطأ أثناء فصل الجلسة من السيرفر الخارجي");
+        }
+
+        // ★ (4) حذف من قاعدة البيانات.
         _db.WhatsAppSessions.Remove(session);
         await _db.SaveChangesAsync();
-        return Ok(ApiResponse.Ok());
+
+        logger.LogInformation("تم حذف جلسة واتساب — SessionId: {Id}, Phone: {Phone}, By: {UserId}",
+            id, session.PhoneNumber, currentUserId);
+
+        return Ok(ApiResponse.Ok("تم فصل الرقم بنجاح"));
     }
 
     [HttpGet("stats")]
@@ -883,16 +1043,23 @@ public class WhatsAppController : ControllerBase
             // لكن نسجّل الحالة الفعلية
         }
 
-        // إزالة علامة رئيسي من جميع أرقام المرحلة
+        // ★ UserId من JWT — الجلسة تُربط بالمستخدم الذي ربط رقمه.
+        var currentUserId = int.TryParse(
+            User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var uid)
+            ? (int?)uid : null;
+
         var stageSessions = await _db.WhatsAppSessions
             .Where(s => s.Stage == effectiveStage)
             .ToListAsync();
-        foreach (var s in stageSessions) s.IsPrimary = false;
 
-        // هل الرقم موجود مسبقاً؟
+        // نطفّي الرئيسي فقط لجلسات هذا المستخدم (كل وكيل له رقمه الرئيسي المستقل).
+        foreach (var s in stageSessions.Where(s => s.UserId == currentUserId))
+            s.IsPrimary = false;
+
+        // هل الرقم موجود مسبقاً لنفس المستخدم؟
         var existing = stageSessions.FirstOrDefault(s =>
             s.PhoneNumber == cleanPhone &&
-            s.UserType    == (request.UserType ?? "وكيل"));
+            s.UserId == currentUserId);
 
         if (existing != null)
         {
@@ -902,8 +1069,15 @@ public class WhatsAppController : ControllerBase
         }
         else
         {
+            // ★ فحص الحد الأقصى (8 أرقام لكل مدرسة) قبل إضافة جلسة جديدة.
+            var schoolSessionCount = await _db.WhatsAppSessions.CountAsync();
+            if (schoolSessionCount >= MaxSessionsPerSchool)
+                return Ok(ApiResponse<object>.Fail(
+                    $"وصلت للحد الأقصى ({MaxSessionsPerSchool} أرقام لكل مدرسة). احذف رقماً قديماً قبل ربط رقم جديد."));
+
             _db.WhatsAppSessions.Add(new WhatsAppSession
             {
+                UserId           = currentUserId,
                 PhoneNumber      = cleanPhone,
                 Stage            = effectiveStage,
                 UserType         = request.UserType ?? "وكيل",
@@ -1084,27 +1258,36 @@ public class WhatsAppController : ControllerBase
     {
         var deputies = await _db.Users
             .Where(u => u.Role == UserRole.Deputy && u.IsActive)
+            .Select(u => u.Id)
             .ToListAsync();
 
         // لا يوجد وكلاء → سيناريو 1
         if (deputies.Count == 0)
             return 1;
 
-        // هل يوجد رقم رئيسي مربوط؟
-        var adminHasNumber = await _db.WhatsAppSessions.AnyAsync(s => s.IsPrimary);
+        // ★ المصدر الصحيح = WhatsAppSessions (وليس User.HasWhatsApp القديم).
+        // رقم الأدمن = جلسة UserId = أدمن نشط، أو جلسة UserId=null (Unified mode legacy).
+        var adminIds = await _db.Users
+            .Where(u => u.Role == UserRole.Admin && u.IsActive)
+            .Select(u => u.Id)
+            .ToListAsync();
 
-        // هل أي وكيل عنده رقمه الخاص؟
-        var anyDeputyHasOwnNumber = deputies.Any(d => d.HasWhatsApp && !string.IsNullOrEmpty(d.WhatsAppPhone));
+        var adminHasNumber = await _db.WhatsAppSessions.AnyAsync(s =>
+            s.UserId == null || (s.UserId.HasValue && adminIds.Contains(s.UserId.Value)));
 
-        // لا رقم رئيسي → سيناريو 4
+        // هل أي وكيل عنده جلسة خاصة مربوطة؟
+        var anyDeputyHasOwnNumber = await _db.WhatsAppSessions.AnyAsync(s =>
+            s.UserId.HasValue && deputies.Contains(s.UserId.Value));
+
+        // لا رقم رئيسي للأدمن → سيناريو 4 (الوكلاء فقط يربطون)
         if (!adminHasNumber)
             return 4;
 
-        // رقم رئيسي + وكيل عنده رقمه → سيناريو 3
+        // رقم أدمن + وكيل عنده رقمه → سيناريو 3 (مختلط)
         if (anyDeputyHasOwnNumber)
             return 3;
 
-        // رقم رئيسي + لا وكيل عنده رقم → سيناريو 2
+        // رقم أدمن فقط → سيناريو 2 (موحد)
         return 2;
     }
 

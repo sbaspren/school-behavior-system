@@ -61,6 +61,15 @@ public class LicensesController : ControllerBase
         if (tenant.Status != TenantStatus.Unused)
             return Ok(ApiResponse<object>.Fail("هذا الكود مُستخدم مسبقاً"));
 
+        // ★ فحص تكرار الجوال عبر جميع المدارس — يمنع ثغرة تسجيل دخول بين المدارس
+        // وفشل الدخول للمدير الشرعي بسبب تعارض على نفس الرقم.
+        var phoneAdminPhone = req.AdminPhone.Trim();
+        var phoneAlreadyUsed = await _db.Users.IgnoreQueryFilters()
+            .AnyAsync(u => u.Mobile == phoneAdminPhone && u.IsActive);
+        if (phoneAlreadyUsed)
+            return Ok(ApiResponse<object>.Fail(
+                "رقم الجوال مسجّل في النظام مسبقاً. يرجى استخدام رقم آخر للمدير."));
+
         // تفعيل الاشتراك
         tenant.Status = TenantStatus.Active;
         tenant.AdminName = req.AdminName.Trim();

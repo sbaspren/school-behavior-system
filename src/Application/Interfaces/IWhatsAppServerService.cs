@@ -25,6 +25,15 @@ public interface IWhatsAppServerService
     /// يستخدم محاولة إرسال وهمية — 404 = ميتة، غيره = حية.
     /// </summary>
     Task<bool> IsSessionAliveAsync(string serverUrl, string phoneNumber);
+
+    /// <summary>
+    /// فصل جلسة واتساب من السيرفر الخارجي — best-effort.
+    /// يحاول endpoints متعددة (DELETE /session، POST /logout) ويعتبر "success"
+    /// أي رد 2xx أو 404 (الجلسة ميتة أصلاً).
+    /// لا يرمي exception — السبب: قد يفشل لأن السيرفر لا يدعم هذا الـ endpoint،
+    /// لكن يجب أن لا يمنع حذف السجل من قاعدة بياناتنا.
+    /// </summary>
+    Task<bool> DisconnectSessionAsync(string serverUrl, string phoneNumber);
 }
 
 public class WhatsAppServerStatus

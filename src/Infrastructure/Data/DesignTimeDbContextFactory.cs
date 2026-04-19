@@ -8,10 +8,12 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
     public AppDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-        // يقرأ سلسلة الاتصال من متغير البيئة أو يستخدم القيمة الافتراضية المحلية
         var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
-            ?? "Server=localhost;Port=3306;Database=schoolbehaviorsystem;User=root;Password=;";
-        optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+            ?? "Server=localhost;Port=3306;Database=design_time;User=root;Password=unused;";
+        // ★ نستخدم ServerVersion ثابت (لا AutoDetect) لنتجنب الاتصال الفعلي وقت التصميم.
+        optionsBuilder.UseMySql(
+            connectionString,
+            ServerVersion.Create(10, 6, 0, Pomelo.EntityFrameworkCore.MySql.Infrastructure.ServerType.MariaDb));
 
         return new AppDbContext(optionsBuilder.Options);
     }

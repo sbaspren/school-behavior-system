@@ -167,6 +167,32 @@ const WhatsAppPage: React.FC = () => {
   useEffect(() => { loadStatus(); loadSettings(); }, [loadStatus, loadSettings]);
   useEffect(() => { return () => { stopQRPolling(); }; }, []);
 
+  // ★ Polling تلقائي كل 30 ثانية — يكتشف لو المستخدم فصل من جواله
+  //   ويحدّث الواجهة (متصل → غير متصل) بدون Hard Refresh.
+  //   يتوقف خلال مسح QR لتجنّب تعارض.
+  useEffect(() => {
+    const statusPoll = setInterval(() => {
+      if (mainView !== 'qr-scan' && mainView !== 'qr-success' && pageView !== 'settings') {
+        loadStatus();
+      }
+    }, 30000);
+
+    // تحديث فوري عند رجوع التبويب للتركيز (المستخدم تركه ورجع)
+    const onFocus = () => {
+      if (mainView !== 'qr-scan' && mainView !== 'qr-success' && pageView !== 'settings') {
+        loadStatus();
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+
+    return () => {
+      clearInterval(statusPoll);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [loadStatus, mainView, pageView]);
+
   const stageInfo = getStageInfo(currentStage, status?.whatsappMode || waMode);
 
   // =========================================================================

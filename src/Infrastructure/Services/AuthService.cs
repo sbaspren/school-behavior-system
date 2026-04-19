@@ -23,14 +23,18 @@ public class AuthService : IAuthService
 
     public async Task<AuthResult> LoginAsync(string mobile, string password)
     {
-        // ★ تجاوز فلتر TenantId — عند تسجيل الدخول لا نعرف Tenant المستخدم بعد
-        var user = await _db.Users.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(u => u.Mobile == mobile && u.IsActive);
-        if (user == null)
-            return AuthResult.Fail("رقم الجوال غير مسجل");
+        // ★ نجلب كل المستخدمين بنفس الجوال (قد يكون موجوداً في أكثر من مدرسة في SaaS).
+        // ثم نختار الذي تطابق كلمة مروره — هذا يمنع تسريب بيانات بين المدارس.
+        var candidates = await _db.Users.IgnoreQueryFilters()
+            .Where(u => u.Mobile == mobile && u.IsActive)
+            .ToListAsync();
 
-        if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
-            return AuthResult.Fail("كلمة المرور غير صحيحة");
+        var user = candidates.FirstOrDefault(u =>
+            !string.IsNullOrEmpty(u.PasswordHash) &&
+            BCrypt.Net.BCrypt.Verify(password, u.PasswordHash));
+
+        if (user == null)
+            return AuthResult.Fail("رقم الجوال أو كلمة المرور غير صحيحة");
 
         var token = GenerateJwtToken(user);
         return AuthResult.Ok(token, user);
